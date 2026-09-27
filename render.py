@@ -112,6 +112,9 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
             shutil.copy2(os.path.join(style.FONTS, f), fonts)
     fl.append("[vcat]%s,ass=short.ass:fontsdir=fonts[vout]" % layout_filter(sw, sh, ctx.cfg["layout"]["blur_trim"]))
 
+    # render to "<name>.part.mp4" first: a stopped or failed render never leaves a
+    # broken file that looks finished
+    part = os.path.splitext(out_path)[0] + ".part.mp4"
     graph = os.path.join(work, "graph.txt")
     with open(graph, "w", encoding="utf-8") as f:
         f.write(";\n".join(fl))
@@ -119,10 +122,11 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
         "-/filter_complex", "graph.txt", "-map", "[vout]"]
     cmd += (["-map", "[acat]", "-c:a", "aac", "-b:a", "320k"] if alabels else [])
     cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart", "-t", "%.4f" % (b - a), os.path.abspath(out_path)]
+            "-movflags", "+faststart", "-t", "%.4f" % (b - a), os.path.abspath(part)]
     log("  rendering %s (%.1fs, %d video piece(s), %d audio clip(s))"
         % (os.path.basename(out_path), b - a, len(vid), len(alabels)))
     subprocess.run(cmd, cwd=work, check=True)
+    os.replace(part, out_path)                   # only a finished video gets the real name
     return out_path
 
 

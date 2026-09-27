@@ -93,7 +93,7 @@ def _snap(t, pauses, markers, window, prefer_marker=2.0):
     return t, None
 
 
-def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0):
+def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0, floor=0.2):
     """Ranked Short suggestions: [{start, end, score (0-100), why, peak}]."""
     ex = np.array(summ["excite"])
     n = len(ex)
@@ -105,7 +105,7 @@ def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0):
     out = []
     order = np.argsort(-ex)
     for peak in order:
-        if len(out) >= count or ex[peak] < 0.35:
+        if len(out) >= count or ex[peak] < floor:
             break
         t = (peak + 0.5) * summ["bin"]
         if any(a - gap <= t <= b + gap for a, b in taken):

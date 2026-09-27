@@ -26,7 +26,7 @@ datas = [
     (os.path.join(ROOT, "CHANGELOG.md"), "."),
 ]
 binaries, hidden = [], []
-for pkg in ("faster_whisper", "ctranslate2", "onnxruntime", "av", "tokenizers", "webview", "qrcode"):
+for pkg in ("faster_whisper", "ctranslate2", "onnxruntime", "av", "tokenizers", "webview", "qrcode", "psutil"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

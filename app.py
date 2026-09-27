@@ -183,7 +183,53 @@ def results(outdir, shorts_dir, cfg):
 
 
 # -- jobs ------------------------------------------------------------------------------
-JOB = {"id": 0, "lines": [], "done": True, "code": None, "title": "", "started": 0}
+JOB = {"id": 0, "lines": [], "done": True, "code": None, "title": "", "started": 0, "stopped": False, "paused": False}
+PROC = [None]                     # the running job's process, so it can be stopped
+
+
+def _tree(pid):
+    import psutil
+    try:
+        root = psutil.Process(pid)
+        return [root] + root.children(recursive=True)
+    except psutil.NoSuchProcess:
+        return []
+
+
+def pause_job(pause=True):
+    """Freeze (or continue) the running job and everything it started, in place:
+    a paused render picks up exactly where it stopped."""
+    p = PROC[0]
+    if not p or p.poll() is not None:
+        return False
+    for proc in _tree(p.pid):
+        try:
+            proc.suspend() if pause else proc.resume()
+        except Exception:
+            pass
+    JOB["paused"] = pause
+    if pause:
+        JOB["paused_at"] = time.time()
+    else:
+        JOB["started"] += time.time() - JOB.get("paused_at", time.time())   # pause doesn't count as time spent
+    return True
+
+
+def stop_job():
+    """Stop the running job and everything it started (ffmpeg included)."""
+    p = PROC[0]
+    if not p or p.poll() is not None:
+        return False
+    JOB["stopped"] = True
+    if JOB.get("paused"):
+        pause_job(False)                        # a frozen process can't be asked to exit
+    JOB["paused"] = False
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    else:
+        p.kill()
+    return True
 LOCK = threading.Lock()
 
 
@@ -201,6 +247,8 @@ def command(action, o):
         return ["style", p, "--preview", str(o["at"]), "--seconds", str(o.get("seconds", 10))]
     if action == "make":
         c = ["make", p, "--preset", o.get("preset", "medium")]
+        if o.get("indexes"):
+            return c + ["--indexes", ",".join(str(int(i)) for i in o["indexes"])]
         return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
     if action == "timeline":
         return ["timeline", p, "--count", str(int(o.get("count", 12))), "--min", str(o.get("min", 20)),
@@ -222,9 +270,12 @@ def run_job(title, argv):
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
         # the installed app ships a console twin, shorts-cli.exe; from source we run shorts.py
         cmd = [os.path.join(APPDIR, "shorts-cli.exe")] if FROZEN else [PY, os.path.join(HERE, "shorts.py")]
+        JOB["stopped"] = False
+        JOB["paused"] = False
         proc = subprocess.Popen(cmd + argv, cwd=APPDIR, env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        PROC[0] = proc
         buf = b""
         while True:
             ch = proc.stdout.read(1)
@@ -244,7 +295,10 @@ def run_job(title, argv):
                 buf += ch
         proc.wait()
         with LOCK:
+            if JOB["stopped"]:
+                JOB["lines"].append("Stopped.")
             JOB.update(done=True, code=proc.returncode)
+        PROC[0] = None
 
     threading.Thread(target=work, daemon=True).start()
     return jid
@@ -405,7 +459,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/job":
                 start = int(q.get("from", 0))
                 with LOCK:
-                    return self.send_json(dict(id=JOB["id"], title=JOB["title"], done=JOB["done"],
+                    return self.send_json(dict(id=JOB["id"], title=JOB["title"], done=JOB["done"], stopped=JOB["stopped"], paused=JOB["paused"],
                                                code=JOB["code"], lines=JOB["lines"][start:],
                                                total=len(JOB["lines"]), started=JOB["started"]))
             if u.path == "/media":
@@ -481,6 +535,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(cfg)
             if u.path == "/api/snippet":
                 return self.send_json({"path": make_snippet(b["path"], float(b["start"]), float(b["end"]))})
+            if u.path == "/api/stop":
+                return self.send_json({"stopped": stop_job()})
+            if u.path == "/api/pause":
+                return self.send_json({"ok": pause_job(bool(b.get("pause", True))), "paused": JOB["paused"]})
             if u.path == "/api/ping":
                 return self.send_json({"ok": True})
         except (Exception, SystemExit) as e:

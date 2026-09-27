@@ -224,7 +224,7 @@ canvas#ov, canvas#dt { touch-action: none; }
 </div>
 <div class="log closed" id="log">
   <div class="log-head" id="logHead"><span class="dot" id="dot"></span><span class="status" id="status">Ready</span>
-    <span class="last" id="last"></span><span class="hint" id="toggleHint">Show log ▴</span></div>
+    <span class="last" id="last"></span><button class="btn sm" id="pauseJob" style="display:none">❚❚ Pause</button><button class="btn sm danger" id="stopJob" style="display:none">■ Stop</button><span class="hint" id="toggleHint">Show log ▴</span></div>
   <pre id="logText"></pre>
 </div>
 <div class="toast" id="toast"></div>
@@ -254,8 +254,8 @@ const setTheme = t => { document.documentElement.dataset.theme = t; store.set("t
 setTheme(store.get("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
 $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
 
-let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "shorts"), sel: 0, markers: null, showSugg: false, showLSugg: false };
-if (["shorts", "screams", "look", "captions", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
+let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "captions"), sel: 0, markers: null, showSugg: false, showLSugg: false };
+if (["shorts", "screams", "look", "captions", "render", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
 
 async function loadState() {
   const st = await api("/api/state");
@@ -330,13 +330,17 @@ async function saveCfg(patch, rerender = true) {
 }
 
 // ---------------------------------------------------------------- views
-const TABS = [["shorts", "Shorts"], ["screams", "Screams & laughs"], ["look", "Look"], ["captions", "Captions"], ["premiere", "Premiere"]];
+// in the order you work: fix captions (optional) -> pick Shorts -> screams & laughs -> look -> render
+const TABS = [["captions", "1 · Captions"], ["shorts", "2 · Shorts"], ["screams", "3 · Screams & laughs"], ["look", "4 · Look"], ["render", "5 · Render"], ["premiere", "Or: finish in Premiere"]];
+const NEXT = { captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
+  look: ["render", "Next: render"] };
 
 function render() {
   const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.prproj$/i, "");
   const counts = { shorts: C.shorts.length, screams: (I.results.screams?.items || []).filter(x => x.on).length
-    + (I.results.laughs?.items || []).filter(x => x.on).length };
+    + (I.results.laughs?.items || []).filter(x => x.on).length,
+    render: C.shorts.length ? `${Object.keys(I.results.renders || {}).length}/${C.shorts.length}` : 0 };
   $("#main").innerHTML = `
   <div class="hero"><div class="hero-text">
     <h2>${esc(name)}</h2>
@@ -354,7 +358,11 @@ function render() {
   $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
   if (S.tab === "shorts" && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
-  ({ shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, premiere: viewPremiere })[S.tab]();
+  ({ shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, premiere: viewPremiere })[S.tab]();
+  if (NEXT[S.tab]) {
+    $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${NEXT[S.tab][1]} →</button></div>`);
+    $("#nextStep").onclick = () => { S.tab = NEXT[S.tab][0]; store.set("tab", S.tab); render(); $("main").scrollTop = 0; };
+  }
   wireCommon();
 }
 const dis = () => S.busy ? "disabled" : "";
@@ -482,7 +490,7 @@ function refreshShorts() {
   const R = S.info.results.renders || {}, list = shortsList(), sugs = sugList();
   $("#shortsCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Your Shorts <span class="muted" style="font-weight:500">(${list.length})</span></h3></div>
-      ${list.length ? `<button class="btn primary sm" data-run="make" data-index="" ${dis()}>Render all</button><button class="btn link" data-folder="${esc(S.info.shorts_dir)}">Folder</button>` : ""}</div>
+      ${list.length ? `<span class="hint">Render them in step 5</span>` : ""}</div>
     ${list.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
       ${list.map((s, i) => `<tr class="${T.sel?.kind === "short" && T.sel.i === i ? "sel" : ""}" data-pick="short,${i}" style="cursor:pointer">
         <td style="width:18px"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent)"></span></td>
@@ -492,13 +500,14 @@ function refreshShorts() {
   $("#sugCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Suggested <span class="muted" style="font-weight:500">(${sugs.length})</span></h3>
       <p style="font-size:13px">Best moments first, snapped to pauses and markers.</p></div>
-      ${sugs.length ? `<button class="btn sm" id="acceptAll">Accept all</button>` : ""}</div>
+      <div class="row" style="gap:6px">${sugs.length ? `<button class="btn sm" id="acceptAll">Accept all</button>` : ""}
+        ${T.tl ? `<button class="btn sm" id="moreSug" ${dis()} title="Find more, skipping what you've accepted or dismissed">+ More</button>` : ""}</div></div>
     ${!T.tl ? `<p class="hint">Analyse the video to get suggestions.</p>` : sugs.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
       ${sugs.map((s, i) => `<tr class="${T.sel?.kind === "sug" && T.sel.i === i ? "sel" : ""}" data-pick="sug,${i}" style="cursor:pointer">
         <td style="width:46px"><div class="bar" style="width:40px"><i style="width:${s.score}%;background:var(--info)"></i></div><div class="hint">${s.score}</div></td>
         <td>${tc(s.start)} · ${Math.round(s.end - s.start)}s<div class="hint">${esc(s.why)}</div></td>
         <td style="white-space:nowrap"><button class="btn sm" data-accept="${i}">Accept</button><button class="btn sm icon" data-dismiss="${i}" title="Dismiss">✕</button></td></tr>`).join("")}
-      </tbody></table></div>` : `<p class="hint">No more suggestions — re-analyse with a bigger count or different lengths.</p>`}`;
+      </tbody></table></div>` : `<p class="hint">All suggestions used. Press <b>+ More</b> to dig deeper into the video.</p>`}`;
   $$("[data-pick]").forEach(tr => tr.onclick = e => { if (e.target.closest("button")) return; const [k, i] = tr.dataset.pick.split(","); select2({ kind: k, i: +i }, true); });
   $$("[data-accept]").forEach(b => b.onclick = () => { const s = sugList()[+b.dataset.accept]; addShort(s.start, s.end, `Best ${String(shortsList().length + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`); });
   $$("[data-dismiss]").forEach(b => b.onclick = async () => {
@@ -506,6 +515,10 @@ function refreshShorts() {
     S.info.config = await api("/api/config", { path: S.current, patch: { dismissed: [...(S.info.config.dismissed || []), [s.start, s.end]] } });
     T.sel = null; refreshShorts();
   });
+  const ms = $("#moreSug"); if (ms) ms.onclick = () => {
+    const st = T.tl.settings || {};
+    run("timeline", { count: sugList().length + 8, min: st.min || 20, max: st.max || 45 });
+  };
   const aa = $("#acceptAll"); if (aa) aa.onclick = () => {
     const list = [...shortsList(), ...sugs.map((s, k) => ({ name: `Best ${String(shortsList().length + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
     saveShorts(list, `Added ${sugs.length} Shorts`);
@@ -551,7 +564,7 @@ function panel() {
       <button class="btn sm" id="spPlay">▶ Play it</button>
     </div>
     <div class="row" style="margin-top:12px;gap:6px">
-      <button class="btn primary" data-run="make" data-index="${i}" ${dis()}>${r ? "Re-render" : "Render"}</button>
+      <button class="btn" id="spToRender">${r ? "Rendered — see step 5" : "Render it in step 5"}</button>
       <button class="btn sm danger" id="spDel">Remove</button>
     </div>
     ${r ? `<video controls playsinline src="${media(r.path)}#t=0.01" style="margin-top:12px;max-height:340px;width:auto;max-width:100%"></video>
@@ -562,6 +575,7 @@ function panel() {
   $("#spE").onchange = e => { const v = parseTc(e.target.value); isNaN(v) ? toast("Use a time like 6:45") : upd({ end: v }); };
   $("#spSetS").onclick = () => upd({ start: +T.play.toFixed(2) }); $("#spSetE").onclick = () => upd({ end: +T.play.toFixed(2) });
   $("#spPlay").onclick = () => { seek(s.start); playNow(); };
+  $("#spToRender").onclick = () => { S.renderSel = i; S.tab = "render"; store.set("tab", "render"); render(); };
   $("#spDel").onclick = () => { const list = shortsList().filter((_, k) => k !== i); T.sel = null; saveShorts(list, "Removed — Ctrl+Z to undo"); };
   wireCommon();
 }
@@ -897,6 +911,71 @@ function viewScreams() {
   });
 }
 
+// ---- 5 · Render
+const QUALITY = [["veryfast", "Fast (quick checks)"], ["medium", "Balanced (recommended)"], ["slow", "Best (smaller files, slower)"]];
+function viewRender() {
+  const I = S.info, list = I.config.shorts, R = I.results.renders || {};
+  const todo = list.map((_, i) => i).filter(i => !R[list[i].name]);
+  if (S.renderSel == null || !list[S.renderSel]) S.renderSel = list.findIndex(s => R[s.name]);
+  const cur = list[S.renderSel], playing = cur && R[cur.name];
+  $("#view").innerHTML = `
+  <div class="split player-split">
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Render your Shorts</h3>
+        <p>Makes the finished 1080×1920 videos with everything from steps 1–4. Changed something? Render again — the new video replaces the old one.</p></div></div>
+      ${list.length ? `
+      <div class="toolbar" id="renderBar">
+        <button class="btn primary" id="rAll">Render all ${list.length}</button>
+        <button class="btn" id="rTodo" ${todo.length ? "" : "disabled"}>Render the ${todo.length} not done yet</button>
+        <button class="btn" id="rPause" style="display:none">❚❚ Pause</button>
+        <button class="btn danger" id="rStop" style="display:none">■ Stop</button>
+        <span style="flex:1"></span>
+        <label class="row hint" style="gap:6px">Quality <select class="text" id="rQual" style="width:auto">${QUALITY.map(([k, l]) => `<option value="${k}" ${store.get("preset", "medium") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      </div>
+      <div class="result" id="rProg" style="display:none;margin-bottom:12px"></div>
+      <div class="scroll" style="max-height:520px"><table><thead><tr><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
+        ${list.map((s, i) => `<tr class="${i === S.renderSel ? "sel" : ""}" data-rsel="${i}" style="cursor:pointer">
+          <td><b>${esc(s.name)}</b><div class="hint">${tc(s.start)} → ${tc(s.end)}</div></td><td class="muted">${Math.round(s.end - s.start)}s</td>
+          <td>${R[s.name] ? `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>` : `<span class="badge">Not yet</span>`}</td>
+          <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-rone="${i}">${R[s.name] ? "Re-render" : "Render"}</button></td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="row" style="margin-top:10px"><button class="btn link" data-folder="${esc(I.shorts_dir)}">Open the Shorts folder</button></div>`
+      : `<p class="hint">No Shorts yet — pick some in step 2.</p>`}
+    </div>
+    <div class="player">${playing ? `<video controls playsinline src="${media(playing.path)}#t=0.01"></video>
+      <div class="row" style="margin-top:8px"><b style="flex:1;font-size:14px">${esc(cur.name)}</b><button class="btn link" data-folder="${esc(playing.path)}">Show file</button></div>`
+      : `<div class="video-empty">Rendered Shorts play here</div>`}</div>
+  </div>`;
+  if (!list.length) return;
+  $("#rAll").onclick = () => run("make", {});
+  $("#rTodo").onclick = () => run("make", { indexes: todo });
+  $("#rQual").onchange = e => store.set("preset", e.target.value);
+  $("#rPause").onclick = () => $("#pauseJob").click();
+  $("#rStop").onclick = () => $("#stopJob").click();
+  $$("[data-rone]").forEach(b => b.onclick = () => run("make", { index: b.dataset.rone }));
+  $$("[data-rsel]").forEach(tr => tr.onclick = e => { if (e.target.closest("button")) return; S.renderSel = +tr.dataset.rsel; render(); });
+  syncRenderButtons();
+}
+function syncRenderButtons() {
+  const busy = S.busy && /^Rendering/.test(S.jobTitle || "");
+  const show = (id, on) => { const el = $("#" + id); if (el) el.style.display = on ? "" : "none"; };
+  show("rAll", !S.busy); show("rTodo", !S.busy); show("rPause", busy); show("rStop", busy);
+  const p = $("#rPause"); if (p) p.textContent = S.paused ? "▶ Resume" : "❚❚ Pause";
+  $$("[data-rone]").forEach(b => b.disabled = S.busy);
+}
+function renderProgress(text, j) {
+  const box = $("#rProg"); syncRenderButtons();
+  if (!box) return;
+  if (j.done || !/^Rendering/.test(j.title)) { box.style.display = "none"; return; }
+  const items = [...text.matchAll(/^\[(\d+)\/(\d+)\] (.+?)  \(/gm)], last = items.at(-1);
+  const fr = text.match(/time=(\d+):(\d+):(\d+)/g), done = fr ? fr.at(-1).match(/(\d+):(\d+):(\d+)/).slice(1).reduce((a, x) => a * 60 + +x, 0) : 0;
+  const s = last ? S.info.config.shorts.find(x => x.name === last[3]) : null, len = s ? s.end - s.start : 0;
+  const pct = len ? Math.min(100, Math.round(done / len * 100)) : 0;
+  box.style.display = "";
+  box.innerHTML = last ? `<h4><span>${S.paused ? "Paused on" : "Rendering"} Short ${last[1]} of ${last[2]} — <b style="color:var(--text)">${esc(last[3])}</b></span><span>${pct}%</span></h4>
+    <div class="bar"><i style="width:${pct}%;background:var(--accent)"></i></div>` : `<h4><span>Getting ready — reading the project and audio…</span></h4>`;
+}
+
 // ---- Laughs (second card on the Screams & laughs tab)
 const LAUGH_STYLES = [["heh", "heh heh"], ["huh", "huh huh"], ["hehe", "hehe"], ["ha", "haha"], ["HA", "HAHA"]];
 function viewLaughs() {
@@ -1099,7 +1178,9 @@ async function run(action, data = {}) {
   if (action === "timeline") { Object.assign(body, { count: data.count, min: data.min, max: data.max }); }
   if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; }
   if (action === "make") {
-    if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.sel = body.index; }
+    body.preset = store.get("preset", "medium");
+    if (data.indexes) { body.indexes = data.indexes; body.title = `Rendering ${data.indexes.length} Short${data.indexes.length === 1 ? "" : "s"}`; }
+    else if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.renderSel = body.index; }
     else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
   if (action === "burn") { body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; if (!body.video) return toast("Pick the video you exported from Premiere first."); }
@@ -1118,20 +1199,30 @@ async function poll(from) {
   }
   $("#last").textContent = pre.textContent.trim().split("\n").at(-1) || "";
   const secs = Math.round(Date.now() / 1000 - j.started);
+  $("#stopJob").style.display = j.done ? "none" : "";
+  $("#pauseJob").style.display = j.done ? "none" : "";
+  $("#pauseJob").textContent = j.paused ? "▶ Resume" : "❚❚ Pause";
+  S.paused = !j.done && j.paused; S.jobTitle = j.done ? "" : j.title;
+  renderProgress(pre.textContent, j);
   if (!j.done) {
-    setStatus("run", `${j.title}… ${secs < 60 ? secs + "s" : Math.floor(secs / 60) + "m " + secs % 60 + "s"}`);
+    setStatus(j.paused ? "" : "run", j.paused ? `${j.title} — paused` : `${j.title}… ${secs < 60 ? secs + "s" : Math.floor(secs / 60) + "m " + secs % 60 + "s"}`);
     setTimeout(() => poll(j.total - (j.lines.length && j.lines.at(-1).startsWith("frame=") ? 1 : 0)), 600);
     return;
   }
-  S.busy = false;
-  setStatus(j.code === 0 ? "ok" : "bad", j.code === 0 ? `${j.title} — done` : `${j.title} — failed (see log)`);
-  if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
+  S.busy = false; S.paused = false;
+  if (j.stopped) { setStatus("", `${j.title} — stopped`); toast("Stopped. Anything finished before that is kept.", true); }
+  else {
+    setStatus(j.code === 0 ? "ok" : "bad", j.code === 0 ? `${j.title} — done` : `${j.title} — failed (see log)`);
+    if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
+  }
   T.loadedFor = null; T.tl = null;
   await loadState(); await select(S.current, true);
 }
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }
 function openLog(open) { $("#log").classList.toggle("closed", !open); $("#toggleHint").textContent = open ? "Hide log ▾" : "Show log ▴"; }
-$("#logHead").onclick = () => openLog($("#log").classList.contains("closed"));
+$("#logHead").onclick = e => { if (e.target.closest("#stopJob,#pauseJob")) return; openLog($("#log").classList.contains("closed")); };
+$("#pauseJob").onclick = async () => { $("#pauseJob").disabled = true; try { const r = await api("/api/pause", { pause: !S.paused }); S.paused = r.paused; $("#pauseJob").textContent = r.paused ? "▶ Resume" : "❚❚ Pause"; syncRenderButtons(); } catch (e) { toast(e.message); } $("#pauseJob").disabled = false; };
+$("#stopJob").onclick = async () => { $("#stopJob").disabled = true; try { await api("/api/stop", {}); } catch (e) { toast(e.message); } $("#stopJob").disabled = false; };
 if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
 setInterval(() => api("/api/ping", {}).catch(() => setStatus("bad", "Toolkit closed — start it again")), 15000);
 
@@ -1139,7 +1230,7 @@ setInterval(() => api("/api/ping", {}).catch(() => setStatus("bad", "Toolkit clo
   await loadState();
   const j = await api("/api/job?from=0");
   if (!j.done) { S.busy = true; openLog(true); poll(0); }
-  const last = store.get("project", null);
+  const last = new URLSearchParams(location.search).get("project") || store.get("project", null);
   const p = S.projects.find(x => x.path === last) || S.projects[0];
   if (p) select(p.path);
 })();

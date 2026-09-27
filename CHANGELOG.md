@@ -2,6 +2,31 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.9.1 - 2026-09-27
+
+**Workflow order, render controls, more suggestions.**
+
+- **Tabs follow the order you work in:** 1 · Captions → 2 · Shorts → 3 · Screams & laughs →
+  4 · Look → 5 · Render (and "Or: finish in Premiere"), each with a **Next →** button. A new user
+  starts at step 1.
+- **5 · Render** is its own step: Render all, **Render the ones not done yet**, per-Short render,
+  quality (Fast / Balanced / Best), a live "Short 3 of 13 - 45%" progress bar, and the player.
+  Render buttons were removed from the Shorts tab so rendering always comes last.
+- **Stop, Pause, Resume** (Render step and the bottom bar). Pause freezes the job and its ffmpeg in
+  place (psutil) and resumes exactly where it was; Stop ends the whole process tree, also when
+  paused. Closing the app window stops a running render.
+- **Renders write to `<name>.part.mp4`** and only take the real name when complete - a stopped or
+  failed render can never leave a broken file that looks finished. Leftovers are cleared next run.
+- **+ More suggestions:** digs deeper into the video, skipping everything already a Short or
+  dismissed (dismissed ranges are no longer re-suggested; the excitement floor went 0.35 -> 0.2).
+- `shorts.py make --indexes 0,3,5`; the page can open a project from its address (`?project=`).
+
+Found in real use:
+- A Render all had no way to stop - it was stopped by hand and left a half-written
+  `Clip – 48-09.mp4` that the app showed as "Rendered". Fixed by the .part rendering above.
+- Tested: pause froze the output at 9.18 MB for 5 s, resume continued, stop while paused leaves no
+  ffmpeg behind.
+
 ## 0.9.0 - 2026-09-27
 
 **Standalone Windows app + phone/tablet companion.**

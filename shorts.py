@@ -21,7 +21,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -184,7 +184,8 @@ def cmd_timeline(args):
     lplan = laugh_plan(ctx, plan)
     print("[timeline] scoring every second")
     summ = timeline.summary(ctx, plan, lplan, loud_lines(ctx, plan))
-    avoid = [(s["start"], s["end"]) for s in ctx.cfg["shorts"]]
+    # never re-suggest what's already a Short or what you dismissed - "More" digs further down
+    avoid = [(s["start"], s["end"]) for s in ctx.cfg["shorts"]] + [tuple(d) for d in ctx.cfg.get("dismissed", [])]
     summ["suggestions"] = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=avoid)
     summ["settings"] = dict(count=args.count, min=args.min, max=args.max)
     with open(os.path.join(ctx.outdir, "timeline.json"), "w", encoding="utf-8") as f:
@@ -254,11 +255,19 @@ def cmd_make(args):
         items = ctx.cfg["shorts"]
         if args.index is not None:
             items = [items[args.index]]
+        elif args.indexes:
+            items = [items[int(i)] for i in args.indexes.split(",") if i.strip() and int(i) < len(items)]
         jobs = [(s["name"], float(s["start"]), float(s["end"])) for s in items]
     if not jobs:
         sys.exit("No Shorts to render - add some in the app, or pass --start and --end.")
     out = args.out or shorts_dir(ctx)
     os.makedirs(out, exist_ok=True)
+    import glob
+    for leftover in glob.glob(os.path.join(out, "*.part.mp4")):   # from a stopped render
+        try:
+            os.remove(leftover)
+        except OSError:
+            pass
     for n, (name, a, b) in enumerate(jobs, 1):
         if b <= a:
             print("  skipping %r: end is before start" % name)
@@ -590,6 +599,7 @@ def main():
     m.add_argument("--end", help="...and end (e.g. 6:45)")
     m.add_argument("--name", help="file name for --start/--end")
     m.add_argument("--index", type=int, help="render only this Short from the project's list")
+    m.add_argument("--indexes", help="render these Shorts, e.g. 0,3,5")
     m.add_argument("--out", help="folder for the videos (default: <project>_shorts)")
     m.add_argument("--preset", default="medium", help="x264 speed: veryfast (quick) ... slow (smaller file)")
     m.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")

@@ -50,6 +50,7 @@ def main():
     data = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "ShortsToolkit", "webview")
     os.makedirs(data, exist_ok=True)
     webview.start(private_mode=False, storage_path=data)    # keep theme, tab and last project between runs
+    app.stop_job()                                            # closing the window stops a running render
     server.shutdown()
 
 
