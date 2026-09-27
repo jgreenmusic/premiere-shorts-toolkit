@@ -16,7 +16,7 @@ RATE = 16000  # Whisper wants 16 kHz mono
 
 
 # -- 1. timeline audio --------------------------------------------------------
-def timeline_audio(seq, log=print):
+def timeline_audio(seq, log=print, rate=RATE):
     """Mix every audio clip into one mono array laid out on the sequence timeline."""
     items = sorted(seq.audio, key=lambda a: a.start)
     if not items:
@@ -37,16 +37,16 @@ def timeline_audio(seq, log=print):
             runs.append(dict(path=a.path, track=a.track, start=a.start, end=a.end,
                              src_in=a.src_in, src_out=a.src_out))
     total = max(a.end for a in items) / TICKS
-    buf = np.zeros(int(total * RATE) + RATE, dtype=np.float32)
+    buf = np.zeros(int(total * rate) + rate, dtype=np.float32)
     log("  decoding %d audio run(s) (%s of timeline)" % (len(runs), fmt(total)))
     for r in runs:
         dur = (r["end"] - r["start"]) / TICKS
         pcm = subprocess.run(
             ["ffmpeg", "-v", "error", "-ss", "%.6f" % (r["src_in"] / TICKS), "-t", "%.6f" % dur,
-             "-i", r["path"], "-vn", "-ac", "1", "-ar", str(RATE), "-f", "f32le", "-"],
+             "-i", r["path"], "-vn", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"],
             capture_output=True, check=True).stdout
         x = np.frombuffer(pcm, dtype=np.float32)
-        i = int(round(r["start"] / TICKS * RATE))
+        i = int(round(r["start"] / TICKS * rate))
         n = min(len(x), len(buf) - i)
         buf[i:i + n] += x[:n]
     return buf

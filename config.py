@@ -17,6 +17,7 @@ DEFAULTS = {
         "highlight_col": "FFD23C",
         "loud_col": "FF8A3C",
         "scream_col": "FF5A3C",
+        "laugh_col": "8AE3FF",
         "loud_lines": True,       # shouted lines bigger + capitals
     },
     "layout": {
@@ -30,6 +31,11 @@ DEFAULTS = {
         "off": [],                # starts (s) of detected screams you switched OFF
         "add": [],                # [{"start": s, "end": s, "letters": "AH"}] added by hand
         "letters": {},            # {"start": "OH"} letter choice for a suggestion
+    },
+    "laughs": {
+        "on": [], "off": [],      # starts (s) of laughs you switched on / off
+        "add": [],                # [{"start": s, "end": s, "style": "ha"}]
+        "style": {},              # {"start": "heh"} spelling choice: heh, huh, hehe, ha, HA
     },
     "shorts": [],                 # [{"name": "...", "start": s, "end": s}]
 }

@@ -19,7 +19,7 @@ Pick a project on the left, then use the tabs:
 | Tab | What it does |
 |---|---|
 | **Shorts** | Your list of Shorts (timeline ranges). **Import from markers** turns the segments between your sequence markers into Shorts — tick the ones you want. **Render** makes finished vertical videos straight from your recording; they play right in the page and land in `<project>_shorts\`. |
-| **Screams** | Long "AAAH / OHHH / NOOO" moments spelled out letter by letter as the voice goes on. Loud ones are found automatically. Quieter or **uncaptioned** ones (Premiere often doesn't transcribe a scream) are listed as suggestions — press ▶ to listen and switch them on. You can also add one by hand and pick its letters. |
+| **Screams & laughs** | Long "AAAH / OHHH / NOOO" moments spelled out letter by letter as the voice goes on. Loud ones are found automatically. Quieter or **uncaptioned** ones (Premiere often doesn't transcribe a scream) are listed as suggestions — press ▶ to listen and switch them on. You can also add one by hand and pick its letters. **Laughs** are spelled the same way — "heh heh", "hahaha", "HAHAHA", one syllable per burst — and never cover someone's speech unless you switch them on. |
 | **Look** | Gameplay size (how much blur shows above and below), caption size and height, spoken-word highlight, bigger loud lines, colours, and a quick preview. Saved per project. |
 | **Captions** | For captions made in Premiere: check their timing against the speech, and write a synced copy of the project that fixes them (your original is never changed). |
 | **Premiere** | Finishing in Premiere instead: marks loud lines and screams for `animate-captions.jsx`, opens the scripts in VS Code, and burns captions onto a Premiere export. |
@@ -34,6 +34,19 @@ Needs Python 3.10–3.13 and [ffmpeg](https://ffmpeg.org) (with libass) on PATH.
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
+
+**Laugh detection (optional, ~1 GB):** it uses an AudioSet sound-event model (PANNs Cnn14).
+
+```
+.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+.venv\Scripts\python -m pip install panns_inference
+```
+Then put these two files in `%USERPROFILE%\panns_data\` (the package's own downloader needs `wget`,
+which Windows doesn't have):
+[`Cnn14_DecisionLevelMax.pth`](https://zenodo.org/record/3987831/files/Cnn14_DecisionLevelMax_mAP%3D0.385.pth?download=1)
+(save it under exactly that name) and
+[`class_labels_indices.csv`](http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/class_labels_indices.csv).
+Without them everything else works; the Laughs card just says it isn't installed.
 
 The first time a project is analysed, the Whisper speech model downloads (~500 MB) and the
 audio is transcribed on the CPU (about 8 minutes per hour of audio). It's cached after that.
@@ -83,6 +96,9 @@ Save your project first.
 - **Reads the .prproj directly** (gzipped XML): clips, markers, captions (their text is a
   FlatBuffer blob). A synced copy changes only caption start/end numbers and is re-read to verify.
 - **Speech:** faster-whisper word timestamps + the Silero voice detector bundled with it.
+- **Laughs:** PANNs sound-event detection (AudioSet classes Laughter, Giggle, Snicker, Belly laugh,
+  Chuckle) every 10 ms; syllables are counted from the laugh's own loudness pulses. About 25 s
+  per hour of audio on the CPU, cached.
 - **Rendering:** ffmpeg rebuilds the timeline range from the source files, lays the gameplay
   over a blurred copy, and burns in `.ass` subtitles (libass) with the bundled Montserrat font.
   Premiere effects (scale, crop, colour, gain) are not applied — the toolkit uses its own layout.
@@ -90,7 +106,10 @@ Save your project first.
 ## Known limits
 
 - Timing precision is about half a second (Whisper's word times are coarse).
-- Uncaptioned-scream suggestions can be laughs or game audio — that's why they start switched off.
+- Uncaptioned-scream suggestions can still be groans or game audio — that's why they start switched off
+  (ones the laugh model hears as laughing are moved to Laughs).
+- The sound model does **not** recognise gamer yelling as "Screaming", so screams are still found from
+  captions and voice; quiet chuckles under loud game audio or crosstalk can be missed.
 - One caption track per sequence is assumed; clips with speed changes are approximated.
 
 See `CHANGELOG.md` for everything that has changed and why.

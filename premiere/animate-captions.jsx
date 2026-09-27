@@ -16,6 +16,7 @@
 //   loud line  (from the toolkit)  -> bigger pop, stays a little bigger
 //   scream     (from the toolkit)  -> strong pop + wobble on its first letter;
 //                                     the growing letters that follow just appear
+//   laugh      (from the toolkit)  -> a small bounce on every "ha" as it appears
 // Loud/scream data comes from the toolkit's "Prepare for Premiere" step
 // (<project>_captions\premiere-emphasis.csv). Without it, the other rules still apply.
 //
@@ -31,6 +32,7 @@ var SMALL_POP   = [[0, 97], [3, 100]];
 var LOUD_POP    = [[0, 90], [3, 118], [6, 110]];        // ends bigger: 110%
 var SCREAM_POP  = [[0, 84], [3, 122], [6, 112]];
 var SCREAM_WOBBLE = [[0, 0], [2, -3], [4, 2.5], [6, -1.5], [8, 0]];   // [frame, degrees]
+var LAUGH_POP   = [[0, 106], [3, 100]];                 // every laugh syllable bounces
 var FADE_IN     = 2;                  // frames, 0 = off
 var FADE_OUT    = 2;
 var CAPTION_Y   = 0.75;               // only if the text layer has no Scale of its own:
@@ -122,8 +124,8 @@ var CAPTION_Y   = 0.75;               // only if the text layer has no Scale of 
         for (var i = 0; i < marks.length; i++) {
             var mk = marks[i];
             if (mk.kind == "loud" && Math.abs(mk.s - s) < 0.25) return { kind: "loud" };
-            if (mk.kind == "scream" && s >= mk.s - 0.25 && s < mk.e + 0.2)
-                return { kind: "scream", first: Math.abs(s - mk.s) < 0.25 };
+            if ((mk.kind == "scream" || mk.kind == "laugh") && s >= mk.s - 0.25 && s < mk.e + 0.2)
+                return { kind: mk.kind, first: Math.abs(s - mk.s) < 0.25 };
         }
         return null;
     }
@@ -158,7 +160,7 @@ var CAPTION_Y   = 0.75;               // only if the text layer has no Scale of 
     }
 
     // ---- go ---------------------------------------------------------------
-    var count = { full: 0, small: 0, fade: 0, loud: 0, scream: 0, still: 0, removed: 0 }, failed = 0;
+    var count = { full: 0, small: 0, fade: 0, loud: 0, scream: 0, still: 0, laugh: 0, removed: 0 }, failed = 0;
     for (var n = 0; n < clips.length; n++) {
         var clip = clips[n];
         try {
@@ -193,6 +195,11 @@ var CAPTION_Y   = 0.75;               // only if the text layer has no Scale of 
                     if (scale) scale.setValue(SCREAM_POP[SCREAM_POP.length - 1][1], true);  // hold the scream size
                     kind = "still";
                 }
+            } else if (mk && mk.kind == "laugh") {             // each "ha" gets a little bounce
+                pop = LAUGH_POP; kind = "laugh";
+                var nx = n + 1 < clips.length ? markFor(clips[n + 1]) : null;
+                if (!mk.first) fadeIn = 0;
+                if (nx && nx.kind == "laugh" && !nx.first) fadeOut = 0;
             } else if (mk && mk.kind == "loud") { pop = LOUD_POP; kind = "loud"; }
             else if (len < SHORT)               { kind = "fade"; }
             else if (gap >= PAUSE)              { pop = FULL_POP; kind = "full"; }
@@ -217,7 +224,8 @@ var CAPTION_Y   = 0.75;               // only if the text layer has no Scale of 
     var msg = MODE == "remove"
         ? "Removed animation from " + count.removed + " caption(s), failed " + failed
         : "Done: " + count.full + " full pop, " + count.small + " small pop, " + count.fade + " fade only, " +
-          count.loud + " loud, " + count.scream + " scream, " + count.still + " scream letters. Failed " + failed;
+          count.loud + " loud, " + count.scream + " scream, " + count.still + " scream letters, " +
+          count.laugh + " laugh steps. Failed " + failed;
     $.writeln(msg);
     return msg;
 })();

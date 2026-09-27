@@ -213,7 +213,7 @@ def find_bursts(captions, regions, words, audio):
     return out
 
 
-def plan_screams(captions, regions, words, audio, cfg):
+def plan_screams(captions, regions, words, audio, cfg, sound_events=None):
     """Every scream candidate, each with on/off, as dicts. cfg = the project's "screams" settings."""
     def near(t, lst):
         return any(abs(t - x) < 0.3 for x in lst)
@@ -225,9 +225,12 @@ def plan_screams(captions, regions, words, audio, cfg):
                          source="caption" if auto else "quiet caption", on=on,
                          was=", ".join(captions[j].text for j in idx if j < len(captions))))
     taken = [(p["start"], p["end"]) for p in plan]
+    import sounds
     for s, e, peak in find_bursts(captions, regions, words, audio):
         if any(a - 0.3 < s < b for a, b in taken):
             continue
+        if sounds.laugh_at(sound_events, s, e) >= 0.12:
+            continue                      # the sound model hears laughing: it's a laugh, not a scream
         letters = cfg.get("letters", {}).get("%.2f" % s, "AH")
         plan.append(dict(start=s, end=e, tpl=template_from_letters(letters), bang=False, replaces=[],
                          loud=peak, source="no caption", letters=letters, on=near(s, cfg.get("on", [])), was=""))

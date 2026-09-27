@@ -21,7 +21,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -90,16 +90,27 @@ def scream_plan(ctx, args=None):
     cfg = dict(ctx.cfg["screams"])
     if args is not None and getattr(args, "loud", None) is not None:
         cfg["loud"] = args.loud
-    return sc.plan_screams(ctx.captions, ctx.regions, ctx.words, ctx.audio, cfg)
+    return sc.plan_screams(ctx.captions, ctx.regions, ctx.words, ctx.audio, cfg,
+                           sound_events=getattr(ctx, "sounds", None))
+
+
+def laugh_plan(ctx, screams):
+    import laughs
+    on = [(p["start"], p["end"]) for p in screams if p["on"]]
+    return laughs.plan_laughs(ctx.captions, ctx.audio, getattr(ctx, "sounds", None), ctx.regions,
+                              ctx.cfg["laughs"], screams_on=on)
 
 
 def cmd_screams(args):
-    """Scream plan -> screams.json (for the app) + captions-with-screams.srt (for Premiere)."""
+    """Screams + laughs -> screams.json / laughs.json (for the app) and
+    captions-with-screams.srt (a full caption track for Premiere)."""
     import json
+    import laughs as lg
     import screams as sc
     ctx = load_ctx(args)
     plan = scream_plan(ctx, args)
-    hidden = sc.replaced_captions(ctx.captions, plan)
+    lplan = laugh_plan(ctx, plan)
+    hidden = sc.replaced_captions(ctx.captions, plan) | lg.hidden_by(ctx.captions, lplan)
     cues = [[c.start_s, c.end_s, c.text] for c in ctx.captions if c.text and c.index not in hidden]
     listing = []
     for p in plan:
@@ -110,6 +121,15 @@ def cmd_screams(args):
                             seconds=round(p["end"] - p["start"], 2), loud=round(p["loud"], 2),
                             spelled=grow[-1][2], source=p["source"], on=p["on"], was=p["was"],
                             letters=p.get("letters"), check=p["end"] - p["start"] > 3.0))
+    llisting = []
+    for p in lplan:
+        grow = lg.cues_for(ctx.audio, p)
+        if p["on"]:
+            cues += grow
+        llisting.append(dict(start=round(p["start"], 2), end=round(p["end"], 2), at=cap.fmt(p["start"]),
+                             seconds=round(p["end"] - p["start"], 2), loud=round(p["loud"], 2),
+                             peak=round(p["peak"], 2), kind=p["kind"], style=p["style"],
+                             spelled=grow[-1][2] if grow else "", source=p["source"], on=p["on"]))
     cues.sort(key=lambda c: c[0])
     for a, b in zip(cues, cues[1:]):
         if a[1] > b[0]:
@@ -118,12 +138,21 @@ def cmd_screams(args):
     sc.write_srt(os.path.join(ctx.outdir, "captions-with-screams.srt"), cues)
     with open(os.path.join(ctx.outdir, "screams.json"), "w", encoding="utf-8") as f:
         json.dump(listing, f, indent=1)
+    with open(os.path.join(ctx.outdir, "laughs.json"), "w", encoding="utf-8") as f:
+        json.dump(llisting if getattr(ctx, "sounds", None) is not None else None, f, indent=1)
     on = [x for x in listing if x["on"]]
     print("\n%d scream(s) on, %d suggestion(s) off:" % (len(on), len(listing) - len(on)))
     for x in on:
         print("  %s  %.1fs  %-28s %s%s" % (x["at"], x["seconds"], x["spelled"], x["source"],
                                            "  <- CHECK: long" if x["check"] else ""))
-    print("Switch suggestions on/off in the app (Screams step) or in toolkit.json.")
+    lon = [x for x in llisting if x["on"]]
+    if getattr(ctx, "sounds", None) is None:
+        print("\nLaughs: detection not installed (see README).")
+    else:
+        print("\n%d laugh(s) on, %d suggestion(s) off:" % (len(lon), len(llisting) - len(lon)))
+        for x in lon:
+            print("  %s  %.1fs  %-22s %s" % (x["at"], x["seconds"], x["spelled"], x["kind"]))
+    print("Switch suggestions on/off in the app (Screams & laughs tab) or in toolkit.json.")
 
 
 def cmd_prepare(args):
@@ -144,14 +173,18 @@ def cmd_prepare(args):
     for p in plan:
         if p["on"]:
             rows.append((p["start"], p["end"], "scream", p["loud"], ""))
+    for p in laugh_plan(ctx, plan):
+        if p["on"]:
+            rows.append((p["show"][0], p["show"][1], "laugh", p["peak"], ""))
     rows.sort()
     path = os.path.join(ctx.outdir, "premiere-emphasis.csv")
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write("start,end,kind,strength,text\n")
         for s, e, kind, r, text in rows:
             f.write("%.3f,%.3f,%s,%.2f,%s\n" % (s, e, kind, r, text.replace("\n", " ")))
-    loud = sum(1 for r in rows if r[2] == "loud")
-    print("\n%d loud line(s) and %d scream(s) marked for Premiere -> %s" % (loud, len(rows) - loud, path))
+    kinds = {k: sum(1 for r in rows if r[2] == k) for k in ("loud", "scream", "laugh")}
+    print("\n%d loud line(s), %d scream(s), %d laugh(s) marked for Premiere -> %s"
+          % (kinds["loud"], kinds["scream"], kinds["laugh"], path))
     print("Now run premiere/animate-captions.jsx - it finds this file next to your project.")
 
 

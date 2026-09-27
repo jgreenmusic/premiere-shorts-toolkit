@@ -2,6 +2,29 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.7.0 - 2026-09-26
+
+**Laughs.** Chuckles and laughs are detected and spelled out as they happen ("heh heh",
+"hehe", "hahaha", "HAHAHA"), one syllable per burst, in their own colour with a small
+bounce on each syllable. From the ROADMAP.
+
+- `sounds.py`: PANNs Cnn14 sound-event detection at 32 kHz, 10 ms frames, cached per audio
+  (`sounds-*.npz`). ~25 s for an hour on the CPU. Optional - without torch it's skipped.
+- `laughs.py`: laugh regions (smoothed laughter score >= 0.12, merged, >= 0.4 s), syllables
+  from loudness pulses (capped at 5/s), spelling by kind and loudness, never over speech by
+  default - confident laughs with room between captions are on, the rest suggested.
+- App: "Screams & laughs" tab with a Laughs card (listen, spelling choice, on/off, add by hand);
+  laugh colour on the Look tab. Premiere: `prepare` marks laughs and `animate-captions.jsx`
+  bounces each syllable. The Premiere caption file includes laughs.
+
+Found while building:
+- **The model can't hear gamer yelling as a scream** (Screaming/Yell/Shout ~0 even on clear
+  screams), so it doesn't improve scream detection directly - but many "no caption" scream
+  suggestions (19:41, 24:45, 29:39, 44:32, 50:11) were really laughs; those now go to Laughs.
+- **Its probabilities are low** (laughter peaks ~0.3-0.4), so thresholds are set from the
+  distribution over a real hour, not the usual 0.5.
+- Default open question settled: confident laughs ON, unsure/under-speech OFF (same as screams).
+
 ## 0.6.0 - 2026-09-26
 
 **A companion for any project.** Shorts are now made and rendered by the toolkit itself.

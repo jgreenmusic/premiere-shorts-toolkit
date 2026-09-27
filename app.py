@@ -149,6 +149,11 @@ def results(outdir, shorts_dir, cfg):
                             when=os.path.getmtime(sj),
                             stale=os.path.getmtime(os.path.join(outdir, "toolkit.json")) > os.path.getmtime(sj)
                             if os.path.exists(os.path.join(outdir, "toolkit.json")) else False)
+    lj = os.path.join(outdir, "laughs.json")
+    if os.path.exists(lj):
+        with open(lj, encoding="utf-8") as f:
+            items = json.load(f)
+        r["laughs"] = dict(items=items, installed=items is not None, when=os.path.getmtime(lj))
     short = os.path.join(outdir, "too-short-captions.txt")
     if os.path.exists(short):
         r["too_short"] = max(0, sum(1 for _ in open(short, encoding="utf-8")) - 3)

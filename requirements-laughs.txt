@@ -1,0 +1,2 @@
+torch  # CPU build: pip install torch --index-url https://download.pytorch.org/whl/cpu
+panns_inference

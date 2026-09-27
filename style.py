@@ -71,6 +71,10 @@ def header(st):
             st["font"], st["scream_size"], ass_color(st["scream_col"]), ass_color(st["scream_col"]),
             ass_color(st["outline_col"]), ass_color("000000", "80"),
             st["outline"] + 1, st["shadow"] + 1, 40, 40, st["margin_v"]),
+        "Style: Laugh,%s,%d,%s,%s,%s,%s,0,0,0,0,100,100,1,0,1,%d,%d,2,%d,%d,%d,1" % (
+            st["font"], int(st["size"] * 1.12), ass_color(st.get("laugh_col", "8AE3FF")),
+            ass_color(st.get("laugh_col", "8AE3FF")), ass_color(st["outline_col"]), ass_color("000000", "80"),
+            st["outline"], st["shadow"], 40, 40, st["margin_v"]),
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -188,19 +192,38 @@ def look(cfg):
     st = dict(STYLE)
     st.update(size=int(lk.get("size", st["size"])), margin_v=int(lk.get("position", st["margin_v"])),
               text=lk.get("text", st["text"]), highlight=lk.get("highlight_col", st["highlight"]),
-              loud_col=lk.get("loud_col", st["loud_col"]), scream_col=lk.get("scream_col", st["scream_col"]))
+              loud_col=lk.get("loud_col", st["loud_col"]), scream_col=lk.get("scream_col", st["scream_col"]),
+              laugh_col=lk.get("laugh_col", "8AE3FF"))
     st["scream_size"] = int(round(st["size"] * 1.32))
     return st
+
+
+def laugh_events(cues, st):
+    """Each new syllable gives the laugh a small bounce (106% -> 100%)."""
+    ev = []
+    for n, (a, b, text) in enumerate(cues):
+        tags = "\\fscx106\\fscy106\\t(0,110,\\fscx100\\fscy100)"
+        first, last = n == 0, n == len(cues) - 1
+        if first or last:
+            tags += "\\fad(%d,%d)" % (60 if first else 0, 90 if last else 0)
+        ev.append((a, b, "Laugh", "{%s}%s" % (tags, esc(text))))
+    return ev
 
 
 def build(ctx, plan):
     """All caption events for the sequence (timeline seconds), from the loaded project
     (pipeline.load) and its scream plan (screams.plan_screams)."""
+    import laughs as lg
     st = look(ctx.cfg)
     lk = ctx.cfg.get("look", {})
     normal = sc.talk_level(ctx.audio, ctx.regions)
-    hidden = sc.replaced_captions(ctx.captions, plan)
+    lplan = lg.plan_laughs(ctx.captions, ctx.audio, getattr(ctx, "sounds", None), ctx.regions,
+                           ctx.cfg.get("laughs", {}), screams_on=[(p["start"], p["end"]) for p in plan if p["on"]])
+    hidden = sc.replaced_captions(ctx.captions, plan) | lg.hidden_by(ctx.captions, lplan)
     events = []
+    for p in lplan:
+        if p["on"]:
+            events += laugh_events(lg.cues_for(ctx.audio, p), st)
     for c, m in zip(ctx.captions, ctx.matches):
         if not c.text or c.index in hidden:
             continue

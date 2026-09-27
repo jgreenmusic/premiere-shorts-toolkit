@@ -2,7 +2,7 @@
 
 Ideas agreed on but not built yet. Newest first.
 
-## Laughs and reactions (parked 2026-09-26)
+## ~~Laughs and reactions~~ - done in 0.7.0 (see CHANGELOG)
 
 **Problem:** chuckles and laughs ("uh huh huh", "heh heh", "HAHAHA") are never captioned.
 Whisper and Premiere's transcription drop non-speech sounds on purpose, and the Silero voice

@@ -49,6 +49,8 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
     log("[speech] words and voice")
     ctx.words = cap.transcribe(audio, outdir, model=model, log=log)
     ctx.regions = cap.voice_regions(audio, outdir, log=log)
+    import sounds
+    ctx.sounds = sounds.detect(seq, outdir, audio, log=log)      # None if not installed
     if seq.captions:
         ctx.captions, ctx.auto = seq.captions, False
         ctx.matches = cap.align(seq.captions, ctx.words)
