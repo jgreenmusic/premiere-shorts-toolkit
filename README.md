@@ -6,11 +6,29 @@ Small tools for cutting long recordings into Shorts in Adobe Premiere Pro.
 |---|---|
 | `shorts.py captions` | Checks every caption against the actual speech in the sequence audio and reports which ones are early, late, cut off, or linger. With `--fix`, writes a synced **copy** of the project. |
 | `shorts.py screams` | Turns drawn-out, loud AAAH / OHHH / NOOO / WHOAAA / YEAHHH captions into growing-letter captions ("O" -> "OO" -> ... -> "OOOOOOOHHHH") that follow the voice and speed up when louder. Writes a full replacement caption file. Audio is never changed. |
+| `shorts.py prepare` | Marks loud lines and screams for `animate-captions.jsx`. |
 | `shorts.py style` | Styled captions with subtle animation (pop-in, spoken-word highlight, loud lines, screams) burned into your export. |
 | `premiere/animate-captions.jsx` | Inside Premiere: gives every caption graphic its own pop-in + fade (after "Upgrade Caption to Graphic"). Settings at the top of the file. |
 | `premiere/import-captions.jsx` | Imports an .srt as a new caption track on the active sequence. |
 | `premiere/cut-at-markers.jsx` | Razors every unlocked track at every sequence marker. |
 | `premiere/match-scale-vertical.jsx` | Sets the sequence to 1080x1920 and gives every clip the first clip's Scale. |
+
+## The app (easiest way)
+
+Double-click **`Shorts Toolkit.cmd`** (or the desktop shortcut). It opens in your browser and
+runs only on this PC. Pick a project on the left, then go down the steps:
+
+1. **Check caption timing** - how many captions are in sync, early, late, cut off, or linger.
+2. **Fix timing & fit lengths** - writes a synced copy of the project (original untouched).
+3. **Animated screams** - finds the long loud AAAH/OHHH moments; slider sets how loud counts.
+4. **Animate in Premiere** - "Prepare for Premiere" marks loud lines and screams, then the
+   `animate-captions.jsx` script does the animation inside Premiere. "Open in VS Code" buttons
+   open each script.
+5. **Burned-in look** *(optional)* - preview the highlighted-word style on a few seconds, or burn
+   it onto your export.
+
+The log bar at the bottom shows what's running. The app closes itself a minute after you close
+the tab. Every button runs a `shorts.py` command, so everything below still works from a terminal.
 
 ## Setup (once)
 

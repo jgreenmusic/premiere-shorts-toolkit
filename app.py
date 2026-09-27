@@ -1,0 +1,361 @@
+"""Shorts Toolkit app - a local web UI over shorts.py.
+
+    .venv\\Scripts\\pythonw app.py      (or double-click "Shorts Toolkit.cmd")
+
+Runs only on this PC (127.0.0.1). Opens in your browser. Every button runs the same
+shorts.py command you could type yourself; the log panel shows its output.
+The server closes itself a minute after the browser tab is closed.
+"""
+import csv
+import glob
+import json
+import mimetypes
+import os
+import re
+import socket
+import subprocess
+import sys
+import threading
+import time
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+PORT = 8765
+PY = sys.executable.replace("pythonw.exe", "python.exe")
+SETTINGS = os.path.join(os.path.expanduser("~"), ".shorts-toolkit.json")
+DEFAULT_DIRS = [os.path.join(os.path.expanduser("~"), "Desktop", "Projects")]
+
+sys.path.insert(0, HERE)
+from shorts import __version__  # noqa: E402
+
+
+# -- settings (remembered folders) ------------------------------------------------
+def load_settings():
+    try:
+        with open(SETTINGS, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {"dirs": DEFAULT_DIRS}
+
+
+def save_settings(s):
+    with open(SETTINGS, "w", encoding="utf-8") as f:
+        json.dump(s, f, indent=2)
+
+
+# -- project discovery + outputs -------------------------------------------------------
+SYNCED = re.compile(r"_captions-synced(?:-v(\d+))?$")
+
+
+def base_of(path):
+    return SYNCED.sub("", os.path.splitext(path)[0])
+
+
+def list_projects():
+    seen, out = set(), []
+    for d in load_settings().get("dirs", DEFAULT_DIRS):
+        for p in glob.glob(os.path.join(d, "*.prproj")):
+            p = os.path.normpath(p)
+            if p in seen:
+                continue
+            seen.add(p)
+            stem = os.path.splitext(os.path.basename(p))[0]
+            m = SYNCED.search(stem)
+            out.append(dict(path=p, name=stem, base=os.path.basename(base_of(p)),
+                            version=("synced v%s" % (m.group(1) or "1")) if m else "original",
+                            modified=os.path.getmtime(p)))
+    out.sort(key=lambda x: -x["modified"])
+    return out
+
+
+_info_cache = {}
+
+
+def project_info(path):
+    key = (path, os.path.getmtime(path))
+    if key not in _info_cache:
+        from prproj import Project
+        seqs = []
+        for s in Project(path).sequences():
+            end = max([a.end for a in s.audio] or [0]) / 254016000000
+            seqs.append(dict(name=s.name, captions=len(s.captions), audio=len(s.audio), seconds=round(end, 1)))
+        _info_cache[key] = seqs
+    outdir = base_of(path) + "_captions"
+    return dict(path=path, sequences=_info_cache[key], outdir=outdir, results=results(outdir))
+
+
+def results(outdir):
+    r = {}
+    rep = os.path.join(outdir, "caption-report.csv")
+    if os.path.exists(rep):
+        counts, total = {}, 0
+        with open(rep, encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                total += 1
+                for s in row["status"].split("+"):
+                    counts[s] = counts.get(s, 0) + 1
+        drift = []
+        txt = os.path.join(outdir, "caption-report.txt")
+        if os.path.exists(txt):
+            for line in open(txt, encoding="utf-8"):
+                m = re.match(r"\s+(\d+:\d\d:\d\d)\s+([+-]\d+\.\d+)s", line)
+                if m:
+                    drift.append([m.group(1), float(m.group(2))])
+        of = ""
+        lc = os.path.join(outdir, "last-check.txt")
+        if os.path.exists(lc):
+            m = SYNCED.search(os.path.splitext(open(lc, encoding="utf-8").read().strip())[0])
+            of = ("synced v%s" % (m.group(1) or "1")) if m else "original"
+        r["check"] = dict(total=total, counts=counts, drift=drift, when=os.path.getmtime(rep), of=of)
+    sc = os.path.join(outdir, "screams.txt")
+    if os.path.exists(sc):
+        items = []
+        for line in open(sc, encoding="utf-8"):
+            m = re.match(r"(\d+:\d\d:\d\d\.\d\d)\s+([\d.]+)s\s+([\d.]+)x loud\s+(\S+)\s+was (.*?)(\s+<- CHECK.*)?$", line.rstrip())
+            if m:
+                items.append(dict(at=m.group(1), seconds=float(m.group(2)), loud=float(m.group(3)),
+                                  spelled=m.group(4), was=m.group(5), check=bool(m.group(6))))
+        r["screams"] = dict(items=items, srt=os.path.join(outdir, "captions-with-screams.srt"),
+                            when=os.path.getmtime(sc))
+    short = os.path.join(outdir, "too-short-captions.txt")
+    if os.path.exists(short):
+        r["too_short"] = max(0, sum(1 for _ in open(short, encoding="utf-8")) - 3)
+    em = os.path.join(outdir, "premiere-emphasis.csv")
+    if os.path.exists(em):
+        kinds = {}
+        with open(em, encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                kinds[row["kind"]] = kinds.get(row["kind"], 0) + 1
+        r["prepare"] = dict(loud=kinds.get("loud", 0), scream=kinds.get("scream", 0), when=os.path.getmtime(em))
+    r["previews"] = sorted((os.path.basename(p) for p in glob.glob(os.path.join(outdir, "preview-*.mp4"))),
+                           reverse=True)
+    return r
+
+
+# -- jobs ------------------------------------------------------------------------------
+JOB = {"id": 0, "lines": [], "done": True, "code": None, "title": "", "started": 0}
+LOCK = threading.Lock()
+
+
+def command(action, o):
+    p = o["path"]
+    if action == "check":
+        return ["captions", p]
+    if action == "fix":
+        return ["captions", p, "--fix"]
+    if action == "screams":
+        return ["screams", p, "--loud", str(o.get("loud", 1.6))]
+    if action == "prepare":
+        return ["prepare", p, "--loud", str(o.get("loud", 1.6))]
+    if action == "preview":
+        c = ["style", p, "--preview", str(o["at"]), "--seconds", str(o.get("seconds", 12))]
+        return c + (["--no-highlight"] if o.get("no_highlight") else [])
+    if action == "burn":
+        c = ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
+        return c + (["--no-highlight"] if o.get("no_highlight") else [])
+    raise ValueError("unknown action %s" % action)
+
+
+def run_job(title, argv):
+    with LOCK:
+        if not JOB["done"]:
+            return None
+        JOB.update(id=JOB["id"] + 1, lines=["$ shorts.py " + " ".join(argv)],
+                   done=False, code=None, title=title, started=time.time())
+        jid = JOB["id"]
+
+    def work():
+        env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
+        proc = subprocess.Popen([PY, os.path.join(HERE, "shorts.py")] + argv, cwd=HERE, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        buf = b""
+        while True:
+            ch = proc.stdout.read(1)
+            if not ch:
+                break
+            if ch in (b"\n", b"\r"):
+                if buf.strip():
+                    line = buf.decode("utf-8", "replace")
+                    with LOCK:
+                        # ffmpeg progress rewrites one line: keep only the latest
+                        if line.startswith("frame=") and JOB["lines"] and JOB["lines"][-1].startswith("frame="):
+                            JOB["lines"][-1] = line
+                        else:
+                            JOB["lines"].append(line)
+                buf = b""
+            else:
+                buf += ch
+        proc.wait()
+        with LOCK:
+            JOB.update(done=True, code=proc.returncode)
+
+    threading.Thread(target=work, daemon=True).start()
+    return jid
+
+
+# -- native file dialog --------------------------------------------------------------------
+def browse(kind):
+    import tkinter as tk
+    from tkinter import filedialog
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    if kind == "project":
+        p = filedialog.askopenfilename(title="Choose a Premiere project",
+                                       filetypes=[("Premiere project", "*.prproj")])
+    elif kind == "video":
+        p = filedialog.askopenfilename(title="Choose the video you exported from Premiere",
+                                       filetypes=[("Video", "*.mp4 *.mov *.mkv"), ("All files", "*.*")])
+    else:
+        p = filedialog.askdirectory(title="Choose a folder with Premiere projects")
+    root.destroy()
+    return os.path.normpath(p) if p else None
+
+
+def open_path(path, how):
+    if how == "vscode":
+        subprocess.Popen(["cmd", "/c", "code", path], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    elif how == "folder":
+        subprocess.Popen(["explorer", "/select,", path] if os.path.isfile(path) else ["explorer", path])
+    else:
+        os.startfile(path)
+
+
+# -- HTTP -------------------------------------------------------------------------------------
+LAST_SEEN = [time.time()]
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def send_json(self, obj, code=200):
+        body = json.dumps(obj).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def body(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        return json.loads(self.rfile.read(n) or b"{}")
+
+    def do_GET(self):
+        LAST_SEEN[0] = time.time()
+        u = urlparse(self.path)
+        q = {k: v[0] for k, v in parse_qs(u.query).items()}
+        try:
+            if u.path == "/":
+                return self.send_file(os.path.join(HERE, "ui", "index.html"))
+            if u.path == "/api/state":
+                return self.send_json(dict(version=__version__, projects=list_projects(),
+                                           dirs=load_settings().get("dirs", DEFAULT_DIRS),
+                                           scripts=sorted(os.path.basename(p) for p in
+                                                          glob.glob(os.path.join(HERE, "premiere", "*.jsx")))))
+            if u.path == "/api/info":
+                return self.send_json(project_info(q["path"]))
+            if u.path == "/api/job":
+                start = int(q.get("from", 0))
+                with LOCK:
+                    return self.send_json(dict(id=JOB["id"], title=JOB["title"], done=JOB["done"],
+                                               code=JOB["code"], lines=JOB["lines"][start:],
+                                               total=len(JOB["lines"]), started=JOB["started"]))
+            if u.path == "/media":
+                p = os.path.normpath(q["path"])
+                if not (os.path.basename(os.path.dirname(p)).endswith("_captions") and p.endswith(".mp4")):
+                    return self.send_json({"error": "not allowed"}, 403)
+                return self.send_file(p)
+        except Exception as e:  # show errors in the UI instead of a dead page
+            return self.send_json({"error": str(e)}, 500)
+        self.send_json({"error": "not found"}, 404)
+
+    def do_POST(self):
+        LAST_SEEN[0] = time.time()
+        u = urlparse(self.path)
+        try:
+            b = self.body()
+            if u.path == "/api/run":
+                jid = run_job(b.get("title", b["action"]), command(b["action"], b))
+                return self.send_json({"id": jid} if jid else {"error": "Something is already running."},
+                                      200 if jid else 409)
+            if u.path == "/api/browse":
+                p = browse(b.get("kind", "project"))
+                if p and b.get("kind") == "folder":
+                    s = load_settings()
+                    s["dirs"] = [p] + [d for d in s.get("dirs", DEFAULT_DIRS) if d != p]
+                    save_settings(s)
+                return self.send_json({"path": p})
+            if u.path == "/api/open":
+                p = b["path"]
+                if b.get("script"):
+                    p = os.path.join(HERE, "premiere", os.path.basename(b["script"]))
+                open_path(p, b.get("how", "file"))
+                return self.send_json({"ok": True})
+            if u.path == "/api/ping":
+                return self.send_json({"ok": True})
+        except Exception as e:
+            return self.send_json({"error": str(e)}, 500)
+        self.send_json({"error": "not found"}, 404)
+
+    def send_file(self, path):
+        size = os.path.getsize(path)
+        ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        rng = self.headers.get("Range")
+        start, end = 0, size - 1
+        if rng:                                  # video seeking needs byte ranges
+            m = re.match(r"bytes=(\d*)-(\d*)", rng)
+            if m:
+                start = int(m.group(1) or 0)
+                end = int(m.group(2)) if m.group(2) else size - 1
+            self.send_response(206)
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+        else:
+            self.send_response(200)
+        self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith("text/") else ""))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        with open(path, "rb") as f:
+            f.seek(start)
+            left = end - start + 1
+            while left > 0:
+                chunk = f.read(min(1 << 16, left))
+                if not chunk:
+                    break
+                try:
+                    self.wfile.write(chunk)
+                except (ConnectionResetError, BrokenPipeError):
+                    return
+                left -= len(chunk)
+
+
+def already_running():
+    with socket.socket() as s:
+        return s.connect_ex(("127.0.0.1", PORT)) == 0
+
+
+def main():
+    url = "http://127.0.0.1:%d/" % PORT
+    if already_running():
+        webbrowser.open(url)
+        return
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+
+    def reaper():                                # quit once the tab has been closed for a minute
+        while True:
+            time.sleep(10)
+            if JOB["done"] and time.time() - LAST_SEEN[0] > 60:
+                server.shutdown()
+                return
+    threading.Thread(target=reaper, daemon=True).start()
+    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

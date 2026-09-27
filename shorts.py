@@ -16,7 +16,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -165,6 +165,41 @@ def cmd_style(args):
         print("Export the sequence from Premiere with captions OFF, then run again with --video <export.mp4>")
 
 
+def cmd_prepare(args):
+    """premiere-emphasis.csv: loud lines and screams for premiere/animate-captions.jsx."""
+    import screams as sc
+    import style
+    proj, seq, stem, base, outdir = open_sequence(args)
+    print("Sequence %r: %d captions" % (seq.name, len(seq.captions)))
+    print("[1/3] rebuilding the sequence audio")
+    audio = cap.timeline_audio(seq)
+    print("[2/3] measuring loudness and screams")
+    words = cap.transcribe(audio, outdir, model=args.model)
+    regions = cap.voice_regions(audio, outdir)
+    normal = sc.talk_level(audio, regions)
+    found = sc.find_screams(seq, regions, words, audio, loud_ratio=args.loud)
+    in_scream = {j for f in found for j in f[4]}
+    rows = []
+    for c in seq.captions:
+        if not c.text or c.index in in_scream:
+            continue
+        r = sc.loudness(audio, c.start_s, c.end_s) / normal if normal else 0
+        if r >= style.STYLE["loud_ratio"]:
+            rows.append((c.start_s, c.end_s, "loud", r, c.text))
+    for s, e, tpl, bang, idx, r in found:
+        rows.append((s, e, "scream", r, ""))
+    rows.sort()
+    path = os.path.join(outdir, "premiere-emphasis.csv")
+    print("[3/3] writing %s" % path)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("start,end,kind,strength,text\n")
+        for s, e, kind, r, text in rows:
+            f.write("%.3f,%.3f,%s,%.2f,%s\n" % (s, e, kind, r, text.replace("\n", " ")))
+    loud = sum(1 for r in rows if r[2] == "loud")
+    print("\n%d loud line(s) and %d scream(s) marked for Premiere." % (loud, len(found)))
+    print("Now run premiere/animate-captions.jsx - it finds this file next to your project.")
+
+
 def cmd_captions(args):
     proj, seq, stem, base, outdir = open_sequence(args)
     print("Sequence %r: %d captions, %d audio clips" % (seq.name, len(seq.captions), len(seq.audio)))
@@ -206,6 +241,8 @@ def cmd_captions(args):
         w.writeheader()
         w.writerows(rows)
     summary = summarize(seq, rows, counts, offsets, uncaptioned, no_audio)
+    with open(os.path.join(outdir, "last-check.txt"), "w", encoding="utf-8") as f:
+        f.write(os.path.abspath(args.project))       # which version this report describes
     txt_path = os.path.join(outdir, "caption-report.txt")
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(summary)
@@ -426,6 +463,12 @@ def main():
     y.add_argument("--loud", type=float, default=1.6, help="scream loudness threshold (see screams)")
     y.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
     y.set_defaults(func=cmd_style)
+    r = sub.add_parser("prepare", help="mark loud lines + screams for premiere/animate-captions.jsx")
+    r.add_argument("project", help="saved .prproj file")
+    r.add_argument("--sequence", help="sequence name, if more than one has captions")
+    r.add_argument("--loud", type=float, default=1.6, help="scream loudness threshold (see screams)")
+    r.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+    r.set_defaults(func=cmd_prepare)
     args = ap.parse_args()
     args.func(args)
 

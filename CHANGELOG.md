@@ -2,6 +2,29 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.5.0 - 2026-09-26
+
+**The app.** `app.py` + `ui/index.html`: a local browser UI over `shorts.py` (127.0.0.1 only,
+standard library, no new dependencies). Project list grouped by original / synced versions,
+the five steps as cards with plain-language descriptions, results as bars and tables (timing
+check, drift across the video, screams with CHECK flags, previews playable in the page), a live
+log bar, native file pickers, light and dark themes. `Shorts Toolkit.cmd` + a desktop shortcut
+start it; it shuts itself down a minute after the tab closes.
+
+**Smarter Premiere animation** (`premiere/animate-captions.jsx`):
+- Per caption: full pop after a pause, tiny pop in back-to-back talk, fade only for very short
+  captions (a pop reads as flicker).
+- Loud lines pop bigger and stay slightly bigger; screams get a strong pop and a rotation
+  wobble on the first letter, and the growing letters after it just appear.
+- Loud/scream data from the new `shorts.py prepare` (`premiere-emphasis.csv`, found automatically
+  next to the project). If a Short's times differ from the analysed sequence, the shift is found
+  from matching caption text.
+- `MODE = "remove"` strips the animation; re-running replaces it. Works on selected clips, else
+  the In/Out range, else the whole top track.
+
+Also: the check report records which project version it describes (`last-check.txt`), shown
+in the app.
+
 ## 0.4.1 - 2026-09-26
 
 - `premiere/animate-captions.jsx`: the in-Premiere route. After "Upgrade Caption to Graphic",
