@@ -6,6 +6,7 @@ Small tools for cutting long recordings into Shorts in Adobe Premiere Pro.
 |---|---|
 | `shorts.py captions` | Checks every caption against the actual speech in the sequence audio and reports which ones are early, late, cut off, or linger. With `--fix`, writes a synced **copy** of the project. |
 | `shorts.py screams` | Turns drawn-out, loud AAAH / OHHH / NOOO / WHOAAA / YEAHHH captions into growing-letter captions ("O" -> "OO" -> ... -> "OOOOOOOHHHH") that follow the voice and speed up when louder. Writes a full replacement caption file. Audio is never changed. |
+| `shorts.py style` | Styled captions with subtle animation (pop-in, spoken-word highlight, loud lines, screams) burned into your export. |
 | `premiere/import-captions.jsx` | Imports an .srt as a new caption track on the active sequence. |
 | `premiere/cut-at-markers.jsx` | Razors every unlocked track at every sequence marker. |
 | `premiere/match-scale-vertical.jsx` | Sets the sequence to 1080x1920 and gives every clip the first clip's Scale. |
@@ -70,6 +71,33 @@ To use it in Premiere:
 2. Hide or delete the old caption track.
 3. Apply your saved caption **Track Style** to the new track - SRT files carry text and
    timing only, not styling.
+
+## Styled, animated captions
+
+Premiere's caption tracks can't animate, so this burns the captions into your export instead:
+
+- each caption **pops in** (quick fade + slight 88% -> 104% -> 100% bounce) and fades out
+- the **word being spoken is highlighted** gold (Whisper word times; estimated for unheard words)
+- **loud lines** come up a little bigger, in capitals, highlighted orange
+- **screams** grow letter by letter (see above), bigger, with a slight wobble
+
+Font: Montserrat Black, bundled in `fonts/` (SIL Open Font License) - nothing to install.
+
+1. Try the look first on a 12-second test clip (made straight from your recording, no export needed):
+   ```
+   .venv\Scripts\python shorts.py style "Project_captions-synced-v2.prproj" --preview 50:05
+   ```
+   Writes `Project_captions\preview-0-50-05.00.mp4`.
+2. In Premiere, **turn the caption track off** and export the whole sequence (File > Export > Media).
+3. Burn the captions on:
+   ```
+   .venv\Scripts\python shorts.py style "Project_captions-synced-v2.prproj" --video "C:\path\to\export.mp4"
+   ```
+   Writes `export_captioned.mp4`. Audio is copied untouched.
+   If you exported only part of the sequence, add `--start 12:30` (where the export begins on the timeline).
+
+Change the look in `STYLE` at the top of `style.py` (size, colours, position, pop speed).
+`--no-highlight` turns off the word highlight.
 
 ## Running the .jsx scripts
 

@@ -2,6 +2,21 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.4.0 - 2026-09-26
+
+**Styled, animated captions.** `shorts.py style` writes an `.ass` subtitle file and burns it into
+the Premiere export with ffmpeg/libass (audio copied untouched). `--preview TIME` renders a
+12 s 9:16 test clip straight from the source recording, no export needed.
+
+- Pop-in (fade + 88/104/100% scale), fade-out, spoken-word highlight from Whisper word times
+  (words Whisper missed are spread between heard ones by length).
+- Loud lines (1.8x normal talk): bigger, capitals, orange highlight. Screams: growing letters,
+  larger, slight random tilt, final pulse.
+- Montserrat Black/ExtraBold bundled under the OFL, loaded via libass `fontsdir`.
+- The matcher now keeps per-word times (`words` in each match) for the highlight.
+- Fixed while building: a highlight step starting mid-pop snapped to full size; it now
+  continues the animation.
+
 ## 0.3.0 - 2026-09-26
 
 **Animated screams.** `shorts.py screams` turns drawn-out interjections into captions whose
