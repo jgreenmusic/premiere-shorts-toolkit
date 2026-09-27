@@ -60,7 +60,13 @@ def caption_list(project_path, start=None, end=None):
         if not cached:
             return dict(source="none", captions=[])
         with open(cached[-1], encoding="utf-8") as f:
-            caps, _ = cap.auto_captions(json.load(f))
+            words = json.load(f)
+        voice = sorted(glob.glob(os.path.join(outdir, "voice-*.json")), key=os.path.getmtime)
+        regions = None
+        if voice:
+            with open(voice[-1], encoding="utf-8") as f:
+                regions = json.load(f)
+        caps, _ = cap.auto_captions(cap.clean_loops(words, regions, cap.retyped(cfg)))   # the same words a render uses
         source = "toolkit"
     edits = cfg.get("caption_edits") or {}
     out = []
@@ -92,6 +98,7 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
     log("[speech] words and voice")
     ctx.words = cap.transcribe(audio, outdir, model=model, log=log)
     ctx.regions = cap.voice_regions(audio, outdir, log=log)
+    ctx.words = cap.clean_loops(ctx.words, ctx.regions, cap.retyped(cfg))   # Whisper's repetition loops out
     import sounds
     ctx.sounds = sounds.detect(seq, outdir, audio, log=log)      # None if not installed
     if seq.captions:

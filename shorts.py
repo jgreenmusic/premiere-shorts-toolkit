@@ -23,7 +23,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.12.0"
+__version__ = "0.12.1"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -231,7 +231,8 @@ def cmd_speech(args):
     import json
     import pipeline
     ctx = pipeline.load(args.project, args.sequence, need_words=False)
-    words = cap.transcribe(ctx.audio, ctx.outdir, model=args.model)
+    words = cap.clean_loops(cap.transcribe(ctx.audio, ctx.outdir, model=args.model),
+                            cap.voice_regions(ctx.audio, ctx.outdir))
     out = os.path.join(ctx.outdir, "premiere-words.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump([w[:3] for w in words], f)
@@ -418,6 +419,10 @@ def cmd_captions(args):
     print("  %d words heard" % len(words))
     regions = cap.voice_regions(audio, outdir)
     print("  %d stretches of voice" % len(regions))
+    n = len(words)
+    words = cap.clean_loops(words, regions)
+    if n > len(words):
+        print("  left out %d words Whisper repeated in a loop" % (n - len(words)))
     print("[3/4] matching captions to speech")
     matches = cap.align(seq.captions, words)
     proposed, offsets = cap.retime(seq.captions, matches, seq.caption_frame)

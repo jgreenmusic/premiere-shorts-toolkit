@@ -2,6 +2,25 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.12.1 - 2026-09-27
+
+**Whisper's repetition loops are left out of the captions.**
+
+Problem: while editing, some stretches repeated one caption over and over - "Help me!" x11 at 23:42,
+"No." x10 at 25:10, "Yeah." x12 at 29:38, "We got it." x9 at 44:02. Not an editor bug: Whisper
+latches onto a phrase on screaming / noisy audio and repeats it.
+
+- New `captions.clean_loops`: a phrase repeated 3+ times in a row is checked repeat by repeat; a
+  repeat is left out when its words are piled onto one instant with no length, its confidence is
+  under 50 %, it's faster than anyone talks (phrases only: under 0.1 s a word), or - unless it's
+  90 %+ confident - the voice detector hears no voice under it. The most believable repeat of each
+  phrase always stays. Real repeats ("wait, wait, wait…", "yeah, yeah, yeah") are untouched.
+- On Pt 2: 106 of 5,742 words left out, in 33 places.
+- Used everywhere the transcript is: the caption editor, renders and previews, the timing check,
+  and the Premiere bridge's toolkit-speech route. The cached transcript isn't changed.
+- A caption you retyped in the editor is never removed by this (one "no." at 12:04 that had been
+  retyped as "Woah" would have vanished otherwise). All 40 existing edits on Pt 2 still match.
+
 ## 0.12.0 - 2026-09-27
 
 **Edit or remove any caption, right in the app.**

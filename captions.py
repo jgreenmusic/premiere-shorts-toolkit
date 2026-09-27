@@ -79,6 +79,82 @@ def transcribe(audio, cache_dir, model="small", log=print):
     return words
 
 
+# -- Whisper repetition loops -----------------------------------------------------
+# On screaming / noisy stretches Whisper can latch onto one phrase and repeat it ("Help me!"
+# x11, "We got it." x9). Real repeats ("wait, wait, wait") are confident, at a human pace
+# and voiced; loop repeats show at least one of: words stacked on one instant with no
+# length, low confidence, faster than anyone talks, or no voice under them.
+LOOP_MIN = 3            # a phrase repeated this many times in a row is checked
+LOOP_CONF = 0.5         # mean word confidence a repeat needs...
+LOOP_SURE = 0.9         # ...and above this the voice check is skipped (VAD misses fast words)
+LOOP_VOICED = 0.25      # share of the repeat's span the voice detector must hear
+LOOP_PACE = 0.1         # seconds per word, at least
+
+
+def _voiced(a, b, regions):
+    if b <= a:
+        b = a + 0.05
+    return sum(max(0.0, min(b, y) - max(a, x)) for x, y in regions) / (b - a)
+
+
+def clean_loops(words, regions=None, keep=()):
+    """Words without Whisper's repetition loops (see above). Keeps at least the best
+    repeat of every phrase. regions: voice regions [[a, b], ...] or None. keep: start
+    times of captions you retyped in the app - their first word is never dropped."""
+    if not words:
+        return words
+    keep = [float(t) for t in keep]
+    mine = lambda w: any(abs(w[0] - t) < 0.006 for t in keep)
+    # 1. words piled onto the same instant with no length
+    out = [words[0]]
+    for w in words[1:]:
+        p = out[-1]
+        if w[1] - w[0] < 0.03 and w[0] - p[0] < 0.03 and norm(w[2]) == norm(p[2]) and not mine(w):
+            continue
+        out.append(w)
+    words = out
+    toks = [norm(w[2]) for w in words]
+    drop = set()
+    i = 0
+    while i < len(words):
+        best = None
+        for n in (4, 3, 2, 1):                       # longest repeating phrase starting here
+            g = toks[i:i + n]
+            if len(g) < n or not all(g):
+                continue
+            r = 1
+            while toks[i + r * n:i + (r + 1) * n] == g:
+                r += 1
+            if r >= LOOP_MIN:
+                best = (n, r)
+                break
+        if not best:
+            i += 1
+            continue
+        n, r = best
+        reps = [words[i + k * n:i + (k + 1) * n] for k in range(r)]
+        scores = []
+        for rep in reps:
+            conf = sum(w[3] if len(w) > 3 else 1.0 for w in rep) / n
+            a, b = rep[0][0], rep[-1][1]
+            voiced = _voiced(a, b, regions) if regions else 1.0
+            # pace only for phrases: Whisper often gives a line's last single word no length
+            fast = n > 1 and (b - a) / n < LOOP_PACE
+            ok = conf >= LOOP_CONF and not fast and (conf >= LOOP_SURE or voiced >= LOOP_VOICED)
+            scores.append((ok, not fast, conf * min(1.0, voiced + 0.2)))
+        keep_best = max(range(r), key=lambda k: scores[k])     # a believable repeat first
+        for k in range(r):
+            if not scores[k][0] and k != keep_best:
+                drop.update(range(i + k * n, i + (k + 1) * n))
+        i += n * r
+    return [w for j, w in enumerate(words) if j not in drop or mine(w)]
+
+
+def retyped(cfg):
+    """Start times of the captions you retyped (toolkit.json caption_edits with text)."""
+    return [k for k, e in ((cfg or {}).get("caption_edits") or {}).items() if e and e.get("text")]
+
+
 # -- your caption edits (toolkit.json "caption_edits") -------------------------
 def caption_key(c):
     """A caption's id for edits: its start on the timeline, to the hundredth of a second."""
