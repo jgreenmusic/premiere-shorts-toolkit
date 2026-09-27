@@ -63,6 +63,16 @@ async function importCaptions(cmd) {
   return post("/api/bridge/report", { job: cmd.job, error: msg });
 }
 
+async function runScript(cmd) {
+  log("Running " + baseName(cmd.script));
+  show("Running " + baseName(cmd.script) + "…", "busy");
+  const r = String(await host("shortsRunScript", cmd.script, cmd.sequence || "", cmd.project || ""));
+  const ok = r.indexOf("OK:") === 0;
+  const message = ok ? r.slice(3) : r.indexOf("ERR:") === 0 ? r.slice(4) : "Premiere didn't answer the script (" + r + ")";
+  log(message);
+  return post("/api/bridge/report", { rid: cmd.rid, ok, message });
+}
+
 async function tick() {
   let wait = 1500;
   try {
@@ -70,10 +80,11 @@ async function tick() {
     try { i = JSON.parse(await host("shortsInfo")); } catch (e) { /* Premiere busy */ }
     const r = await post("/api/bridge/hello", Object.assign({ plugin: VERSION }, i));
     if (!busy) show(i.project ? `Connected · ${baseName(i.project)}` : "Connected · no project open", "on");
-    if (r.command && !busy && r.command.op === "import") {
+    const cmd = r.command;
+    if (cmd && !busy && (cmd.op === "import" || cmd.op === "script")) {
       busy = true;
-      importCaptions(r.command)
-        .catch((e) => post("/api/bridge/report", { job: r.command.job, error: "Captions panel error: " + e }).catch(() => {}))
+      (cmd.op === "import" ? importCaptions(cmd) : runScript(cmd))
+        .catch((e) => post("/api/bridge/report", { job: cmd.job, rid: cmd.rid, error: "Captions panel error: " + e, message: String(e) }).catch(() => {}))
         .finally(() => { busy = false; });
     }
   } catch (e) {

@@ -422,10 +422,7 @@ function viewMarkers() {
   $("#mkMore").onclick = () => more(false);
   if ($("#mkMore2")) $("#mkMore2").onclick = () => more(false);
   if ($("#mkReset")) $("#mkReset").onclick = () => more(true);
-  if ($("#mkPremiere")) $("#mkPremiere").onclick = () => {
-    api("/api/open", { path: "", script: "suggested-markers.jsx", how: "vscode" });
-    toast("Opened suggested-markers.jsx — run it in VS Code (Ctrl+Shift+P → Evaluate Script in Attached Host) with the project open in Premiere.", true);
-  };
+  if ($("#mkPremiere")) $("#mkPremiere").onclick = e => runInPremiere("suggested-markers.jsx", e.currentTarget);
   const toShort = ms => [...shortsList(), ...ms.map(m => ({ name: m.name.replace(/^Marker/, "Short"), start: m.start, end: m.end }))];
   if ($("#mkAll")) $("#mkAll").onclick = async () => { const add = list.filter(m => !isShort(m)); await saveShorts(toShort(add), `Added ${add.length} Short${add.length === 1 ? "" : "s"}`); render(); };
   $$("[data-mkshort]").forEach(b => b.onclick = async () => { await saveShorts(toShort([list[+b.dataset.mkshort]]), "Added to your Shorts"); render(); });
@@ -524,10 +521,7 @@ function wireShorts() {
   const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || 20, max: +$("#sgMax").value || 45 });
   $("#analyse").onclick = go; const a2 = $("#analyse2"); if (a2) a2.onclick = go;
   $("#addShort").onclick = () => { const s = T.tl ? T.play : (shortsList().at(-1)?.end || 0); addShort(s, s + 30); };
-  if ($("#toPremiere")) $("#toPremiere").onclick = () => {
-    api("/api/open", { path: "", script: "shorts-to-markers.jsx", how: "vscode" });
-    toast("Opened shorts-to-markers.jsx — run it in VS Code (Ctrl+Shift+P → Evaluate Script in Attached Host) with the project open in Premiere.", true);
-  };
+  if ($("#toPremiere")) $("#toPremiere").onclick = e => runInPremiere("shorts-to-markers.jsx", e.currentTarget);
   $("#importMarkers").onclick = async () => {
     if (S.markers) { S.markers = null; return render(); }
     const segs = await api("/api/markers?path=" + encodeURIComponent(S.current));
@@ -1312,14 +1306,14 @@ function viewPremiere() {
     <div class="two">
       <div><h4 style="margin:0 0 8px;font-size:14px">In Premiere</h4><ol class="howto">
         <li>Open this project and <b>save</b>.</li><li>Select captions → <b>Graphics and Titles → Upgrade Caption to Graphic</b>.</li>
-        <li>Mark the Short with <b>I</b> / <b>O</b> (or select clips).</li><li>Run <b>animate-captions.jsx</b> (VS Code → Ctrl+Shift+P → <i>Evaluate Script in Attached Host</i>).</li></ol></div>
+        <li>Mark the Short with <b>I</b> / <b>O</b> (or select clips).</li><li>Press <b>Run in Premiere</b> next to <b>animate-captions.jsx</b> below.</li></ol></div>
       <div><h4 style="margin:0 0 8px;font-size:14px">Render</h4><ol class="howto">
         <li><b>Ctrl+M</b> → H.264, <b>Match Source – High Bitrate</b>.</li><li>Captions: <b>None</b>.</li><li><b>Send to Media Encoder</b> → <b>Start Queue ▶</b>.</li></ol></div>
     </div>
     <div class="scripts" style="margin-top:16px">
       ${[["animate-captions.jsx", "Pop-in / fade per caption (MODE = \"remove\" to undo)"], ["import-captions.jsx", "Bring the scream caption file in as a new track"],
          ["cut-at-markers.jsx", "Razor every track at every marker"], ["match-scale-vertical.jsx", "1080×1920 + match every clip's scale"]]
-        .filter(([f]) => S.scripts.includes(f)).map(([f, w]) => `<div class="script"><code>${f}</code><span>${w}</span><button class="btn sm" data-script="${f}">Open in VS Code</button></div>`).join("")}
+        .filter(([f]) => S.scripts.includes(f)).map(([f, w]) => `<div class="script"><code>${f}</code><span>${w}</span><button class="btn sm primary" data-runscript="${f}">Run in Premiere</button><button class="btn sm link" data-script="${f}">VS Code</button></div>`).join("")}
     </div>
   </div>
   <div class="card">
@@ -1336,12 +1330,27 @@ function viewPremiere() {
   $("#start").onchange = e => store.set("vstart", e.target.value);
 }
 
+// run one of premiere/*.jsx inside Premiere through the Shorts Toolkit - Captions panel
+async function runInPremiere(script, btn) {
+  const label = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Working in Premiere…"; }
+  try {
+    const r = await api("/api/bridge/script", { path: S.current, script });
+    toast("Premiere: " + r.message, true);
+  } catch (e) {
+    if (/panel isn't open/.test(e.message))
+      toast("Open the panel once in Premiere: Window › Extensions › Shorts Toolkit - Captions (install it from step 2 if it's not there). Then press this again.");
+    else toast("Premiere: " + e.message);
+  } finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
+}
+
 function wireCommon() {
   $$("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset));
   $$("[data-open]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.open, how: "file" }).catch(e => toast(e.message)));
   $$("[data-folder]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.folder, how: "folder" }));
   $$("[data-select]").forEach(b => b.onclick = () => select(b.dataset.select));
   $$("[data-script]").forEach(b => b.onclick = () => api("/api/open", { path: "", script: b.dataset.script, how: "vscode" }));
+  $$("[data-runscript]").forEach(b => b.onclick = () => runInPremiere(b.dataset.runscript, b));
 }
 
 // ---------------------------------------------------------------- jobs

@@ -36,6 +36,36 @@ function shortsFindChild(bin, name) {
     return null;
 }
 
+// open the project's sequence (by name) and make it the active one
+function shortsUseSequence(p, seqName) {
+    var seq = null;
+    for (var i = 0; i < p.sequences.numSequences; i++) {
+        if (p.sequences[i].name == seqName) { seq = p.sequences[i]; break; }
+    }
+    if (!seq) seq = p.activeSequence;
+    if (seq && (!p.activeSequence || p.activeSequence.sequenceID != seq.sequenceID)) p.openSequence(seq.sequenceID);
+    return seq;
+}
+
+// run one of the toolkit's premiere/*.jsx scripts on the open project; the script's
+// last value is its message
+function shortsRunScript(scriptPath, seqName, projectPath) {
+    try {
+        var p = app.project;
+        if (!p || !p.path) return "ERR:No project is open in Premiere.";
+        if (projectPath && !shortsSame(p.path, projectPath)) {
+            return "ERR:Premiere has \"" + p.name + "\" open - open " + projectPath.replace(/^.*[\\/]/, "") + " in Premiere, then try again.";
+        }
+        if (!shortsUseSequence(p, seqName)) return "ERR:No sequence is open.";
+        var f = new File(scriptPath);
+        if (!f.exists) return "ERR:Script not found: " + scriptPath;
+        var r = $.evalFile(f);
+        return "OK:" + (r === undefined ? "Done." : r);
+    } catch (e) {
+        return "ERR:" + e;
+    }
+}
+
 // lay an .srt on the sequence as a new caption track, then save the project
 function shortsImportCaptions(srtPath, seqName, projectPath) {
     try {

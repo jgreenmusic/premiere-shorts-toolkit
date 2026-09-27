@@ -611,6 +611,18 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/bridge/start":
                 err = bridge_start(b["path"], b.get("engine", "adobe"), b.get("style", "premiere"))
                 return self.send_json({"error": err} if err else {"ok": True}, 409 if err else 200)
+            if u.path == "/api/bridge/script":
+                import bridge
+                import config
+                name = os.path.basename(b["script"])
+                script = os.path.join(RES, "premiere", name)
+                if not name.endswith(".jsx") or not os.path.exists(script):
+                    return self.send_json({"error": "No such Premiere script."}, 404)
+                seq = pick(project(b["path"]), config.load(base_of(b["path"]) + "_captions")).name
+                ok, msg = bridge.run_script(b["path"], script, seq)
+                if msg is None:
+                    return self.send_json({"error": "The Shorts Toolkit panel isn't open in Premiere.", "no_panel": True}, 409)
+                return self.send_json({"ok": ok, "message": msg} if ok else {"error": msg}, 200 if ok else 409)
             if u.path == "/api/bridge/cancel":
                 import bridge
                 with bridge.LOCK:

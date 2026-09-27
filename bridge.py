@@ -73,6 +73,34 @@ def start(project, outdir, sequence, engine, style):
     return None
 
 
+SCRIPT = {"n": 0, "results": {}}
+
+
+def connected(kind):
+    with LOCK:
+        return now() - PANELS.get(kind, {}).get("seen", 0) < 6
+
+
+def run_script(project, script, sequence=None, timeout=30):
+    """Have the Captions panel run one of premiere/*.jsx on the open project and wait for
+    its answer. Returns (ok, message)."""
+    if not connected("cep"):
+        return False, None
+    with LOCK:
+        SCRIPT["n"] += 1
+        rid = SCRIPT["n"]
+        QUEUE["cep"].append(dict(op="script", rid=rid, project=project, sequence=sequence, script=script))
+    end = now() + timeout
+    while now() < end:
+        with LOCK:
+            if rid in SCRIPT["results"]:
+                return SCRIPT["results"].pop(rid)
+        time.sleep(0.2)
+    with LOCK:                                   # never picked up: don't run it later by surprise
+        QUEUE["cep"][:] = [q for q in QUEUE["cep"] if q.get("rid") != rid]
+    return False, "Premiere didn't answer in %d s - is it busy (rendering, a dialog open)?" % timeout
+
+
 def fail(msg):
     say("Failed: " + msg)
     with LOCK:
@@ -81,6 +109,10 @@ def fail(msg):
 
 def report(kind, r):
     """Progress from a panel."""
+    if r.get("rid"):                             # answer to run_script
+        with LOCK:
+            SCRIPT["results"][r["rid"]] = (bool(r.get("ok")), r.get("message") or "")
+        return
     if r.get("job") != JOB["id"]:
         return
     if r.get("line"):

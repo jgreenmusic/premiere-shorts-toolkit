@@ -17,12 +17,12 @@ var COLOR = 3;          // Premiere marker colour index (0 green, 1 red, 2 purpl
 
 (function () {
     var seq = app.project.activeSequence;
-    if (!seq) { $.writeln("No active sequence - click into a timeline first."); return "no sequence"; }
-    if (!app.project.path) { $.writeln("Save the project first."); return "unsaved"; }
+    if (!seq) { $.writeln("No active sequence - click into a timeline first."); return "No active sequence - click into a timeline first."; }
+    if (!app.project.path) { $.writeln("Save the project first."); return "Save the project first."; }
 
     var base = String(app.project.path).replace(/\.prproj$/i, "").replace(/_captions-synced(-v\d+)?$/, "");
     var f = new File(base + "_captions/shorts-markers.csv");
-    if (!f.exists) { $.writeln("No Shorts list found at " + f.fsName + " - add Shorts in the toolkit app first."); return "no list"; }
+    if (!f.exists) { $.writeln("No Shorts list found at " + f.fsName + " - add Shorts in the toolkit app first."); return "Nothing to add yet: " + f.fsName + " is missing."; }
 
     var rows = [];
     f.encoding = "UTF-8";

@@ -2,6 +2,23 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.11.1 - 2026-09-27
+
+**Premiere scripts run from the toolkit - no more VS Code.**
+
+Problem: "Put them in Premiere" (step 1) and "Send to Premiere" (Shorts) only opened the .jsx in
+VS Code, and running it there (ExtendScript Debugger, attach, evaluate) didn't work for Julian.
+
+- Those buttons now hand the script to the **Shorts Toolkit - Captions** panel inside Premiere,
+  which runs it on the open project, on the toolkit's sequence, and reports back in the app
+  ("Added 20 suggested marker(s)…"). New `/api/bridge/script`; only scripts in `premiere\` run.
+- The "Or: finish in Premiere" tab has **Run in Premiere** on every script (VS Code is still a link).
+- If the panel isn't open, the app says exactly where to open it.
+- The marker scripts now return a full sentence instead of codes like "no list".
+
+Tested with the real panel code under Node (Premiere mocked): no panel -> clear message, unknown
+script refused, with the panel the markers message came back in 0.2 s.
+
 ## 0.11.0 - 2026-09-27
 
 **Step 2 can make the captions in Premiere, then moves you on by itself.**
