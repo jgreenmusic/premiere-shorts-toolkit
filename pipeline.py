@@ -45,6 +45,35 @@ def with_toolkit_markers(markers, cfg):
     return sorted(out, key=lambda m: m.start_s)
 
 
+def caption_list(project_path, start=None, end=None):
+    """Captions as the app shows them for editing - fast: no audio. Premiere's own, or the
+    toolkit's made from the cached transcript (the same ones a render uses)."""
+    import glob
+    import json
+    base, outdir = outdir_for(project_path)
+    cfg = config.load(outdir)
+    seq = pick_sequence(open_project(project_path), cfg.get("sequence"))
+    if seq.captions:
+        caps, source = seq.captions, "premiere"
+    else:
+        cached = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
+        if not cached:
+            return dict(source="none", captions=[])
+        with open(cached[-1], encoding="utf-8") as f:
+            caps, _ = cap.auto_captions(json.load(f))
+        source = "toolkit"
+    edits = cfg.get("caption_edits") or {}
+    out = []
+    for c in caps:
+        if (start is not None and c.end_s < start) or (end is not None and c.start_s > end):
+            continue
+        k = cap.caption_key(c)
+        e = edits.get(k) or {}
+        out.append(dict(key=k, start=round(c.start_s, 3), end=round(c.end_s, 3), orig=c.text,
+                        text=e.get("text") if e.get("text") is not None else c.text, hidden=bool(e.get("hide"))))
+    return dict(source=source, captions=out)
+
+
 def load(project_path, sequence=None, model="small", log=print, need_words=True):
     base, outdir = outdir_for(project_path)
     os.makedirs(outdir, exist_ok=True)

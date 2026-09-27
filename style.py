@@ -230,8 +230,15 @@ def build(ctx, plan):
     for p in lplan:
         if p["on"]:
             events += laugh_events(lg.cues_for(ctx.audio, p), st)
+    edits = ctx.cfg.get("caption_edits") or {}
     for c, m in zip(ctx.captions, ctx.matches):
-        if not c.text or c.index in hidden:
+        if c.index in hidden:
+            continue
+        cm = cap.edited(c, m, edits)                  # your fixes from the app
+        if cm is None:
+            continue
+        c, m = cm
+        if not c.text:
             continue
         loud = bool(lk.get("loud_lines", True) and normal
                     and sc.loudness(ctx.audio, c.start_s, c.end_s) / normal >= st["loud_ratio"])

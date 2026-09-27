@@ -42,6 +42,8 @@ DEFAULTS = {
     "markers": [],                # step 1: suggested range markers placed by the toolkit
                                   # [{"name", "start", "end", "score", "why"}]
     "dismissed": [],              # [[start, end]] suggestions you removed - never suggested again
+    "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
+                                  # made in the app; null = back to the original
 }
 
 

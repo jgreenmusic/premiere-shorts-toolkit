@@ -70,6 +70,7 @@ main { overflow-y: auto; padding: 26px 32px 120px; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
 .tab { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tab:hover { color: var(--text); }
+.caprow.now input { box-shadow: 0 0 0 2px var(--accent); }
 .tab.on { color: var(--text); border-bottom-color: var(--accent); }
 .tab .count { font-size: 12px; font-weight: 600; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 
@@ -646,7 +647,9 @@ function panel() {
       <button class="btn sm danger" id="spDel">Remove</button>
     </div>
     ${r ? `<video controls playsinline src="${media(r.path)}#t=0.01" style="margin-top:12px;max-height:340px;width:auto;max-width:100%"></video>
-      <button class="btn link" data-folder="${esc(r.path)}">Show file</button>` : ""}`;
+      <button class="btn link" data-folder="${esc(r.path)}">Show file</button>` : ""}
+    <div id="capEdit" style="margin-top:16px"><p class="hint">Loading captions…</p></div>`;
+  clearTimeout(T.capTimer); T.capTimer = setTimeout(() => loadCapEdit(s), 250);   // dragging redraws this panel constantly
   const upd = (patch) => { const list = structuredClone(shortsList()); Object.assign(list[i], patch); if (list[i].end <= list[i].start) return toast("End must be after start"); saveShorts(list); };
   $("#spName").onchange = e => upd({ name: e.target.value.trim() || s.name });
   $("#spS").onchange = e => { const v = parseTc(e.target.value); isNaN(v) ? toast("Use a time like 6:18") : upd({ start: v }); };
@@ -656,6 +659,51 @@ function panel() {
   $("#spToRender").onclick = () => { S.renderSel = i; S.tab = "render"; store.set("tab", "render"); render(); };
   $("#spDel").onclick = () => { const list = shortsList().filter((_, k) => k !== i); T.sel = null; saveShorts(list, "Removed — Ctrl+Z to undo"); };
   wireCommon();
+}
+
+// ---- caption editor (a selected Short's captions): fix a word, take a caption out.
+// Saved per project in toolkit.json "caption_edits"; used by every render and preview.
+async function loadCapEdit(s) {
+  const box = $("#capEdit"); if (!box) return;
+  let r; try { r = await api(`/api/captions?path=${encodeURIComponent(S.current)}&start=${s.start}&end=${s.end}`); }
+  catch (e) { box.innerHTML = `<p class="hint">Couldn't read the captions: ${esc(e.message)}</p>`; return; }
+  if ($("#capEdit") !== box) return;                        // another Short was picked meanwhile
+  const caps = r.captions;
+  if (!caps.length) {
+    box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions</h4><p class="hint">${r.source === "none"
+      ? "No captions yet — they're made from the speech the first time you place markers, analyse or render."
+      : "No captions in this Short."}</p>`;
+    return;
+  }
+  const n = caps.filter(c => c.hidden || c.text !== c.orig).length;
+  box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
+    <p class="hint" style="margin:0 0 8px">Click a time to hear it. Type to fix the words, ✕ takes a caption out. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
+    <div class="scroll" style="max-height:330px" id="capRows">${caps.map((c, k) => `
+      <div class="caprow${c.hidden ? " off" : ""}" data-k="${k}" data-t="${c.start}" data-e="${c.end}" style="display:flex;gap:6px;align-items:center;padding:3px 0">
+        <button class="btn link sm" data-cseek="${k}" style="min-width:58px;font-variant-numeric:tabular-nums">${tc(c.start)}</button>
+        <input class="text" data-ctext="${k}" value="${esc(c.hidden ? c.orig : c.text)}" ${c.hidden ? "disabled" : ""} style="flex:1;min-width:0;${c.text !== c.orig && !c.hidden ? "border-color:var(--accent)" : ""}${c.hidden ? ";text-decoration:line-through;opacity:.5" : ""}" title="${c.text !== c.orig ? "Was: " + esc(c.orig) : ""}">
+        ${c.hidden || c.text !== c.orig ? `<button class="btn sm" data-crestore="${k}" title="Back to the original">↺</button>` : ""}
+        ${c.hidden ? "" : `<button class="btn sm" data-chide="${k}" title="Take this caption out">✕</button>`}
+      </div>`).join("")}</div>`;
+  const save = async (k, v, msg) => {
+    try { S.info.config = await api("/api/config", { path: S.current, patch: { caption_edits: { [caps[k].key]: v } } }); }
+    catch (e) { return toast(e.message); }
+    if (msg) toast(msg, true);
+    loadCapEdit(s);
+  };
+  $$("[data-cseek]").forEach(b => b.onclick = () => { seek(Math.max(s.start, caps[+b.dataset.cseek].start - 0.3)); playNow(); });
+  $$("[data-ctext]").forEach(inp => {
+    inp.onchange = () => { const k = +inp.dataset.ctext, v = inp.value.trim();
+      if (!v) return save(k, { hide: true }, "Caption taken out — ↺ brings it back");
+      save(k, v === caps[k].orig ? null : { text: v, hide: false }); };
+    inp.onkeydown = e => { if (e.key === "Enter") inp.blur(); e.stopPropagation(); };   // typing never triggers the timeline keys
+  });
+  $$("[data-chide]").forEach(b => b.onclick = () => save(+b.dataset.chide, { hide: true }, "Caption taken out — ↺ brings it back"));
+  $$("[data-crestore]").forEach(b => b.onclick = () => save(+b.dataset.crestore, null));
+}
+// the caption under the playhead lights up in the editor
+function markCapRow() {
+  $$("#capRows .caprow").forEach(r => r.classList.toggle("now", T.play >= +r.dataset.t && T.play < +r.dataset.e));
 }
 
 // ---- player (plays the source footage at the timeline position)
@@ -702,7 +750,7 @@ function jumpMarker(dir) {
   const t = dir > 0 ? ms.find(x => x > T.play + 0.05) : [...ms].reverse().find(x => x < T.play - 0.05);
   if (t !== undefined) seek(t);
 }
-function tick() { const el = $("#pTime"); if (el) el.textContent = tc(T.play); draw(); }
+function tick() { const el = $("#pTime"); if (el) el.textContent = tc(T.play); draw(); markCapRow(); }
 
 // ---- canvases
 function fitCanvas(c) {

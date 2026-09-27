@@ -2,6 +2,27 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.12.0 - 2026-09-27
+
+**Edit or remove any caption, right in the app.**
+
+Asked for: when a caption's words don't match what was said, fix them or take the caption out in the UI.
+
+- Select a Short (step 3): its side panel lists **every caption in that Short** with its time.
+  - Click the time to **hear it** (plays from just before).
+  - **Type** to fix the words (Enter or click away saves). Changed ones get an accent border and
+    show the original on hover.
+  - **✕** takes a caption out; clearing the text does too. **↺** restores the original.
+  - The caption under the playhead lights up while the video plays.
+- Works for Premiere's captions and the toolkit's own (made from speech). Edits are saved per
+  project (`toolkit.json` "caption_edits", keyed by start time) and used by **every render and
+  preview**, with your Look and Punctuation settings. Your Premiere project isn't changed.
+- A corrected caption's words are spread evenly over it for the word highlight (the new words
+  have no heard times).
+
+Tested: on a copy of Pt 2, an edited caption rendered with the new words and a stepping highlight,
+a removed one was gone, the next one unchanged; the editor showed Short 01's 24 captions in the app.
+
 ## 0.11.5 - 2026-09-27
 
 **Punctuation setting: captions without periods.**

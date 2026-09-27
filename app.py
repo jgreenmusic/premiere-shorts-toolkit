@@ -508,6 +508,10 @@ class Handler(BaseHTTPRequestHandler):
                 d["markers"] = [dict(t=round(m.start_s, 3), dur=round(m.dur_s, 3), name=m.name) for m in
                                 pipeline.with_toolkit_markers(pick(project(q["path"]), cfg).markers, cfg)]
                 return self.send_json(d)
+            if u.path == "/api/captions":
+                import pipeline
+                f = lambda k: float(q[k]) if q.get(k) not in (None, "") else None
+                return self.send_json(pipeline.caption_list(q["path"], f("start"), f("end")))
             if u.path == "/api/job":
                 start = int(q.get("from", 0))
                 with LOCK:

@@ -79,6 +79,26 @@ def transcribe(audio, cache_dir, model="small", log=print):
     return words
 
 
+# -- your caption edits (toolkit.json "caption_edits") -------------------------
+def caption_key(c):
+    """A caption's id for edits: its start on the timeline, to the hundredth of a second."""
+    return "%.2f" % c.start_s
+
+
+def edited(c, m, edits):
+    """(caption, match) with your edit applied, or None if you took it out. New text
+    has no heard-word times, so its words are spread evenly over the caption."""
+    e = (edits or {}).get(caption_key(c))
+    if not e:
+        return c, m
+    if e.get("hide"):
+        return None
+    if e.get("text") is not None and e["text"].strip() != c.text:
+        from dataclasses import replace
+        return replace(c, text=e["text"].strip()), dict(m, words=[])
+    return c, m
+
+
 # -- punctuation on screen ----------------------------------------------------
 # "keep": as heard.  "soft": no . , ; : or … (? and ! stay - they change how a line
 # reads).  "all": none of those either. Apostrophes in words (don't) and hyphens inside
