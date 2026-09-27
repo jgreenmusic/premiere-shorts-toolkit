@@ -2,6 +2,22 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.3.0 - 2026-09-26
+
+**Animated screams.** `shorts.py screams` turns drawn-out interjections into captions whose
+letters grow with the voice, and writes a full replacement caption track
+(`captions-with-screams.srt`) plus `premiere/import-captions.jsx` to import it. Audio untouched.
+
+- Letter count scales with scream length (7/s, 5-28 letters); letters arrive in step with
+  loudness, so a louder moment fills faster. Split pieces ("AH!" 0.08 s + "AH!") are merged.
+- Problems found on the way: counting any continuous voice as the scream turned calm "Yeah."
+  + more talking into 6 s "YEAAAHHH" (100+ false screams). A scream now ends at the next spoken
+  word and must be 1.6x louder than the recording's normal talk (23 found).
+- Screams over 3 s are flagged CHECK: some are 12 s voice stretches with no words
+  (likely laughter or game audio).
+- Why an .srt and not a patched project: adding new caption items means writing Premiere's
+  undocumented FlatBuffer text format; importing an .srt lets Premiere create them.
+
 ## 0.2.0 - 2026-09-26
 
 **Caption durations now follow the sound.** `--fix` fits every caption's length to how long

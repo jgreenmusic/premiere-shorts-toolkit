@@ -16,7 +16,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -47,7 +47,8 @@ def classify(c, m):
     return issues or ["ok"]
 
 
-def cmd_captions(args):
+def open_sequence(args):
+    """(project, sequence, stem, base, outdir) for the one sequence with captions."""
     proj = Project(args.project)
     seqs = [s for s in proj.sequences() if s.captions]
     if args.sequence:
@@ -57,12 +58,64 @@ def cmd_captions(args):
     if len(seqs) > 1:
         sys.exit("Several sequences have captions - pick one with --sequence: %s"
                  % ", ".join(repr(s.name) for s in seqs))
-    seq = seqs[0]
     stem = os.path.splitext(args.project)[0]
     # a synced copy shares the original's cache/report folder (same audio)
     base = re.sub(r"_captions-synced(-v\d+)?$", "", stem)
     outdir = base + "_captions"
     os.makedirs(outdir, exist_ok=True)
+    return proj, seqs[0], stem, base, outdir
+
+
+def cmd_screams(args):
+    import screams as sc
+    proj, seq, stem, base, outdir = open_sequence(args)
+    print("Sequence %r: %d captions" % (seq.name, len(seq.captions)))
+    print("[1/3] rebuilding the sequence audio")
+    audio = cap.timeline_audio(seq)
+    print("[2/3] measuring the voice")
+    regions = cap.voice_regions(audio, outdir)
+    words = cap.transcribe(audio, outdir, model=args.model)
+    found = sc.find_screams(seq, regions, words, audio, loud_ratio=args.loud)
+    if not found:
+        sys.exit("No drawn-out AAAH / OHHH / NOOO / WHOAAA captions found (voice >= %.1fs)." % sc.MIN_SCREAM)
+    print("[3/3] animating %d scream(s)" % len(found))
+    # Start from every caption in the project (its current, fixed timing), then
+    # swap each scream's original caption(s) for the growing-letter cues.
+    replaced = {j for f in found for j in f[4]}
+    cues = [[c.start_s, c.end_s, c.text] for c in seq.captions
+            if c.text and c.index not in replaced]          # empty captions dropped
+    listing = []
+    for s, e, tpl, bang, idx, ratio in found:
+        grow = sc.cues_for(audio, s, e, tpl, bang)
+        cues += grow
+        texts = ", ".join(repr(seq.captions[j].text) for j in idx)
+        listing.append([s, e, ratio, texts, grow[-1][2]])
+    cues.sort(key=lambda c: c[0])
+    for a, b in zip(cues, cues[1:]):                         # one caption at a time
+        if a[1] > b[0]:
+            a[1] = b[0]
+    cues = [c for c in cues if c[1] - c[0] > 0.001]
+    lines = []
+    for s, e, ratio, texts, spelled in listing:
+        check = "  <- CHECK: long, may be laughing/game audio" if e - s > 3.0 else ""
+        lines.append("%s  %.1fs  %.1fx loud  %-28s was %s%s"
+                     % (cap.fmt(s), e - s, ratio, spelled, texts, check))
+    srt = os.path.join(outdir, "captions-with-screams.srt")
+    sc.write_srt(srt, cues)
+    txt = os.path.join(outdir, "screams.txt")
+    with open(txt, "w", encoding="utf-8") as f:
+        f.write("Screams animated in captions-with-screams.srt (a full replacement for the\n"
+                "caption track). Timeline position, length, loudness vs normal talk:\n\n")
+        f.write("\n".join(lines) + "\n")
+    print()
+    print("\n".join(lines))
+    print("\n%d captions (%d screams animated, %d empty dropped) -> %s"
+          % (len(cues), len(found), sum(1 for c in seq.captions if not c.text), srt))
+    print("Import it with premiere/import-captions.jsx - see the README.")
+
+
+def cmd_captions(args):
+    proj, seq, stem, base, outdir = open_sequence(args)
     print("Sequence %r: %d captions, %d audio clips" % (seq.name, len(seq.captions), len(seq.audio)))
 
     print("[1/4] rebuilding the sequence audio")
@@ -304,6 +357,13 @@ def main():
     c.add_argument("--no-durations", action="store_true",
                    help="with --fix: don't fit caption lengths to the sound, only fix timing errors")
     c.set_defaults(func=cmd_captions)
+    k = sub.add_parser("screams", help="animated AAAAHHHH captions that grow with the voice (.srt)")
+    k.add_argument("project", help="saved .prproj file")
+    k.add_argument("--sequence", help="sequence name, if more than one has captions")
+    k.add_argument("--loud", type=float, default=1.6,
+                   help="how much louder than normal talking a scream must be (default 1.6x; lower = more screams)")
+    k.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+    k.set_defaults(func=cmd_screams)
     args = ap.parse_args()
     args.func(args)
 
