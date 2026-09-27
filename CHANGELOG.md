@@ -2,6 +2,34 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.6.0 - 2026-09-26
+
+**A companion for any project.** Shorts are now made and rendered by the toolkit itself.
+
+- **Shorts list per project** (`toolkit.json`): add ranges by hand or **import the segments
+  between sequence markers** (pick which), then `shorts.py make` / the app renders finished
+  1080×1920 videos straight from the source media into `<project>_shorts\`.
+- **Renderer** (`render.py`): rebuilds a timeline range (topmost video clip at each moment,
+  every audio clip mixed), gameplay over a blurred copy, styled captions burned in. Keeps the
+  source frame rate.
+- **Blur bands 25% smaller** by default ("Gameplay size" in the Look tab, 0-100%).
+- **Any project:** reads video clips and sequence markers; sequence picker; if a sequence has
+  no captions, captions are made from the speech (1-3 words, Shorts style).
+- **Per-project settings** (`config.py`): look, layout, scream choices, Shorts list.
+- **App redesign:** tabs (Shorts / Screams / Look / Captions / Premiere), rendered Shorts play
+  in the page, scream suggestions with ▶ listen + on/off switches, add-a-scream form, marker picker.
+
+Problems found and fixed:
+- **A scream Premiere never captioned couldn't be animated** (the "AAAHHH" at 6:29 in the first
+  test). Wordless voice with no caption is now suggested as a scream ("no caption"), off until
+  switched on - its loudness alone (0.9x talk) can't tell it from a laugh or game audio.
+- **A caption inside a scream flashed for 2 frames** ("WE ALL." mid-"YEAAAHHH"): captions that
+  start while a scream is on screen are now hidden.
+- **Premiere leaves out a value when it is 0** (a clip or caption at 0:00 has no `<Start>`), which
+  crashed reading projects whose footage starts at the beginning. Read as 0; such captions are
+  skipped when patching.
+- **Empty projects** stopped the app's server mid-request (no response). Now a plain message.
+
 ## 0.5.0 - 2026-09-26
 
 **The app.** `app.py` + `ui/index.html`: a local browser UI over `shorts.py` (127.0.0.1 only,

@@ -1,141 +1,96 @@
-# Premiere Shorts Toolkit
+# Shorts Toolkit
 
-Small tools for cutting long recordings into Shorts in Adobe Premiere Pro.
+A companion for turning long Premiere Pro recordings into vertical Shorts: finds the clips,
+checks and fixes caption timing, spells out screams letter by letter, and renders finished
+1080×1920 videos with styled, animated captions — or animates the captions inside Premiere
+if you'd rather finish there.
 
-| Tool | What it does |
-|---|---|
-| `shorts.py captions` | Checks every caption against the actual speech in the sequence audio and reports which ones are early, late, cut off, or linger. With `--fix`, writes a synced **copy** of the project. |
-| `shorts.py screams` | Turns drawn-out, loud AAAH / OHHH / NOOO / WHOAAA / YEAHHH captions into growing-letter captions ("O" -> "OO" -> ... -> "OOOOOOOHHHH") that follow the voice and speed up when louder. Writes a full replacement caption file. Audio is never changed. |
-| `shorts.py prepare` | Marks loud lines and screams for `animate-captions.jsx`. |
-| `shorts.py style` | Styled captions with subtle animation (pop-in, spoken-word highlight, loud lines, screams) burned into your export. |
-| `premiere/animate-captions.jsx` | Inside Premiere: gives every caption graphic its own pop-in + fade (after "Upgrade Caption to Graphic"). Settings at the top of the file. |
-| `premiere/import-captions.jsx` | Imports an .srt as a new caption track on the active sequence. |
-| `premiere/cut-at-markers.jsx` | Razors every unlocked track at every sequence marker. |
-| `premiere/match-scale-vertical.jsx` | Sets the sequence to 1080x1920 and gives every clip the first clip's Scale. |
+Works on any Premiere Pro project. If a sequence has no captions, the toolkit writes its own
+from the speech (1–3 words at a time).
 
-## The app (easiest way)
+## Start
 
 Double-click **`Shorts Toolkit.cmd`** (or the desktop shortcut). It opens in your browser and
-runs only on this PC. Pick a project on the left, then go down the steps:
+runs only on this PC. Save your project in Premiere first (Ctrl+S) — the toolkit reads the
+saved file and never changes it.
 
-1. **Check caption timing** - how many captions are in sync, early, late, cut off, or linger.
-2. **Fix timing & fit lengths** - writes a synced copy of the project (original untouched).
-3. **Animated screams** - finds the long loud AAAH/OHHH moments; slider sets how loud counts.
-4. **Animate in Premiere** - "Prepare for Premiere" marks loud lines and screams, then the
-   `animate-captions.jsx` script does the animation inside Premiere. "Open in VS Code" buttons
-   open each script.
-5. **Burned-in look** *(optional)* - preview the highlighted-word style on a few seconds, or burn
-   it onto your export.
+Pick a project on the left, then use the tabs:
 
-The log bar at the bottom shows what's running. The app closes itself a minute after you close
-the tab. Every button runs a `shorts.py` command, so everything below still works from a terminal.
+| Tab | What it does |
+|---|---|
+| **Shorts** | Your list of Shorts (timeline ranges). **Import from markers** turns the segments between your sequence markers into Shorts — tick the ones you want. **Render** makes finished vertical videos straight from your recording; they play right in the page and land in `<project>_shorts\`. |
+| **Screams** | Long "AAAH / OHHH / NOOO" moments spelled out letter by letter as the voice goes on. Loud ones are found automatically. Quieter or **uncaptioned** ones (Premiere often doesn't transcribe a scream) are listed as suggestions — press ▶ to listen and switch them on. You can also add one by hand and pick its letters. |
+| **Look** | Gameplay size (how much blur shows above and below), caption size and height, spoken-word highlight, bigger loud lines, colours, and a quick preview. Saved per project. |
+| **Captions** | For captions made in Premiere: check their timing against the speech, and write a synced copy of the project that fixes them (your original is never changed). |
+| **Premiere** | Finishing in Premiere instead: marks loud lines and screams for `animate-captions.jsx`, opens the scripts in VS Code, and burns captions onto a Premiere export. |
+
+The bar at the bottom shows what's running. The app closes itself a minute after you close the tab.
 
 ## Setup (once)
 
-Needs Python 3.10–3.13 and [ffmpeg](https://ffmpeg.org) on PATH.
+Needs Python 3.10–3.13 and [ffmpeg](https://ffmpeg.org) (with libass) on PATH.
 
 ```
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-The first caption check downloads a Whisper speech model (~500 MB for `small`).
+The first time a project is analysed, the Whisper speech model downloads (~500 MB) and the
+audio is transcribed on the CPU (about 8 minutes per hour of audio). It's cached after that.
 
-## Caption timing check
+## Where things are saved
 
-1. In Premiere, **save the project (Ctrl+S)** - the tool reads the file on disk.
-2. Run:
-   ```
-   .venv\Scripts\python shorts.py captions "C:\path\to\Project.prproj"
-   ```
-3. Read `Project_captions\caption-report.txt` (summary) and `caption-report.csv` (every caption).
-4. To fix, add `--fix`:
-   ```
-   .venv\Scripts\python shorts.py captions "C:\path\to\Project.prproj" --fix
-   ```
-   This writes `Project_captions-synced.prproj` next to your project. **Your original is never changed.**
-   Close the project in Premiere and open the synced copy.
+Next to your project:
 
-How it works:
-- Rebuilds the sequence's audio from the clips on the timeline (so cuts and moves are respected).
-- Transcribes it locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) to get the time of every spoken word. The transcript is cached, so re-runs are fast.
-- Matches caption text to the spoken words, then compares times.
-- `--fix` only retimes captions that are actually off (`--all` retimes every one). Caption text and styling are untouched - only start/end times move, and neighbours are nudged so nothing overlaps.
-- `--fix` also fits each caption's **length to the sound**: it stays up for the whole voiced
-  word (a long "Ohhhh" keeps its length) and comes down when the voice stops. Captions too
-  short to read with no room to grow are listed in `too-short-captions.txt`.
-  Use `--no-durations` to fix timing errors only.
-- Running on an already-synced copy writes `_captions-synced-v2`, `-v3`, ... - never overwrites.
+- `<project>_captions\` — the toolkit's working folder: `toolkit.json` (this project's settings,
+  Shorts list and scream choices), transcripts, reports, previews.
+- `<project>_shorts\` — your rendered Shorts.
 
-Options: `--model tiny|base|small|medium|large-v3` (bigger = more accurate, slower),
-`--sequence NAME` if several sequences have captions.
+A synced copy (`_captions-synced`, `-v2`, …) shares the original's folders.
 
-What counts as "off" is set at the top of `shorts.py` (`START_TOL`, `CUTOFF_TOL`, `LINGER_TOL`).
+## Command line
 
-## Animated screams
+Every button runs one of these, so they work from a terminal too:
 
 ```
-.venv\Scripts\python shorts.py screams "C:\path\to\Project_captions-synced-v2.prproj"
+.venv\Scripts\python shorts.py shorts   "Project.prproj" --from-markers   # add marker segments as Shorts
+.venv\Scripts\python shorts.py make     "Project.prproj"                  # render every Short
+.venv\Scripts\python shorts.py make     "Project.prproj" --start 6:16 --end 6:32
+.venv\Scripts\python shorts.py screams  "Project.prproj"                  # scream plan + .srt
+.venv\Scripts\python shorts.py style    "Project.prproj" --preview 6:18   # try the look
+.venv\Scripts\python shorts.py style    "Project.prproj" --video export.mp4   # burn onto a Premiere export
+.venv\Scripts\python shorts.py captions "Project.prproj" [--fix]          # timing check / synced copy
+.venv\Scripts\python shorts.py prepare  "Project.prproj"                  # data for animate-captions.jsx
 ```
-Run it on your latest synced project. It writes `Project_captions\captions-with-screams.srt`:
-every caption with its current timing, the screams replaced by growing letters, empty captions
-dropped. `screams.txt` lists each scream; ones over 3 s are marked CHECK (can be laughter or game audio).
 
-A scream must be drawn out (0.7 s+ of voice, ending when anyone says another word) and loud
-(1.6x normal talking). `--loud 1.3` finds more, `--loud 2` fewer. Tuning is at the top of `screams.py`.
+`--sequence NAME` picks a sequence when a project has several.
 
-To use it in Premiere:
-1. Run `premiere/import-captions.jsx` (below) and pick `captions-with-screams.srt`.
-   (Or: File > Import the .srt, drag it onto the timeline at the very start.)
-2. Hide or delete the old caption track.
-3. Apply your saved caption **Track Style** to the new track - SRT files carry text and
-   timing only, not styling.
+## Premiere scripts (`premiere\`)
 
-## Styled, animated captions
+Run with VS Code + Adobe's **ExtendScript Debugger**: open the `.jsx`, press
+**Ctrl+Shift+P → "ExtendScript: Evaluate Script in Attached Host"**, pick Premiere Pro.
+Save your project first.
 
-Premiere's caption tracks can't animate, so this burns the captions into your export instead:
+| Script | What it does |
+|---|---|
+| `animate-captions.jsx` | After "Upgrade Caption to Graphic": a pop-in and fade per caption — full pop after a pause, tiny in fast talk, fade only when very short, bigger for loud lines, wobble for screams (from **Prepare for Premiere**). Selected clips, else In/Out, else the top track. `MODE = "remove"` undoes it. |
+| `import-captions.jsx` | Imports an .srt (e.g. `captions-with-screams.srt`) as a new caption track. |
+| `cut-at-markers.jsx` | Razors every unlocked track at every sequence marker. |
+| `match-scale-vertical.jsx` | Sets the sequence to 1080×1920 and gives every clip the first clip's Scale. |
 
-- each caption **pops in** (quick fade + slight 88% -> 104% -> 100% bounce) and fades out
-- the **word being spoken is highlighted** gold (Whisper word times; estimated for unheard words)
-- **loud lines** come up a little bigger, in capitals, highlighted orange
-- **screams** grow letter by letter (see above), bigger, with a slight wobble
+## How it works (short version)
 
-Font: Montserrat Black, bundled in `fonts/` (SIL Open Font License) - nothing to install.
+- **Reads the .prproj directly** (gzipped XML): clips, markers, captions (their text is a
+  FlatBuffer blob). A synced copy changes only caption start/end numbers and is re-read to verify.
+- **Speech:** faster-whisper word timestamps + the Silero voice detector bundled with it.
+- **Rendering:** ffmpeg rebuilds the timeline range from the source files, lays the gameplay
+  over a blurred copy, and burns in `.ass` subtitles (libass) with the bundled Montserrat font.
+  Premiere effects (scale, crop, colour, gain) are not applied — the toolkit uses its own layout.
 
-1. Try the look first on a 12-second test clip (made straight from your recording, no export needed):
-   ```
-   .venv\Scripts\python shorts.py style "Project_captions-synced-v2.prproj" --preview 50:05
-   ```
-   Writes `Project_captions\preview-0-50-05.00.mp4`.
-2. In Premiere, **turn the caption track off** and export the whole sequence (File > Export > Media).
-3. Burn the captions on:
-   ```
-   .venv\Scripts\python shorts.py style "Project_captions-synced-v2.prproj" --video "C:\path\to\export.mp4"
-   ```
-   Writes `export_captioned.mp4`. Audio is copied untouched.
-   If you exported only part of the sequence, add `--start 12:30` (where the export begins on the timeline).
+## Known limits
 
-Change the look in `STYLE` at the top of `style.py` (size, colours, position, pop speed).
-`--no-highlight` turns off the word highlight.
+- Timing precision is about half a second (Whisper's word times are coarse).
+- Uncaptioned-scream suggestions can be laughs or game audio — that's why they start switched off.
+- One caption track per sequence is assumed; clips with speed changes are approximated.
 
-## Running the .jsx scripts
-
-1. Install VS Code and the **ExtendScript Debugger** extension (Adobe).
-2. Open the `.jsx`, press **Ctrl+Shift+P → "ExtendScript: Evaluate Script in Attached Host"**, pick Premiere Pro.
-3. Save your project first. Undo steps back one change at a time.
-
-## Limits (known)
-
-- **Timing precision is about half a second.** Whisper's word times are coarse, so the
-  tool only calls a caption early/late when it is off by more than 0.5 s.
-- Captions Whisper can't match (crosstalk, game noise, mumbling) are reported but never moved.
-  On noisy multi-speaker footage expect a large "could not match" share; `--model medium`
-  hears more words but is slower.
-- Phrases said twice in a row ("Go. Go.") can match either copy - check those.
-
-- Captions track: one caption track per sequence is assumed.
-- Clips with speed changes are approximated.
-- Audio gain, mutes and effects are ignored when rebuilding audio for analysis.
-- Premiere's project format is undocumented. `--fix` re-reads what it wrote and refuses to keep a file that doesn't verify - but always keep your original.
-
-See `CHANGELOG.md` for what has changed.
+See `CHANGELOG.md` for everything that has changed and why.

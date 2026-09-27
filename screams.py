@@ -71,7 +71,7 @@ def talk_level(audio, regions):
     return float(np.median(levels)) if levels else 0.0
 
 
-def find_screams(seq, regions, words, audio, loud_ratio=LOUD_RATIO, max_gap=0.25):
+def find_screams(captions, regions, words, audio, loud_ratio=LOUD_RATIO, max_gap=0.25):
     """[(start_s, end_s, template, bang, [caption indexes], loudness_ratio)].
 
     The scream is the voice from the caption's start until (a) the voice stops or
@@ -96,7 +96,7 @@ def find_screams(seq, regions, words, audio, loud_ratio=LOUD_RATIO, max_gap=0.25
         return end
 
     found = []
-    for c in seq.captions:
+    for c in captions:
         tpl = template_for(c.text)
         if not tpl:
             continue
@@ -172,3 +172,82 @@ def write_srt(path, all_cues):
     with open(path, "w", encoding="utf-8") as f:
         for n, (s, e, text) in enumerate(all_cues, 1):
             f.write("%d\n%s --> %s\n%s\n\n" % (n, srt_time(s), srt_time(e), text))
+
+
+# -- the full plan: detected + suggested + your own ------------------------------
+LETTER_CHOICES = {"AH": "aah", "OH": "ohh", "NO": "noo", "WHOA": "whoa", "YEAH": "yeah", "AW": "aww"}
+BURST_MIN = 0.8          # wordless voice must last this long to be suggested
+BURST_PEAK = 0.7         # ...and peak at least this loud vs normal talk
+
+
+def template_from_letters(letters):
+    return template_for(LETTER_CHOICES.get((letters or "AH").upper(), "aah"))
+
+
+def peak_level(audio, a, b, hop=0.05):
+    x = audio[int(a * cap.RATE):int(b * cap.RATE)]
+    h = int(hop * cap.RATE)
+    n = len(x) // h
+    return float(np.percentile(np.sqrt((x[:n * h].reshape(n, h) ** 2).mean(1)), 90)) if n else 0.0
+
+
+def find_bursts(captions, regions, words, audio):
+    """Wordless voice with no caption over it: screams Premiere never transcribed
+    (also laughs and groans - so these are only SUGGESTED, off until you switch them on)."""
+    import bisect
+    spans = [(c.start_s, c.end_s) for c in captions if c.text]
+    word_starts = [w[0] for w in words]
+    base = np.median([peak_level(audio, r[0], r[1]) for r in regions if r[1] - r[0] > 0.3] or [0]) or 1.0
+    out = []
+    for a, b in regions:
+        if b - a < BURST_MIN:
+            continue
+        covered = sum(max(0.0, min(b, e) - max(a, s)) for s, e in spans) / (b - a)
+        i, j = bisect.bisect_left(word_starts, a), bisect.bisect_left(word_starts, b)
+        real_words = [w for w in words[i:j] if not template_for(w[2])]
+        if covered > 0.3 or len(real_words) > 1:
+            continue
+        peak = peak_level(audio, a, b) / base
+        if peak >= BURST_PEAK:
+            out.append((a, min(b, a + MAX_SCREAM), peak))
+    return out
+
+
+def plan_screams(captions, regions, words, audio, cfg):
+    """Every scream candidate, each with on/off, as dicts. cfg = the project's "screams" settings."""
+    def near(t, lst):
+        return any(abs(t - x) < 0.3 for x in lst)
+    plan = []
+    for s, e, tpl, bang, idx, ratio in find_screams(captions, regions, words, audio, loud_ratio=0.0):
+        auto = ratio >= cfg.get("loud", LOUD_RATIO)
+        on = (auto and not near(s, cfg.get("off", []))) or (not auto and near(s, cfg.get("on", [])))
+        plan.append(dict(start=s, end=e, tpl=tpl, bang=bang, replaces=idx, loud=ratio,
+                         source="caption" if auto else "quiet caption", on=on,
+                         was=", ".join(captions[j].text for j in idx if j < len(captions))))
+    taken = [(p["start"], p["end"]) for p in plan]
+    for s, e, peak in find_bursts(captions, regions, words, audio):
+        if any(a - 0.3 < s < b for a, b in taken):
+            continue
+        letters = cfg.get("letters", {}).get("%.2f" % s, "AH")
+        plan.append(dict(start=s, end=e, tpl=template_from_letters(letters), bang=False, replaces=[],
+                         loud=peak, source="no caption", letters=letters, on=near(s, cfg.get("on", [])), was=""))
+    for m in cfg.get("add", []):
+        plan.append(dict(start=float(m["start"]), end=float(m["end"]), tpl=template_from_letters(m.get("letters")),
+                         bang=True, replaces=[], loud=0.0, source="added", letters=m.get("letters", "AH"),
+                         on=True, was=""))
+    plan.sort(key=lambda p: p["start"])
+    return plan
+
+
+def replaced_captions(captions, plan):
+    """Captions hidden by the screams that are on: the ones they replace, plus any
+    caption that starts while a scream is on screen (it would flash for a frame)."""
+    hide = set()
+    for p in plan:
+        if not p["on"]:
+            continue
+        hide.update(p["replaces"])
+        for c in captions:
+            if p["start"] - 0.05 <= c.start_s < p["end"]:
+                hide.add(c.index)
+    return hide

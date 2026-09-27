@@ -23,99 +23,119 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body {
-  background: var(--bg); color: var(--text);
-  font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+body { background: var(--bg); color: var(--text); font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, select { font: inherit; color: inherit; }
-.app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+.app { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
 
-/* top bar */
-header {
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 20px;
-  border-bottom: 1px solid var(--border); background: var(--surface);
-}
+header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
 .logo span { display: block; width: 14px; height: 3px; border-radius: 2px; background: var(--accent-ink); box-shadow: 0 -5px 0 var(--accent-ink), 0 5px 0 var(--accent-ink); }
-header h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+header h1 { font-size: 16px; font-weight: 650; margin: 0; }
 header .ver { color: var(--faint); font-size: 12px; margin-left: -4px; }
 header .spacer { flex: 1; }
 .icon-btn { background: none; border: 1px solid var(--border); border-radius: 9px; height: 32px; padding: 0 10px; cursor: pointer; color: var(--muted); }
 .icon-btn:hover { color: var(--text); background: var(--surface-2); }
 
-/* sidebar */
 aside { border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 12px 90px; background: var(--surface); }
-.side-title { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 10px; }
-.side-title h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; font-weight: 600; }
-.search { width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); margin-bottom: 12px; outline: none; }
-.search:focus { border-color: var(--accent); }
+.side-title h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 8px 10px; font-weight: 600; }
+.search { width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); margin-bottom: 10px; outline: none; }
+.search:focus, input:focus, select:focus { border-color: var(--accent) !important; outline: none; }
 .group { margin-bottom: 10px; }
 .group-name { font-size: 13px; color: var(--muted); padding: 6px 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.proj { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 0; border-radius: 9px; padding: 7px 10px; cursor: pointer; }
+.proj { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; border-radius: 9px; padding: 7px 10px; cursor: pointer; }
 .proj:hover { background: var(--surface-2); }
 .proj.active { background: var(--accent-soft); }
 .proj .tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .proj.active .tag { border-color: var(--accent); color: var(--text); }
 .proj .when { margin-left: auto; font-size: 12px; color: var(--faint); }
-.side-actions { display: flex; gap: 8px; padding: 6px 8px 14px; }
+.side-actions { display: flex; gap: 8px; padding: 0 0 14px; }
 
-/* main */
-main { overflow-y: auto; padding: 28px 36px 120px; }
-.wrap { max-width: 920px; margin: 0 auto; }
-.hero { margin-bottom: 26px; }
-.hero h2 { font-size: 24px; margin: 0 0 6px; letter-spacing: -.02em; font-weight: 650; word-break: break-word; }
-.meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 14px; }
+main { overflow-y: auto; padding: 26px 32px 120px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+.hero { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+.hero-text { flex: 1; min-width: 280px; }
+.hero h2 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.02em; font-weight: 650; word-break: break-word; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; }
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; color: var(--muted); }
 .pill b { color: var(--text); font-weight: 600; }
-.empty { text-align: center; color: var(--muted); padding: 120px 20px; }
-.empty h2 { color: var(--text); font-size: 22px; margin-bottom: 6px; }
+.empty { text-align: center; color: var(--muted); padding: 100px 20px; }
+.empty h2 { color: var(--text); font-size: 21px; margin-bottom: 6px; }
 
-.step { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; }
-.step-head { display: flex; gap: 14px; padding: 18px 20px; align-items: flex-start; }
-.num { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
-.step.done .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.step-title { flex: 1; min-width: 0; }
-.step-title h3 { margin: 2px 0 2px; font-size: 16px; font-weight: 650; }
-.step-title p { margin: 0; color: var(--muted); font-size: 14px; max-width: 62ch; }
-.step-body { padding: 0 20px 20px 64px; }
-.optional { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin-left: 6px; font-weight: 600; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+.tab { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.tab .count { font-size: 12px; font-weight: 600; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 
-.btn { border: 1px solid var(--border); background: var(--surface-2); border-radius: 10px; padding: 8px 14px; cursor: pointer; font-weight: 550; white-space: nowrap; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px; }
+.card-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.card-head h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.card-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; max-width: 64ch; }
+.card-head .grow { flex: 1; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+
+.btn { border: 1px solid var(--border); background: var(--surface-2); border-radius: 10px; padding: 7px 13px; cursor: pointer; font-weight: 550; white-space: nowrap; }
 .btn:hover { border-color: var(--faint); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.primary:hover { filter: brightness(1.06); }
 .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
 .btn.link { background: none; border: 0; padding: 4px 6px; color: var(--muted); font-weight: 500; }
 .btn.link:hover { color: var(--text); }
-.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.row + .row, .row + .result, .result + .row { margin-top: 14px; }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-.field input[type=text] { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; width: 120px; outline: none; }
-.field input[type=text]:focus { border-color: var(--accent); }
-.field input.wide { width: 360px; max-width: 100%; }
-.check { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); cursor: pointer; }
-input[type=range] { accent-color: var(--accent); width: 180px; }
+.btn.sm { padding: 4px 9px; font-size: 13px; border-radius: 8px; }
+.btn.icon { width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
+.btn.danger:hover { color: var(--bad); border-color: var(--bad); }
 .hint { font-size: 13px; color: var(--faint); }
+.muted { color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
-.result { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-.result h4 { margin: 0 0 10px; font-size: 13px; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; }
+input.text, select.text { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; width: 100%; }
+input.time { width: 96px; font-variant-numeric: tabular-nums; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+input[type=range] { accent-color: var(--accent); width: 100%; }
+input[type=color] { width: 44px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: none; padding: 2px; cursor: pointer; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 6px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+tr.sel td { background: var(--accent-soft); }
+td.spell { font-weight: 800; letter-spacing: .02em; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.badge.warn { background: rgba(227,160,43,.15); color: var(--warn); }
+.badge.ok { background: rgba(63,185,80,.14); color: var(--ok); }
+.scroll { max-height: 460px; overflow-y: auto; }
+
+/* switch */
+.switch { position: relative; display: inline-block; vertical-align: middle; width: 38px; height: 22px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; border-radius: 99px; background: var(--border); cursor: pointer; transition: .15s; }
+.switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; border-radius: 50%; background: var(--surface); transition: .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(16px); }
+
+.split { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.player { position: sticky; top: 0; }
+video { width: 100%; border-radius: 12px; background: #000; display: block; aspect-ratio: 9/16; }
+.video-empty { aspect-ratio: 9/16; border-radius: 12px; border: 1px dashed var(--border); display: grid; place-items: center; text-align: center; color: var(--faint); font-size: 13px; padding: 20px; }
 .bars { display: grid; grid-template-columns: 190px 1fr 64px; gap: 7px 12px; align-items: center; font-size: 14px; }
 .bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 99px; }
-.bars .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.bars .n { text-align: right; color: var(--muted); }
 .drift { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 6px; }
-.drift div { flex: 1; background: var(--accent); opacity: .75; border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
-.drift-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 4px; }
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-td { padding: 7px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
-tr:last-child td { border-bottom: 0; }
-td.spell { font-weight: 800; letter-spacing: .02em; font-family: "Segoe UI Black", "Segoe UI", sans-serif; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: rgba(227,160,43,.15); color: var(--warn); }
-.scroll { max-height: 300px; overflow-y: auto; }
-video { width: 100%; max-width: 300px; border-radius: 12px; background: #000; display: block; aspect-ratio: 9/16; }
-.preview-grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+.drift div { flex: 1; background: var(--accent); opacity: .75; border-radius: 3px 3px 0 0; min-height: 2px; }
+.drift-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 4px; gap: 10px; }
+.result { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.result h4 { margin: 0 0 10px; font-size: 13px; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
+.banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent); margin-bottom: 12px; font-size: 14px; }
+.banner .grow { flex: 1; }
+.settings { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; }
+.setting label { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.setting label span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.setting p { margin: 2px 0 0; font-size: 12.5px; color: var(--faint); }
+.toggle-row { display: flex; align-items: center; gap: 12px; }
+.toggle-row div { flex: 1; }
+.toggle-row b { display: block; font-size: 14px; }
+.toggle-row small { color: var(--faint); font-size: 12.5px; }
 ol.howto { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
 ol.howto li { margin: 3px 0; }
 ol.howto b { color: var(--text); font-weight: 600; }
@@ -123,10 +143,10 @@ ol.howto b { color: var(--text); font-weight: 600; }
 .script { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
 .script code { font: 13px/1.3 "Cascadia Code", Consolas, monospace; }
 .script span { color: var(--faint); font-size: 13px; flex: 1; }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; padding: 8px 0; }
 
-/* log drawer */
-.log { position: fixed; left: 300px; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 24px rgba(0,0,0,.2); }
+.log { position: fixed; left: 290px; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 24px rgba(0,0,0,.2); }
 .log-head { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; user-select: none; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.run { background: var(--info); animation: pulse 1.2s infinite; }
@@ -136,15 +156,16 @@ ol.howto b { color: var(--text); font-weight: 600; }
 .log-head .last { color: var(--muted); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: "Cascadia Code", Consolas, monospace; }
 .log pre { margin: 0; max-height: 34vh; overflow: auto; padding: 0 20px 16px; font: 12.5px/1.55 "Cascadia Code", Consolas, monospace; color: var(--muted); white-space: pre-wrap; }
 .log.closed pre { display: none; }
-.toast { position: fixed; top: 70px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bad); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); max-width: 360px; font-size: 14px; display: none; }
+.toast { position: fixed; top: 70px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bad); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); max-width: 360px; font-size: 14px; display: none; z-index: 5; }
+.toast.good { border-left-color: var(--ok); }
 
+@media (max-width: 1000px) { .split { grid-template-columns: 1fr; } .player { position: static; max-width: 300px; } }
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
-  aside { max-height: 34vh; border-right: 0; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  aside { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--border); }
   .log { left: 0; }
-  main { padding: 20px 16px 120px; }
-  .step-body { padding-left: 20px; }
-  .preview-grid, .two { grid-template-columns: 1fr; }
+  main { padding: 18px 16px 120px; }
+  .settings, .two { grid-template-columns: 1fr; }
   .bars { grid-template-columns: 130px 1fr 48px; }
 }
 </style>
@@ -157,7 +178,6 @@ ol.howto b { color: var(--text); font-weight: 600; }
     <div class="spacer"></div>
     <button class="icon-btn" id="theme" title="Switch light / dark">◐ Theme</button>
   </header>
-
   <aside>
     <div class="side-title"><h2>Projects</h2></div>
     <input class="search" id="search" placeholder="Filter projects…" aria-label="Filter projects">
@@ -167,23 +187,20 @@ ol.howto b { color: var(--text); font-weight: 600; }
     </div>
     <div id="projects"></div>
   </aside>
-
   <main><div class="wrap" id="main">
     <div class="empty"><h2>Pick a project</h2><p>Choose a Premiere project on the left.<br>Save it in Premiere first (Ctrl+S) — the toolkit reads the saved file.</p></div>
   </div></main>
 </div>
-
 <div class="log closed" id="log">
-  <div class="log-head" id="logHead">
-    <span class="dot" id="dot"></span><span class="status" id="status">Ready</span>
-    <span class="last" id="last"></span><span class="hint" id="toggleHint">Show log ▴</span>
-  </div>
+  <div class="log-head" id="logHead"><span class="dot" id="dot"></span><span class="status" id="status">Ready</span>
+    <span class="last" id="last"></span><span class="hint" id="toggleHint">Show log ▴</span></div>
   <pre id="logText"></pre>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
 const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 const api = async (url, body) => {
   const r = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
   const j = await r.json();
@@ -193,18 +210,21 @@ const api = async (url, body) => {
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const ago = t => { const s = Date.now() / 1000 - t; return s < 90 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " d ago"; };
 const hms = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h}h ${m}m` : `${m}m ${s % 60}s`; };
-// long project names share a prefix: keep the start AND the end ("…TogetherV0.4")
+const tc = s => { s = Math.max(0, +s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = (s % 60).toFixed(1).padStart(4, "0"); return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + x; };
+const parseTc = t => String(t).trim().split(":").reduce((a, p) => a * 60 + parseFloat(p || 0), 0);
 const short = (s, n = 34) => s.length <= n ? s : s.slice(0, 14) + "…" + s.slice(-(n - 15));
-function toast(msg) { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 6000); }
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+function toast(msg, good) { const t = $("#toast"); t.textContent = msg; t.className = "toast" + (good ? " good" : ""); t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
+const media = p => "/media?path=" + encodeURIComponent(p);
+const slug = n => n.replace(/[<>:"/\\|?*]+/g, "-").trim() || "short";
 
-// ---- theme --------------------------------------------------------------
-const setTheme = t => { document.documentElement.dataset.theme = t; try { localStorage.setItem("theme", t); } catch (e) {} };
-try { setTheme(localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")); } catch (e) { setTheme("dark"); }
+// theme
+const setTheme = t => { document.documentElement.dataset.theme = t; store.set("theme", t); };
+setTheme(store.get("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
 $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
 
-// ---- state --------------------------------------------------------------
-let S = { projects: [], current: null, info: null, busy: false, scripts: [] };
-const opts = { loud: 1.6, at: "", seconds: 12, noHighlight: false, video: "", start: "0" };
+let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "shorts"), sel: 0, markers: null, showSugg: false };
+if (["shorts", "screams", "look", "captions", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
 
 async function loadState() {
   const st = await api("/api/state");
@@ -212,253 +232,390 @@ async function loadState() {
   $("#ver").textContent = "v" + st.version;
   renderProjects();
 }
-
 function renderProjects() {
-  const q = $("#search").value.toLowerCase();
-  const groups = {};
+  const q = $("#search").value.toLowerCase(), groups = {};
   for (const p of S.projects) if (!q || p.name.toLowerCase().includes(q)) (groups[p.base] ||= []).push(p);
-  const html = Object.entries(groups).map(([base, list]) => `
+  $("#projects").innerHTML = Object.entries(groups).map(([base, list]) => `
     <div class="group"><div class="group-name" title="${esc(base)}">${esc(short(base))}</div>
     ${list.sort((a, b) => a.version === "original" ? -1 : b.version === "original" ? 1 : a.version.localeCompare(b.version, undefined, { numeric: true }))
-      .map(p => `<button class="proj ${p.path === S.current ? "active" : ""}" data-path="${esc(p.path)}">
-        <span class="tag">${esc(p.version)}</span><span class="when">${ago(p.modified)}</span></button>`).join("")}
-    </div>`).join("");
-  $("#projects").innerHTML = html || `<p class="hint" style="padding:0 8px">No projects found. Use “Open project…”.</p>`;
-  document.querySelectorAll(".proj").forEach(b => b.onclick = () => select(b.dataset.path));
+      .map(p => `<button class="proj ${p.path === S.current ? "active" : ""}" data-path="${esc(p.path)}"><span class="tag">${esc(p.version)}</span><span class="when">${ago(p.modified)}</span></button>`).join("")}
+    </div>`).join("") || `<p class="hint" style="padding:0 8px">No projects found. Use “Open project…”.</p>`;
+  $$(".proj").forEach(b => b.onclick = () => select(b.dataset.path));
 }
 $("#search").oninput = renderProjects;
 $("#browseProject").onclick = async () => { const r = await api("/api/browse", { kind: "project" }); if (r.path) select(r.path); };
 $("#addFolder").onclick = async () => { const r = await api("/api/browse", { kind: "folder" }); if (r.path) loadState(); };
 
-async function select(path) {
-  S.current = path; renderProjects();
-  $("#main").innerHTML = `<div class="empty"><p>Reading project…</p></div>`;
-  try { S.info = await api("/api/info?path=" + encodeURIComponent(path)); renderMain(); }
+async function select(path, keep) {
+  if (!keep) { S.markers = null; S.sel = 0; }
+  S.current = path; store.set("project", path); renderProjects();
+  if (!keep) $("#main").innerHTML = `<div class="empty"><p>Reading project…</p></div>`;
+  try { S.info = await api("/api/info?path=" + encodeURIComponent(path)); render(); }
   catch (e) { $("#main").innerHTML = `<div class="empty"><h2>Couldn't read that project</h2><p>${esc(e.message)}</p></div>`; }
 }
+async function saveCfg(patch, rerender = true) {
+  S.info.config = await api("/api/config", { path: S.current, patch });
+  if (rerender) render();
+}
 
-// ---- main view ------------------------------------------------------------
-const STATUS = [
-  ["ok", "In sync", "var(--ok)"], ["early", "Appear too early", "var(--warn)"], ["late", "Appear too late", "var(--warn)"],
-  ["cut-off", "Disappear too soon", "var(--bad)"], ["lingers", "Stay up too long", "var(--warn)"],
-  ["no-match", "Couldn't hear the words", "var(--faint)"], ["empty", "Empty captions", "var(--bad)"],
-];
+// ---------------------------------------------------------------- views
+const TABS = [["shorts", "Shorts"], ["screams", "Screams"], ["look", "Look"], ["captions", "Captions"], ["premiere", "Premiere"]];
 
-function renderMain() {
-  const I = S.info, R = I.results, seq = I.sequences.find(s => s.captions) || I.sequences[0] || {};
+function render() {
+  const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.prproj$/i, "");
-  const synced = S.projects.filter(p => p.base === name.replace(/_captions-synced(-v\d+)?$/, "") && p.version !== "original");
-  const isSynced = /_captions-synced/.test(name);
-  const d = (flag) => flag ? "done" : "";
-  const dis = S.busy ? "disabled" : "";
-
+  const counts = { shorts: C.shorts.length, screams: (I.results.screams?.items || []).filter(x => x.on).length };
   $("#main").innerHTML = `
-  <div class="hero">
+  <div class="hero"><div class="hero-text">
     <h2>${esc(name)}</h2>
     <div class="meta">
-      <span class="pill">Sequence <b>${esc(seq.name || "—")}</b></span>
-      <span class="pill"><b>${(seq.captions || 0).toLocaleString()}</b> captions</span>
       <span class="pill"><b>${seq.seconds ? hms(seq.seconds) : "—"}</b> long</span>
-      <span class="pill">${isSynced ? "Synced copy" : "Original"}</span>
-      ${I.sequences.filter(s => s.captions).length > 1 ? `<span class="pill" style="color:var(--warn)">Several sequences have captions — tools use the first</span>` : ""}
+      <span class="pill"><b>${(seq.captions || 0).toLocaleString()}</b> captions${seq.captions ? "" : " — made from speech"}</span>
+      <span class="pill"><b>${seq.markers || 0}</b> markers</span>
+      <span class="pill">${/_captions-synced/.test(name) ? "Synced copy" : "Original"}</span>
+    </div></div>
+    ${I.sequences.length > 1 ? `<label class="field" style="min-width:220px">Sequence
+      <select class="text" id="seqPick">${I.sequences.map(s => `<option ${s.name === I.sequence ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>` : ""}
+  </div>
+  <nav class="tabs">${TABS.map(([k, l]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-tab="${k}">${l}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("")}</nav>
+  <div id="view"></div>`;
+  $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
+  const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
+  ({ shorts: viewShorts, screams: viewScreams, look: viewLook, captions: viewCaptions, premiere: viewPremiere })[S.tab]();
+  wireCommon();
+}
+const dis = () => S.busy ? "disabled" : "";
+
+// ---- Shorts
+function viewShorts() {
+  const I = S.info, C = I.config, R = I.results.renders || {};
+  const cur = C.shorts[S.sel];
+  const playing = cur && R[cur.name];
+  $("#view").innerHTML = `
+  <div class="split"><div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Your Shorts</h3>
+        <p>Each one is a range of the timeline. Rendering makes a finished 1080×1920 video with the gameplay, blur, captions and screams — straight from your recording, no Premiere export needed.</p></div></div>
+      <div class="toolbar">
+        <button class="btn primary" id="addShort">+ Add Short</button>
+        <button class="btn" id="importMarkers">Import from markers</button>
+        <span style="flex:1"></span>
+        ${C.shorts.length ? `<button class="btn" data-run="make" data-index="" ${dis()}>Render all ${C.shorts.length}</button>
+        <button class="btn link" data-folder="${esc(I.shorts_dir)}">Open folder</button>` : ""}
+      </div>
+      ${S.markers ? markerPicker() : ""}
+      ${C.shorts.length ? `<div class="scroll"><table><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Length</th><th>Video</th><th></th></tr></thead><tbody>
+        ${C.shorts.map((s, i) => `<tr class="${i === S.sel ? "sel" : ""}" data-row="${i}">
+          <td><input class="text" data-edit="name" data-i="${i}" value="${esc(s.name)}"></td>
+          <td><input class="text time" data-edit="start" data-i="${i}" value="${tc(s.start)}"></td>
+          <td><input class="text time" data-edit="end" data-i="${i}" value="${tc(s.end)}"></td>
+          <td class="muted">${Math.round(s.end - s.start)}s</td>
+          <td>${R[s.name] ? `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>` : `<span class="badge">Not yet</span>`}</td>
+          <td style="white-space:nowrap"><button class="btn sm" data-run="make" data-index="${i}" ${dis()}>${R[s.name] ? "Re-render" : "Render"}</button>
+            <button class="btn sm icon danger" data-del="${i}" title="Remove from list">✕</button></td></tr>`).join("")}
+        </tbody></table></div>`
+      : (S.markers ? "" : `<div class="result" style="text-align:center;padding:30px"><b>No Shorts yet.</b><p class="hint" style="margin:6px 0 0">Import the segments between your timeline markers, or add a range by hand.</p></div>`)}
+    </div>
+    <p class="hint">Tip: times are timeline times (h:mm:ss or m:ss). Length and look come from the <b>Look</b> tab; screams from the <b>Screams</b> tab.</p>
+  </div>
+  <div class="player">${playing ? `<video controls playsinline src="${media(playing.path)}#t=0.01"></video>
+      <div class="row" style="margin-top:8px"><b style="flex:1;font-size:14px">${esc(cur.name)}</b><button class="btn link" data-folder="${esc(playing.path)}">Show file</button></div>`
+    : `<div class="video-empty">${cur ? "Render this Short to watch it here" : "Rendered Shorts play here"}</div>`}</div>
+  </div>`;
+  $$("[data-row]").forEach(tr => tr.onclick = e => { if (e.target.closest("input,button")) return; S.sel = +tr.dataset.row; render(); });
+  $$("[data-edit]").forEach(inp => inp.onchange = () => {
+    const i = +inp.dataset.i, list = structuredClone(S.info.config.shorts), k = inp.dataset.edit;
+    if (k === "name") list[i].name = inp.value.trim() || list[i].name;
+    else { const v = parseTc(inp.value); if (isNaN(v)) return toast("Use a time like 6:18 or 1:02:03"); list[i][k] = v; }
+    if (list[i].end <= list[i].start) return toast("End must be after start");
+    saveCfg({ shorts: list });
+  });
+  $$("[data-del]").forEach(b => b.onclick = () => { const list = S.info.config.shorts.filter((_, i) => i !== +b.dataset.del); S.sel = 0; saveCfg({ shorts: list }); });
+  $("#addShort").onclick = () => {
+    const last = S.info.config.shorts.at(-1), start = last ? last.end : 0;
+    saveCfg({ shorts: [...S.info.config.shorts, { name: "Short " + (S.info.config.shorts.length + 1), start, end: start + 30 }] })
+      .then(() => { S.sel = S.info.config.shorts.length - 1; render(); });
+  };
+  $("#importMarkers").onclick = async () => {
+    if (S.markers) { S.markers = null; return render(); }
+    const segs = await api("/api/markers?path=" + encodeURIComponent(S.current));
+    if (!segs.length) return toast("This sequence has no markers.");
+    S.markers = segs.map(s => ({ ...s, pick: !s.added && s.seconds >= 15 && s.seconds <= 60 }));
+    render();
+  };
+  const mp = $("#markerAdd");
+  if (mp) {
+    $$("[data-mk]").forEach(c => c.onchange = () => S.markers[+c.dataset.mk].pick = c.checked);
+    $$("[data-mkall]").forEach(b => b.onclick = () => { const [lo, hi] = b.dataset.mkall.split(",").map(Number); S.markers.forEach(s => s.pick = !s.added && s.seconds >= lo && s.seconds <= hi); render(); });
+    mp.onclick = () => {
+      const add = S.markers.filter(s => s.pick && !s.added), base = S.info.config.shorts.length;
+      if (!add.length) return toast("Tick at least one segment.");
+      const list = [...S.info.config.shorts, ...add.map((s, k) => ({ name: `Clip ${String(base + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
+      S.markers = null; saveCfg({ shorts: list }); toast(`Added ${add.length} Short(s)`, true);
+    };
+  }
+}
+function markerPicker() {
+  const n = S.markers.filter(s => s.pick).length;
+  return `<div class="result" style="margin-bottom:14px">
+    <h4><span>Segments between your markers — tick the ones to turn into Shorts</span><span>${n} ticked</span></h4>
+    <div class="row" style="margin-bottom:8px"><span class="hint">Quick pick:</span>
+      <button class="btn sm" data-mkall="15,60">15–60 s</button><button class="btn sm" data-mkall="10,90">10–90 s</button>
+      <button class="btn sm" data-mkall="0,99999">All</button><button class="btn sm" data-mkall="-1,-1">None</button></div>
+    <div class="scroll" style="max-height:260px"><table><tbody>
+    ${S.markers.map((s, i) => `<tr><td style="width:30px"><input type="checkbox" data-mk="${i}" ${s.pick ? "checked" : ""} ${s.added ? "disabled" : ""}></td>
+      <td>${tc(s.start)} → ${tc(s.end)}</td><td class="muted">${s.seconds}s</td><td>${s.added ? `<span class="badge">already added</span>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" id="markerAdd">Add ${n} Short${n === 1 ? "" : "s"}</button><button class="btn link" id="importMarkers2" onclick="S.markers=null;render()">Cancel</button></div></div>`;
+}
+
+// ---- Screams
+function viewScreams() {
+  const I = S.info, C = I.config.screams, R = I.results.screams;
+  const items = R ? R.items : [], on = items.filter(x => x.on), sugg = items.filter(x => !x.on);
+  const row = (x, i) => `<tr>
+    <td><button class="btn sm icon" data-play="${x.start},${x.end}" title="Listen">▶</button></td>
+    <td>${x.at.replace(/\.\d+$/, "")}</td><td class="muted">${x.seconds.toFixed(1)}s</td>
+    <td class="muted">${x.source === "added" ? "—" : x.loud.toFixed(1) + "×"}</td>
+    <td class="spell">${esc(x.spelled)}</td>
+    <td>${x.source === "caption" ? `<span class="badge">caption</span>` : x.source === "added" ? `<span class="badge ok">added by you</span>`
+       : x.source === "no caption" ? `<span class="badge warn" title="Wordless voice with no caption - could be a scream, a laugh or game audio">no caption</span>`
+       : `<span class="badge" title="A drawn-out caption that isn't very loud">quiet</span>`}${x.check ? ` <span class="badge warn" title="Long - may include laughing or game audio">long</span>` : ""}</td>
+    <td>${x.source === "no caption" || x.source === "added" ? `<select class="text" style="width:auto;padding:3px 6px" data-letters="${x.start}" data-src="${x.source}">
+        ${["AH", "OH", "NO", "WHOA", "YEAH", "AW"].map(l => `<option ${(x.letters || "AH") === l ? "selected" : ""}>${l}</option>`).join("")}</select>` : ""}</td>
+    <td>${x.source === "added" ? `<button class="btn sm icon danger" data-unadd="${x.start}" title="Remove">✕</button>`
+       : `<label class="switch" title="${x.on ? "On" : "Off"}"><input type="checkbox" data-toggle="${x.start}" data-src="${x.source}" ${x.on ? "checked" : ""}><span></span></label>`}</td></tr>`;
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Animated screams</h3>
+      <p>Long “AAAH / OHHH / NOOO” moments are spelled out letter by letter as the voice goes on. Loud ones are found automatically; quieter or uncaptioned ones are suggested — listen with ▶ and switch them on.</p></div>
+      <button class="btn ${R ? "" : "primary"}" data-run="screams" ${dis()}>${R ? "Update screams" : "Find screams"}</button></div>
+    ${R && R.stale ? `<div class="banner"><span class="grow">You changed settings since the last update.</span><button class="btn primary sm" data-run="screams" ${dis()}>Update now</button></div>` : ""}
+    <div class="setting" style="max-width:420px;margin-bottom:14px"><label>How loud counts as a scream <span id="loudVal">${(+C.loud).toFixed(1)}× normal talk</span></label>
+      <div class="row" style="flex-wrap:nowrap"><span class="hint">more</span><input type="range" id="loud" min="1.2" max="2.6" step="0.1" value="${C.loud}"><span class="hint">fewer</span></div></div>
+    ${R ? `<div class="result"><h4><span>${on.length} on</span><span>${ago(R.when)}</span></h4>
+      ${on.length ? `<div class="scroll"><table><thead><tr><th></th><th>At</th><th>Length</th><th>Loud</th><th>Becomes</th><th>Found by</th><th>Letters</th><th>On</th></tr></thead><tbody>${on.map(row).join("")}</tbody></table></div>` : `<p class="hint">None on.</p>`}
+      </div>
+      <details ${S.showSugg ? "open" : ""} id="sugg"><summary>Suggestions — off until you switch them on (${sugg.length})</summary>
+        <div class="result"><div class="scroll"><table><thead><tr><th></th><th>At</th><th>Length</th><th>Loud</th><th>Becomes</th><th>Why</th><th>Letters</th><th>On</th></tr></thead><tbody>${sugg.map(row).join("")}</tbody></table></div></div>
+      </details>` : ""}
+    <h4 style="margin:18px 0 8px;font-size:14px">Add a scream by hand</h4>
+    <div class="row">
+      <label class="field">Starts<input class="text time" id="addS" placeholder="6:29.3"></label>
+      <label class="field">Ends<input class="text time" id="addE" placeholder="6:30.8"></label>
+      <label class="field">Letters<select class="text" id="addL" style="width:auto">${["AH", "OH", "NO", "WHOA", "YEAH", "AW"].map(l => `<option>${l}</option>`).join("")}</select></label>
+      <button class="btn" id="addScream" style="align-self:flex-end">Add</button>
+    </div>
+    <audio id="snd" style="display:none"></audio>
+  </div>`;
+  const l = $("#loud");
+  l.oninput = () => $("#loudVal").textContent = (+l.value).toFixed(1) + "× normal talk";
+  l.onchange = () => saveCfg({ screams: { loud: +l.value } });
+  const sg = $("#sugg"); if (sg) sg.ontoggle = () => S.showSugg = sg.open;
+  $$("[data-toggle]").forEach(c => c.onchange = () => {
+    const t = +c.dataset.toggle, auto = c.dataset.src === "caption";
+    const onL = C.on.filter(x => Math.abs(x - t) > 0.3), offL = C.off.filter(x => Math.abs(x - t) > 0.3);
+    if (c.checked && !auto) onL.push(t); if (!c.checked && auto) offL.push(t);
+    const it = S.info.results.screams.items.find(x => x.start === t); if (it) it.on = c.checked;
+    saveCfg({ screams: { on: onL, off: offL } }).then(() => { S.info.results.screams.stale = true; render(); });
+  });
+  $$("[data-letters]").forEach(s => s.onchange = () => {
+    const t = +s.dataset.letters;
+    if (s.dataset.src === "added") saveCfg({ screams: { add: C.add.map(a => Math.abs(a.start - t) < 0.01 ? { ...a, letters: s.value } : a) } });
+    else saveCfg({ screams: { letters: { ...C.letters, [t.toFixed(2)]: s.value } } });
+  });
+  $$("[data-unadd]").forEach(b => b.onclick = () => saveCfg({ screams: { add: C.add.filter(a => Math.abs(a.start - +b.dataset.unadd) > 0.01) } }));
+  $("#addScream").onclick = () => {
+    const s = parseTc($("#addS").value), e = parseTc($("#addE").value);
+    if (!(e > s)) return toast("Enter a start and an end after it, like 6:29.3 and 6:30.8");
+    saveCfg({ screams: { add: [...C.add, { start: s, end: e, letters: $("#addL").value }] } }).then(() => toast("Added — press Update screams", true));
+  };
+  $$("[data-play]").forEach(b => b.onclick = async () => {
+    const [s, e] = b.dataset.play.split(",").map(Number);
+    b.textContent = "…";
+    try { const r = await api("/api/snippet", { path: S.current, start: s, end: e }); const a = $("#snd"); a.src = media(r.path); a.play(); }
+    catch (err) { toast(err.message); }
+    b.textContent = "▶";
+  });
+}
+
+// ---- Look
+function viewLook() {
+  const I = S.info, L = I.config.look, Y = I.config.layout, pv = I.results.previews || [];
+  const first = I.config.shorts[S.sel] || I.config.shorts[0];
+  const sl = (id, label, val, min, max, step, fmt, help) => `<div class="setting"><label>${label} <span id="${id}V">${fmt(val)}</span></label>
+    <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><p>${help}</p></div>`;
+  const tg = (id, label, val, help) => `<div class="toggle-row"><div><b>${label}</b><small>${help}</small></div><label class="switch"><input type="checkbox" id="${id}" ${val ? "checked" : ""}><span></span></label></div>`;
+  const col = (id, label, val) => `<label class="row" style="gap:8px;font-size:14px"><input type="color" id="${id}" value="#${val}"> ${label}</label>`;
+  $("#view").innerHTML = `
+  <div class="split"><div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Layout</h3><p>How the gameplay sits in the vertical frame.</p></div></div>
+      <div class="settings">
+        ${sl("trim", "Gameplay size", Y.blur_trim, 0, 1, 0.05, v => Math.round(v * 100) + "%", "0% = whole gameplay with tall blur bands. Higher = bigger gameplay, smaller bands, sides cropped.")}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Captions</h3><p>Saved per project. Applies to Shorts you render from now on.</p></div></div>
+      <div class="settings">
+        ${sl("size", "Text size", L.size, 50, 110, 2, v => v + " px", "76 reads well on phones.")}
+        ${sl("pos", "Height from the bottom", L.position, 250, 1100, 10, v => v + " px", "560 keeps clear of YouTube's buttons.")}
+        ${tg("hl", "Highlight the spoken word", L.highlight, "The word being said turns the highlight colour.")}
+        ${tg("loudl", "Bigger loud lines", L.loud_lines, "Shouted lines pop bigger, in capitals.")}
+      </div>
+      <div class="row" style="margin-top:16px;gap:20px">${col("cText", "Text", L.text)}${col("cHl", "Highlight", L.highlight_col)}${col("cLoud", "Loud lines", L.loud_col)}${col("cScream", "Screams", L.scream_col)}</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Preview</h3><p>Renders a few seconds with the current look.</p></div></div>
+      <div class="row">
+        <label class="field">From<input class="text time" id="pvAt" value="${esc(store.get("pvAt", first ? tc(first.start) : "6:18"))}"></label>
+        <label class="field">Seconds<input class="text time" id="pvS" value="${store.get("pvS", 10)}" style="width:70px"></label>
+        <button class="btn primary" data-run="preview" style="align-self:flex-end" ${dis()}>Render preview</button>
+        ${pv.length > 1 ? `<select class="text" id="pvPick" style="width:auto;align-self:flex-end">${pv.map(p => `<option>${esc(p)}</option>`).join("")}</select>` : ""}
+      </div>
     </div>
   </div>
+  <div class="player">${pv.length ? `<video id="vid" controls playsinline src="${media(I.outdir + "\\" + pv[0])}"></video><p class="hint">${esc(pv[0])}</p>` : `<div class="video-empty">Render a preview to see the look</div>`}</div>
+  </div>`;
+  const hook = (id, fmt, patch) => { const el = $("#" + id); el.oninput = () => $("#" + id + "V").textContent = fmt(+el.value); el.onchange = () => saveCfg(patch(+el.value), false); };
+  hook("trim", v => Math.round(v * 100) + "%", v => ({ layout: { blur_trim: v } }));
+  hook("size", v => v + " px", v => ({ look: { size: v } }));
+  hook("pos", v => v + " px", v => ({ look: { position: v } }));
+  $("#hl").onchange = e => saveCfg({ look: { highlight: e.target.checked } }, false);
+  $("#loudl").onchange = e => saveCfg({ look: { loud_lines: e.target.checked } }, false);
+  for (const [id, key] of [["cText", "text"], ["cHl", "highlight_col"], ["cLoud", "loud_col"], ["cScream", "scream_col"]])
+    $("#" + id).onchange = e => saveCfg({ look: { [key]: e.target.value.slice(1).toUpperCase() } }, false);
+  $("#pvAt").onchange = e => store.set("pvAt", e.target.value);
+  $("#pvS").onchange = e => store.set("pvS", e.target.value);
+  const pp = $("#pvPick"); if (pp) pp.onchange = () => $("#vid").src = media(S.info.outdir + "\\" + pp.value);
+}
 
-  <section class="step ${d(R.check)}">
-    <div class="step-head"><div class="num">1</div><div class="step-title">
-      <h3>Check caption timing</h3>
-      <p>Listens to the audio and compares every caption with when the words are actually spoken. Changes nothing.</p></div>
-      <button class="btn ${R.check ? "" : "primary"}" data-run="check" ${dis}>${R.check ? "Check again" : "Run check"}</button></div>
-    ${R.check ? `<div class="step-body"><div class="result">
+// ---- Captions
+const STATUS = [["ok", "In sync", "var(--ok)"], ["early", "Appear too early", "var(--warn)"], ["late", "Appear too late", "var(--warn)"],
+  ["cut-off", "Disappear too soon", "var(--bad)"], ["lingers", "Stay up too long", "var(--warn)"], ["no-match", "Couldn't hear the words", "var(--faint)"], ["empty", "Empty captions", "var(--bad)"]];
+function viewCaptions() {
+  const I = S.info, R = I.results, seq = I.sequences.find(s => s.name === I.sequence) || {};
+  const name = I.path.split(/[\\/]/).pop().replace(/\.prproj$/i, "");
+  const synced = S.projects.filter(p => p.base === name.replace(/_captions-synced(-v\d+)?$/, "") && p.version !== "original");
+  if (!seq.captions) {
+    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>No Premiere captions in this sequence</h3>
+      <p>That's fine — the toolkit makes captions from the speech itself (1–3 words at a time) for everything it renders. Timing checks here are only for captions made in Premiere.</p></div></div></div>`;
+    return;
+  }
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Check caption timing</h3><p>Compares every Premiere caption with when the words are actually spoken. Changes nothing.</p></div>
+      <button class="btn ${R.check ? "" : "primary"}" data-run="check" ${dis()}>${R.check ? "Check again" : "Run check"}</button></div>
+    ${R.check ? `<div class="result">
       <h4><span>${R.check.total.toLocaleString()} captions checked${R.check.of ? ` · on the <b style="color:var(--text)">${esc(R.check.of)}</b> version` : ""}</span><span>${ago(R.check.when)}</span></h4>
-      <div class="bars">${STATUS.map(([k, label, col]) => {
-        const n = R.check.counts[k] || 0; if (!n && k !== "ok") return "";
-        return `<span>${label}</span><div class="bar"><i style="width:${Math.max(1, 100 * n / R.check.total)}%;background:${col}"></i></div><span class="n">${n.toLocaleString()}</span>`;
-      }).join("")}</div>
+      <div class="bars">${STATUS.map(([k, label, c]) => { const n = R.check.counts[k] || 0; if (!n && k !== "ok") return "";
+        return `<span>${label}</span><div class="bar"><i style="width:${Math.max(1, 100 * n / R.check.total)}%;background:${c}"></i></div><span class="n">${n.toLocaleString()}</span>`; }).join("")}</div>
       ${R.check.drift.length ? `<h4 style="margin-top:16px"><span>Caption delay across the video (a rising line means drift)</span></h4>
         <div class="drift">${R.check.drift.map(([t, v]) => `<div title="${t}: ${v > 0 ? "+" : ""}${v.toFixed(2)}s" style="height:${Math.min(100, 4 + Math.abs(v) * 192)}%"></div>`).join("")}</div>
-        <div class="drift-labels"><span>${R.check.drift[0][0]}</span>
-          <span>captions show up ${(() => { const v = R.check.drift.map(x => x[1]); const lo = Math.min(...v), hi = Math.max(...v);
-            const f = x => (x >= 0 ? "+" : "") + x.toFixed(2) + "s"; return lo === hi ? f(lo) : f(lo) + " to " + f(hi); })()} after the words · bar height 0.5s = full</span>
-          <span>${R.check.drift.at(-1)[0]}</span></div>` : ""}
-      <div class="row"><button class="btn link" data-open="${esc(I.outdir)}\\caption-report.csv">Open full table</button>
-        <button class="btn link" data-folder="${esc(I.outdir)}">Open report folder</button></div>
-    </div></div>` : ""}
-  </section>
-
-  <section class="step ${d(synced.length)}">
-    <div class="step-head"><div class="num">2</div><div class="step-title">
-      <h3>Fix timing &amp; fit lengths</h3>
-      <p>Moves captions that are off, and makes each one stay up exactly as long as its words are voiced. Writes a <b>new copy</b> of the project — your original is never changed.</p></div>
-      <button class="btn ${synced.length ? "" : "primary"}" data-run="fix" ${dis}>Create synced copy</button></div>
-    ${synced.length || R.too_short ? `<div class="step-body"><div class="result">
-      ${synced.length ? `<h4><span>Synced copies</span></h4><div class="row">${synced.map(p => `<button class="btn" data-select="${esc(p.path)}">${esc(p.version)} · ${ago(p.modified)}</button>`).join("")}</div>` : ""}
-      ${R.too_short ? `<p class="hint" style="margin:12px 0 0">${R.too_short} captions are too short to read and have no room to grow — merge them by hand.
-        <button class="btn link" data-open="${esc(I.outdir)}\\too-short-captions.txt">See list</button></p>` : ""}
-    </div></div>` : ""}
-  </section>
-
-  <section class="step ${d(R.screams)}">
-    <div class="step-head"><div class="num">3</div><div class="step-title">
-      <h3>Animated screams</h3>
-      <p>Finds long, loud “AAAH / OHHH / NOOO” moments and spells them out letter by letter as the voice goes on.</p></div>
-      <button class="btn ${R.screams ? "" : "primary"}" data-run="screams" ${dis}>Find screams</button></div>
-    <div class="step-body">
-      <div class="row"><label class="field">How loud counts as a scream
-        <span class="row" style="gap:10px"><span class="hint">more</span><input type="range" id="loud" min="1.2" max="2.4" step="0.1" value="${opts.loud}"><span class="hint">fewer</span><b id="loudVal">${opts.loud.toFixed(1)}×</b></span></label></div>
-      ${R.screams ? `<div class="result">
-        <h4><span>${R.screams.items.length} screams</span><span>${ago(R.screams.when)}</span></h4>
-        <div class="scroll"><table><thead><tr><th>At</th><th>Length</th><th>Loudness</th><th>Becomes</th><th></th></tr></thead><tbody>
-        ${R.screams.items.map(s => `<tr><td>${s.at.replace(/\.\d+$/, "")}</td><td>${s.seconds.toFixed(1)}s</td><td>${s.loud.toFixed(1)}×</td>
-          <td class="spell">${esc(s.spelled)}</td><td>${s.check ? `<span class="badge" title="Long - may be laughing or game audio">CHECK</span>` : ""}</td></tr>`).join("")}
-        </tbody></table></div>
-        <div class="row"><button class="btn link" data-folder="${esc(R.screams.srt)}">Show caption file (.srt)</button></div>
-      </div>` : ""}
-    </div>
-  </section>
-
-  <section class="step ${d(R.prepare)}">
-    <div class="step-head"><div class="num">4</div><div class="step-title">
-      <h3>Animate in Premiere</h3>
-      <p>Every caption gets its own entrance: a full pop after a pause, a tiny one in fast talk, a bigger one for loud lines, and a wobble for screams.</p></div>
-      <button class="btn ${R.prepare ? "" : "primary"}" data-run="prepare" ${dis}>Prepare for Premiere</button></div>
-    <div class="step-body">
-      ${R.prepare ? `<div class="result" style="margin-bottom:14px"><h4><span>Marked <b style="color:var(--text)">${R.prepare.loud}</b> loud lines and <b style="color:var(--text)">${R.prepare.scream}</b> screams for Premiere</span><span>${ago(R.prepare.when)}</span></h4></div>` : ""}
-      <div class="two">
-        <div><h4 style="margin:0 0 8px;font-size:14px">In Premiere</h4>
-          <ol class="howto">
-            <li>Open this project and <b>save</b>.</li>
-            <li>Select the captions → <b>Graphics and Titles → Upgrade Caption to Graphic</b>.</li>
-            <li>Mark the Short with <b>I</b> and <b>O</b> (or select clips).</li>
-            <li>Run <b>animate-captions.jsx</b> ↓ (VS Code → Ctrl+Shift+P → <i>Evaluate Script in Attached Host</i>).</li>
-          </ol></div>
-        <div><h4 style="margin:0 0 8px;font-size:14px">Render</h4>
-          <ol class="howto">
-            <li><b>Ctrl+M</b> → H.264, <b>Match Source – High Bitrate</b>.</li>
-            <li>Captions: <b>None</b> (they're graphics now).</li>
-            <li><b>Send to Media Encoder</b> → <b>Start Queue ▶</b>.</li>
-          </ol></div>
-      </div>
-      <div class="scripts" style="margin-top:16px">
-        ${[["animate-captions.jsx", "Pop-in / fade for every caption (set MODE = \"remove\" to undo)"],
-           ["import-captions.jsx", "Bring the scream caption file in as a new track"],
-           ["cut-at-markers.jsx", "Razor every track at every marker"],
-           ["match-scale-vertical.jsx", "1080×1920 + match every clip's scale"]]
-          .filter(([f]) => S.scripts.includes(f))
-          .map(([f, what]) => `<div class="script"><code>${f}</code><span>${what}</span><button class="btn" data-script="${f}">Open in VS Code</button></div>`).join("")}
-      </div>
-    </div>
-  </section>
-
-  <section class="step ${d(R.previews && R.previews.length)}">
-    <div class="step-head"><div class="num">5</div><div class="step-title">
-      <h3>Burned-in look <span class="optional">optional</span></h3>
-      <p>The full style Premiere can't do: the spoken word highlighted as it's said. Captions are drawn into the video after you export.</p></div></div>
-    <div class="step-body">
-      <div class="preview-grid">
-        <div>${R.previews && R.previews.length
-            ? `<video id="vid" controls playsinline src="/media?path=${encodeURIComponent(I.outdir + "\\" + R.previews[0])}"></video>`
-            : `<div class="result" style="aspect-ratio:9/16;max-width:300px;display:grid;place-items:center;text-align:center" ><span class="hint">Render a preview<br>to see the look here</span></div>`}</div>
-        <div>
-          <h4 style="margin:0 0 10px;font-size:14px">Try it on a few seconds</h4>
-          <div class="row">
-            <label class="field">Start at (h:mm:ss)<input type="text" id="at" value="${esc(opts.at || (R.screams && R.screams.items[0] ? R.screams.items[0].at.replace(/\.\d+$/, "") : "0:10:00"))}"></label>
-            <label class="field">Seconds<input type="text" id="secs" value="${opts.seconds}" style="width:70px"></label>
-          </div>
-          <div class="row"><label class="check"><input type="checkbox" id="noHl" ${opts.noHighlight ? "checked" : ""}> No word highlight</label></div>
-          <div class="row"><button class="btn primary" data-run="preview" ${dis}>Render preview</button>
-            ${R.previews && R.previews.length > 1 ? `<select id="pv" class="btn">${R.previews.map(p => `<option>${esc(p)}</option>`).join("")}</select>` : ""}</div>
-          <h4 style="margin:24px 0 10px;font-size:14px">Burn onto your export</h4>
-          <p class="hint" style="margin:0 0 10px">Export from Premiere with the caption track <b>off</b>, then pick that file.</p>
-          <div class="row">
-            <label class="field">Exported video<input type="text" class="wide" id="video" value="${esc(opts.video)}" placeholder="C:\\…\\export.mp4"></label>
-            <button class="btn" id="pickVideo" style="align-self:flex-end">Browse…</button>
-          </div>
-          <div class="row">
-            <label class="field">Export starts at<input type="text" id="start" value="${esc(opts.start)}"></label>
-            <button class="btn primary" data-run="burn" style="align-self:flex-end" ${dis}>Burn captions</button>
-          </div>
-          <p class="hint">Audio is copied untouched. Leave “starts at” as 0 if you exported the whole sequence.</p>
-        </div>
-      </div>
-    </div>
-  </section>`;
-  wire();
+        <div class="drift-labels"><span>${R.check.drift[0][0]}</span><span>bar height 0.5 s = full</span><span>${R.check.drift.at(-1)[0]}</span></div>` : ""}
+      <div class="row" style="margin-top:8px"><button class="btn link" data-open="${esc(I.outdir)}\\caption-report.csv">Open full table</button><button class="btn link" data-folder="${esc(I.outdir)}">Open report folder</button></div>
+    </div>` : ""}
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Fix timing &amp; fit lengths</h3><p>Moves captions that are off and makes each stay up as long as its words are voiced. Writes a <b>new copy</b> of the project — the original is never changed.</p></div>
+      <button class="btn ${synced.length ? "" : "primary"}" data-run="fix" ${dis()}>Create synced copy</button></div>
+    ${synced.length ? `<div class="row">${synced.map(p => `<button class="btn" data-select="${esc(p.path)}">${esc(p.version)} · ${ago(p.modified)}</button>`).join("")}</div>` : ""}
+    ${R.too_short ? `<p class="hint" style="margin:12px 0 0">${R.too_short} captions are too short to read and have no room to grow. <button class="btn link" data-open="${esc(I.outdir)}\\too-short-captions.txt">See list</button></p>` : ""}
+  </div>`;
 }
 
-function wire() {
-  const loud = $("#loud");
-  if (loud) loud.oninput = () => { opts.loud = +loud.value; $("#loudVal").textContent = opts.loud.toFixed(1) + "×"; };
-  document.querySelectorAll("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run));
-  document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.open, how: "file" }).catch(e => toast(e.message)));
-  document.querySelectorAll("[data-folder]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.folder, how: "folder" }));
-  document.querySelectorAll("[data-select]").forEach(b => b.onclick = () => select(b.dataset.select));
-  document.querySelectorAll("[data-script]").forEach(b => b.onclick = () => api("/api/open", { path: "", script: b.dataset.script, how: "vscode" }));
-  const pv = $("#pv");
-  if (pv) pv.onchange = () => $("#vid").src = "/media?path=" + encodeURIComponent(S.info.outdir + "\\" + pv.value);
-  const pick = $("#pickVideo");
-  if (pick) pick.onclick = async () => { const r = await api("/api/browse", { kind: "video" }); if (r.path) { opts.video = r.path; $("#video").value = r.path; } };
-  for (const [id, key] of [["at", "at"], ["secs", "seconds"], ["video", "video"], ["start", "start"]]) {
-    const el = $("#" + id); if (el) el.oninput = () => opts[key] = el.value;
-  }
-  const hl = $("#noHl"); if (hl) hl.onchange = () => opts.noHighlight = hl.checked;
+// ---- Premiere
+function viewPremiere() {
+  const I = S.info, R = I.results;
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Animate inside Premiere</h3><p>If you'd rather finish in Premiere: every caption gets its own entrance — a full pop after a pause, a tiny one in fast talk, bigger for loud lines, a wobble for screams.</p></div>
+      <button class="btn ${R.prepare ? "" : "primary"}" data-run="prepare" ${dis()}>Prepare for Premiere</button></div>
+    ${R.prepare ? `<div class="result" style="margin-bottom:14px"><h4><span>Marked <b style="color:var(--text)">${R.prepare.loud}</b> loud lines and <b style="color:var(--text)">${R.prepare.scream}</b> screams</span><span>${ago(R.prepare.when)}</span></h4></div>` : ""}
+    <div class="two">
+      <div><h4 style="margin:0 0 8px;font-size:14px">In Premiere</h4><ol class="howto">
+        <li>Open this project and <b>save</b>.</li><li>Select captions → <b>Graphics and Titles → Upgrade Caption to Graphic</b>.</li>
+        <li>Mark the Short with <b>I</b> / <b>O</b> (or select clips).</li><li>Run <b>animate-captions.jsx</b> (VS Code → Ctrl+Shift+P → <i>Evaluate Script in Attached Host</i>).</li></ol></div>
+      <div><h4 style="margin:0 0 8px;font-size:14px">Render</h4><ol class="howto">
+        <li><b>Ctrl+M</b> → H.264, <b>Match Source – High Bitrate</b>.</li><li>Captions: <b>None</b>.</li><li><b>Send to Media Encoder</b> → <b>Start Queue ▶</b>.</li></ol></div>
+    </div>
+    <div class="scripts" style="margin-top:16px">
+      ${[["animate-captions.jsx", "Pop-in / fade per caption (MODE = \"remove\" to undo)"], ["import-captions.jsx", "Bring the scream caption file in as a new track"],
+         ["cut-at-markers.jsx", "Razor every track at every marker"], ["match-scale-vertical.jsx", "1080×1920 + match every clip's scale"]]
+        .filter(([f]) => S.scripts.includes(f)).map(([f, w]) => `<div class="script"><code>${f}</code><span>${w}</span><button class="btn sm" data-script="${f}">Open in VS Code</button></div>`).join("")}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Burn captions onto a Premiere export</h3><p>Exported from Premiere with the caption track <b>off</b>? This adds the toolkit's styled captions to that file. Audio is copied untouched.</p></div></div>
+    <div class="row">
+      <label class="field" style="flex:1;min-width:260px">Exported video<input class="text" id="video" value="${esc(store.get("video", ""))}" placeholder="C:\\…\\export.mp4"></label>
+      <button class="btn" id="pickVideo" style="align-self:flex-end">Browse…</button>
+      <label class="field">Export starts at<input class="text time" id="start" value="${esc(store.get("vstart", "0"))}"></label>
+      <button class="btn primary" data-run="burn" style="align-self:flex-end" ${dis()}>Burn captions</button>
+    </div>
+  </div>`;
+  $("#pickVideo").onclick = async () => { const r = await api("/api/browse", { kind: "video" }); if (r.path) { $("#video").value = r.path; store.set("video", r.path); } };
+  $("#video").onchange = e => store.set("video", e.target.value);
+  $("#start").onchange = e => store.set("vstart", e.target.value);
 }
 
-// ---- running things --------------------------------------------------------
-const TITLES = { check: "Checking caption timing", fix: "Creating synced copy", screams: "Finding screams",
-  prepare: "Preparing for Premiere", preview: "Rendering preview", burn: "Burning captions onto video" };
+function wireCommon() {
+  $$("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset));
+  $$("[data-open]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.open, how: "file" }).catch(e => toast(e.message)));
+  $$("[data-folder]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.folder, how: "folder" }));
+  $$("[data-select]").forEach(b => b.onclick = () => select(b.dataset.select));
+  $$("[data-script]").forEach(b => b.onclick = () => api("/api/open", { path: "", script: b.dataset.script, how: "vscode" }));
+}
 
-async function run(action) {
+// ---------------------------------------------------------------- jobs
+const TITLES = { check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams", prepare: "Preparing for Premiere",
+  preview: "Rendering preview", make: "Rendering", burn: "Burning captions onto video" };
+async function run(action, data = {}) {
   if (S.busy) return;
-  const body = { action, title: TITLES[action], path: S.current, loud: opts.loud };
-  if (action === "preview") { body.at = $("#at").value.trim(); body.seconds = +$("#secs").value || 12; body.no_highlight = opts.noHighlight; opts.at = body.at; }
-  if (action === "burn") {
-    body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; body.no_highlight = opts.noHighlight;
-    if (!body.video) return toast("Pick the video you exported from Premiere first.");
+  const body = { action, title: TITLES[action], path: S.current };
+  if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; }
+  if (action === "make") {
+    if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.sel = body.index; }
+    else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
+  if (action === "burn") { body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; if (!body.video) return toast("Pick the video you exported from Premiere first."); }
   try { await api("/api/run", body); } catch (e) { return toast(e.message); }
-  S.busy = true; renderMain(); openLog(true); poll(0);
+  S.busy = true; render(); openLog(true); poll(0);
 }
-
 async function poll(from) {
-  let j;
-  try { j = await api("/api/job?from=" + from); } catch (e) { setTimeout(() => poll(from), 1000); return; }
+  let j; try { j = await api("/api/job?from=" + from); } catch (e) { setTimeout(() => poll(from), 1000); return; }
   const pre = $("#logText");
   if (from === 0) pre.textContent = "";
   if (j.lines.length) {
-    // ffmpeg progress replaces its own line: redraw the last line when it changes
     const all = pre.textContent.split("\n");
     if (from > 0 && j.lines[0].startsWith("frame=") && (all.at(-1) || "").startsWith("frame=")) all.pop();
     pre.textContent = [...all.filter((l, i) => i || l), ...j.lines].join("\n");
     pre.scrollTop = pre.scrollHeight;
   }
-  const last = (pre.textContent.trim().split("\n").at(-1) || "");
-  $("#last").textContent = last;
+  $("#last").textContent = pre.textContent.trim().split("\n").at(-1) || "";
   const secs = Math.round(Date.now() / 1000 - j.started);
   if (!j.done) {
     setStatus("run", `${j.title}… ${secs < 60 ? secs + "s" : Math.floor(secs / 60) + "m " + secs % 60 + "s"}`);
-    setTimeout(() => poll(j.total - (j.lines.length && j.lines.at(-1).startsWith("frame=") ? 1 : 0)), 500);
+    setTimeout(() => poll(j.total - (j.lines.length && j.lines.at(-1).startsWith("frame=") ? 1 : 0)), 600);
     return;
   }
   S.busy = false;
   setStatus(j.code === 0 ? "ok" : "bad", j.code === 0 ? `${j.title} — done` : `${j.title} — failed (see log)`);
-  if (j.code !== 0) openLog(true);
-  await loadState();
-  await select(S.current);
+  if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
+  await loadState(); await select(S.current, true);
 }
-
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }
 function openLog(open) { $("#log").classList.toggle("closed", !open); $("#toggleHint").textContent = open ? "Hide log ▾" : "Show log ▴"; }
 $("#logHead").onclick = () => openLog($("#log").classList.contains("closed"));
-
-// keep the local server alive while this tab is open
 setInterval(() => api("/api/ping", {}).catch(() => setStatus("bad", "Toolkit closed — start it again")), 15000);
 
 (async () => {
   await loadState();
   const j = await api("/api/job?from=0");
   if (!j.done) { S.busy = true; openLog(true); poll(0); }
-  if (S.projects[0]) select(S.projects[0].path);
+  const last = store.get("project", null);
+  const p = S.projects.find(x => x.path === last) || S.projects[0];
+  if (p) select(p.path);
 })();
 </script>
 </body>

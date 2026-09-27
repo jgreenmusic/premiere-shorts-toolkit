@@ -182,25 +182,40 @@ def scream_events(cues, st, seed):
     return ev
 
 
-def build(seq, matches, words, regions, audio, st=STYLE, highlight=True, scream_loud=sc.LOUD_RATIO):
-    """All events for the sequence, timeline seconds."""
-    normal = sc.talk_level(audio, regions)
-    found = sc.find_screams(seq, regions, words, audio, loud_ratio=scream_loud)
-    replaced = {j for f in found for j in f[4]}
+def look(cfg):
+    """STYLE with the project's own settings (toolkit.json "look") on top."""
+    lk = (cfg or {}).get("look", {})
+    st = dict(STYLE)
+    st.update(size=int(lk.get("size", st["size"])), margin_v=int(lk.get("position", st["margin_v"])),
+              text=lk.get("text", st["text"]), highlight=lk.get("highlight_col", st["highlight"]),
+              loud_col=lk.get("loud_col", st["loud_col"]), scream_col=lk.get("scream_col", st["scream_col"]))
+    st["scream_size"] = int(round(st["size"] * 1.32))
+    return st
+
+
+def build(ctx, plan):
+    """All caption events for the sequence (timeline seconds), from the loaded project
+    (pipeline.load) and its scream plan (screams.plan_screams)."""
+    st = look(ctx.cfg)
+    lk = ctx.cfg.get("look", {})
+    normal = sc.talk_level(ctx.audio, ctx.regions)
+    hidden = sc.replaced_captions(ctx.captions, plan)
     events = []
-    for c, m in zip(seq.captions, matches):
-        if not c.text or c.index in replaced:
+    for c, m in zip(ctx.captions, ctx.matches):
+        if not c.text or c.index in hidden:
             continue
-        loud = normal and sc.loudness(audio, c.start_s, c.end_s) / normal >= st["loud_ratio"]
-        events += caption_events(c, m, c.start_s, c.end_s, loud, st, highlight)
-    for i, (s, e, tpl, bang, idx, ratio) in enumerate(found):
-        events += scream_events(sc.cues_for(audio, s, e, tpl, bang), st, seed=i)
+        loud = bool(lk.get("loud_lines", True) and normal
+                    and sc.loudness(ctx.audio, c.start_s, c.end_s) / normal >= st["loud_ratio"])
+        events += caption_events(c, m, c.start_s, c.end_s, loud, st, lk.get("highlight", True))
+    on = [p for p in plan if p["on"]]
+    for i, p in enumerate(on):
+        events += scream_events(sc.cues_for(ctx.audio, p["start"], p["end"], p["tpl"], p["bang"]), st, seed=i)
     events.sort(key=lambda x: x[0])
     for i in range(len(events) - 1):         # one caption on screen at a time
         a, b = events[i], events[i + 1]
         if a[1] > b[0]:
             events[i] = (a[0], b[0], a[2], a[3])
-    return [e for e in events if e[1] - e[0] > 0.005], len(found)
+    return [e for e in events if e[1] - e[0] > 0.005]
 
 
 def write_ass(path, events, st=STYLE, shift=0.0):

@@ -332,3 +332,37 @@ def fit_durations(captions, matches, regions, times, words=(), pad=0.15, hold=1.
             ends[c.index] = new_end
             notes[c.index] = note
     return ends, notes
+
+
+# -- 6. captions made from speech, for sequences that have none ---------------------
+def auto_captions(words, max_words=3, max_chars=18, gap=0.35):
+    """Short caption chunks straight from Whisper's words (Shorts-style: 1-3 words).
+    Returns (captions, matches) shaped like the Premiere ones, so everything
+    downstream (screams, styling, rendering) works the same."""
+    from prproj import Caption
+    chunks, cur = [], []
+    for w in words:
+        text = w[2].strip()
+        if not text:
+            continue
+        if cur and (len(cur) >= max_words or w[0] - cur[-1][1] > gap
+                    or len(" ".join(x[2] for x in cur + [w])) > max_chars
+                    or cur[-1][2].rstrip()[-1:] in ".?!,"):
+            chunks.append(cur)
+            cur = []
+        cur.append(w)
+    if cur:
+        chunks.append(cur)
+    caps, matches = [], []
+    for i, ch in enumerate(chunks):
+        start = ch[0][0]
+        end = ch[-1][1] + 0.12
+        if i + 1 < len(chunks):
+            end = min(end, chunks[i + 1][0][0])
+        end = max(end, min(start + 0.4, chunks[i + 1][0][0] if i + 1 < len(chunks) else start + 0.4))
+        c = Caption(i, int(start * TICKS), int(end * TICKS), " ".join(x[2].strip() for x in ch))
+        caps.append(c)
+        matches.append(dict(ratio=1.0, run=len(ch), first_heard=True, last_heard=True,
+                            speech_start=start, speech_end=ch[-1][1],
+                            words=[(p, x[0], x[1]) for p, x in enumerate(ch)]))
+    return caps, matches

@@ -45,12 +45,28 @@ class Caption:
         return self.end / TICKS
 
 
+VideoItem = AudioItem                # same shape: timeline span + source span + file
+
+
+@dataclass
+class Marker:
+    start_s: float
+    dur_s: float
+    name: str
+
+
 @dataclass
 class Sequence:
     name: str
     audio: list
     captions: list
     caption_frame: int              # caption track frame duration, ticks
+    video: list = field(default_factory=list)      # clips with real media (not graphics)
+    markers: list = field(default_factory=list)    # sequence markers, sorted
+
+    @property
+    def end_s(self):
+        return max([a.end for a in self.audio + self.video] or [0]) / TICKS
 
 
 class Project:
@@ -105,10 +121,20 @@ class Project:
         seq = self._obj(uid)
         name = re.search(r"<Name>([^<]*)</Name>", seq).group(1)
         groups = re.findall(r"<Second Object(?:Ref|URef)=\"([^\"]+)\"", seq)
-        audio, captions, cap_frame = [], [], TICKS // 60
+        audio, captions, video, cap_frame = [], [], [], TICKS // 60
         for gid in groups:
             tag = self._index[gid][0]
-            if tag == "AudioTrackGroup":
+            if tag == "VideoTrackGroup":
+                for n, tid in enumerate(self._tracks(gid), 1):
+                    for iid in self._items(tid):
+                        if self._index[iid][0] == "VideoClipTrackItem":
+                            try:
+                                v = self._audio_item(n, iid)
+                            except (AttributeError, KeyError, TypeError):
+                                continue            # graphics/titles: no media
+                            if v.path:
+                                video.append(v)
+            elif tag == "AudioTrackGroup":
                 for n, tid in enumerate(self._tracks(gid), 1):
                     for iid in self._items(tid):
                         if self._index[iid][0] == "AudioClipTrackItem":
@@ -130,12 +156,32 @@ class Project:
             c.index = i
             c.text = " ".join(s for b in c._strings for s in b if s not in fonts).strip()
             del c._strings
-        return Sequence(name, audio, captions, cap_frame)
+        video.sort(key=lambda v: (v.start, v.track))
+        return Sequence(name, audio, captions, cap_frame, video, self._markers(seq))
 
-    def _audio_item(self, track, iid):
+    def _markers(self, seq):
+        import json
+        mid = self._ref(seq.split("</MarkerOwner>")[0], "Markers") if "<MarkerOwner" in seq else None
+        out = []
+        if not mid:
+            return out
+        for r in re.findall(r'ObjectRef="(\d+)"', self._obj(mid)):
+            m = re.search(r"<DVAMarker>(.*?)</DVAMarker>", self._obj(r), re.S)
+            if not m:
+                continue
+            try:
+                d = json.loads(m.group(1)).get("DVAMarker", {})
+            except ValueError:
+                continue
+            start = int((d.get("mStartTime") or {}).get("ticks", 0)) / TICKS
+            dur = int((d.get("mDuration") or {}).get("ticks", 0)) / TICKS
+            out.append(Marker(start, dur, d.get("mName") or d.get("mComment") or ""))
+        return sorted(out, key=lambda m: m.start_s)
+
+    def _audio_item(self, track, iid):          # audio AND video clip items
         item = self._obj(iid)
         clip = self._obj(self._ref(self._obj(self._ref(item, "SubClip")), "Clip"))
-        num = lambda t, s: int(re.search(r"<%s>(-?\d+)</%s>" % (t, t), s).group(1))
+        num = lambda t, s: _num(t, s)
         return AudioItem(track, num("Start", item), num("End", item),
                          num("InPoint", clip), num("OutPoint", clip),
                          self._media_path(self._ref(clip, "Source")))
@@ -151,7 +197,8 @@ class Project:
                  "InPoint": self._number_span(cbase, clip, "InPoint"),
                  "OutPoint": self._number_span(cbase, clip, "OutPoint"),
                  "clip_id": clip_id}
-        val = lambda k: int(self.xml[spans[k][0]:spans[k][1]])
+        # Premiere leaves a value out when it is 0 (e.g. a caption at 0:00)
+        val = lambda k: int(self.xml[spans[k][0]:spans[k][1]]) if spans[k] else 0
         strings = []
         for bid in re.findall(r'<BlockVectorItem Index="\d+" ObjectRef="(\d+)"', item):
             h = re.search(r'BinaryHash="([^"]+)"', self._obj(bid))
@@ -172,6 +219,8 @@ class Project:
         for c in captions:
             if c.index not in new_times:
                 continue
+            if not all(c.spans[k] for k in ("Start", "End", "InPoint", "OutPoint")):
+                continue                  # a value Premiere left out (0): can't rewrite in place, skip
             if c.spans["clip_id"] in seen:
                 raise RuntimeError("caption clip %s is shared - refusing to patch" % c.spans["clip_id"])
             seen.add(c.spans["clip_id"])
@@ -188,6 +237,12 @@ class Project:
         with gzip.open(out_path, "wb") as f:
             f.write(xml.encode("utf-8"))
         return len(edits) // 4
+
+
+def _num(tag, text):
+    """Integer inside <tag>; Premiere omits the tag when the value is 0."""
+    m = re.search(r"<%s>(-?\d+)</%s>" % (tag, tag), text)
+    return int(m.group(1)) if m else 0
 
 
 # Premiere stores caption text as a FlatBuffer. Rather than depend on its

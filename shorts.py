@@ -1,7 +1,12 @@
 """Premiere Shorts Toolkit - main script.
 
-    python shorts.py captions "My Project.prproj"          check caption timing, write a report
-    python shorts.py captions "My Project.prproj" --fix    ...and write a synced COPY of the project
+    python shorts.py captions "Project.prproj" [--fix]   check caption timing / write a synced COPY
+    python shorts.py screams  "Project.prproj"           growing-letter scream captions
+    python shorts.py shorts   "Project.prproj" --from-markers   list of Shorts from your markers
+    python shorts.py make     "Project.prproj"           render every Short in the list
+    python shorts.py prepare  "Project.prproj"           loud/scream data for animate-captions.jsx
+    python shorts.py style    "Project.prproj" --preview 6:18   try the look on a few seconds
+Or just double-click "Shorts Toolkit.cmd" for the app.
 
 Save the project in Premiere (Ctrl+S) first - this reads the file on disk.
 The original .prproj is never modified.
@@ -16,7 +21,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -66,95 +71,174 @@ def open_sequence(args):
     return proj, seqs[0], stem, base, outdir
 
 
-def cmd_screams(args):
-    import screams as sc
-    proj, seq, stem, base, outdir = open_sequence(args)
-    print("Sequence %r: %d captions" % (seq.name, len(seq.captions)))
-    print("[1/3] rebuilding the sequence audio")
-    audio = cap.timeline_audio(seq)
-    print("[2/3] measuring the voice")
-    regions = cap.voice_regions(audio, outdir)
-    words = cap.transcribe(audio, outdir, model=args.model)
-    found = sc.find_screams(seq, regions, words, audio, loud_ratio=args.loud)
-    if not found:
-        sys.exit("No drawn-out AAAH / OHHH / NOOO / WHOAAA captions found (voice >= %.1fs)." % sc.MIN_SCREAM)
-    print("[3/3] animating %d scream(s)" % len(found))
-    # Start from every caption in the project (its current, fixed timing), then
-    # swap each scream's original caption(s) for the growing-letter cues.
-    replaced = {j for f in found for j in f[4]}
-    cues = [[c.start_s, c.end_s, c.text] for c in seq.captions
-            if c.text and c.index not in replaced]          # empty captions dropped
-    listing = []
-    for s, e, tpl, bang, idx, ratio in found:
-        grow = sc.cues_for(audio, s, e, tpl, bang)
-        cues += grow
-        texts = ", ".join(repr(seq.captions[j].text) for j in idx)
-        listing.append([s, e, ratio, texts, grow[-1][2]])
-    cues.sort(key=lambda c: c[0])
-    for a, b in zip(cues, cues[1:]):                         # one caption at a time
-        if a[1] > b[0]:
-            a[1] = b[0]
-    cues = [c for c in cues if c[1] - c[0] > 0.001]
-    lines = []
-    for s, e, ratio, texts, spelled in listing:
-        check = "  <- CHECK: long, may be laughing/game audio" if e - s > 3.0 else ""
-        lines.append("%s  %.1fs  %.1fx loud  %-28s was %s%s"
-                     % (cap.fmt(s), e - s, ratio, spelled, texts, check))
-    srt = os.path.join(outdir, "captions-with-screams.srt")
-    sc.write_srt(srt, cues)
-    txt = os.path.join(outdir, "screams.txt")
-    with open(txt, "w", encoding="utf-8") as f:
-        f.write("Screams animated in captions-with-screams.srt (a full replacement for the\n"
-                "caption track). Timeline position, length, loudness vs normal talk:\n\n")
-        f.write("\n".join(lines) + "\n")
-    print()
-    print("\n".join(lines))
-    print("\n%d captions (%d screams animated, %d empty dropped) -> %s"
-          % (len(cues), len(found), sum(1 for c in seq.captions if not c.text), srt))
-    print("Import it with premiere/import-captions.jsx - see the README.")
-
-
 def parse_time(t):
     """'50:05', '1:02:03.5' or '3005' -> seconds."""
     sec = 0.0
-    for part in str(t).split(":"):
+    for part in str(t).strip().split(":"):
         sec = sec * 60 + float(part)
     return sec
 
 
-def cmd_style(args):
-    import style
-    proj, seq, stem, base, outdir = open_sequence(args)
-    print("Sequence %r: %d captions" % (seq.name, len(seq.captions)))
-    print("[1/3] rebuilding the sequence audio")
-    audio = cap.timeline_audio(seq)
-    print("[2/3] matching words and voice")
-    words = cap.transcribe(audio, outdir, model=args.model)
-    regions = cap.voice_regions(audio, outdir)
-    matches = cap.align(seq.captions, words)
-    events, n_screams = style.build(seq, matches, words, regions, audio,
-                                    highlight=not args.no_highlight, scream_loud=args.loud)
-    ass = os.path.join(outdir, "styled-captions.ass")
-    print("[3/3] writing %d caption events (%d screams)" % (len(events), n_screams))
+def load_ctx(args, need_words=True):
+    import pipeline
+    return pipeline.load(args.project, sequence=getattr(args, "sequence", None),
+                         model=getattr(args, "model", "small"), need_words=need_words)
 
+
+def scream_plan(ctx, args=None):
+    import screams as sc
+    cfg = dict(ctx.cfg["screams"])
+    if args is not None and getattr(args, "loud", None) is not None:
+        cfg["loud"] = args.loud
+    return sc.plan_screams(ctx.captions, ctx.regions, ctx.words, ctx.audio, cfg)
+
+
+def cmd_screams(args):
+    """Scream plan -> screams.json (for the app) + captions-with-screams.srt (for Premiere)."""
+    import json
+    import screams as sc
+    ctx = load_ctx(args)
+    plan = scream_plan(ctx, args)
+    hidden = sc.replaced_captions(ctx.captions, plan)
+    cues = [[c.start_s, c.end_s, c.text] for c in ctx.captions if c.text and c.index not in hidden]
+    listing = []
+    for p in plan:
+        grow = sc.cues_for(ctx.audio, p["start"], p["end"], p["tpl"], p["bang"])
+        if p["on"]:
+            cues += grow
+        listing.append(dict(start=round(p["start"], 2), end=round(p["end"], 2), at=cap.fmt(p["start"]),
+                            seconds=round(p["end"] - p["start"], 2), loud=round(p["loud"], 2),
+                            spelled=grow[-1][2], source=p["source"], on=p["on"], was=p["was"],
+                            letters=p.get("letters"), check=p["end"] - p["start"] > 3.0))
+    cues.sort(key=lambda c: c[0])
+    for a, b in zip(cues, cues[1:]):
+        if a[1] > b[0]:
+            a[1] = b[0]
+    cues = [c for c in cues if c[1] - c[0] > 0.001]
+    sc.write_srt(os.path.join(ctx.outdir, "captions-with-screams.srt"), cues)
+    with open(os.path.join(ctx.outdir, "screams.json"), "w", encoding="utf-8") as f:
+        json.dump(listing, f, indent=1)
+    on = [x for x in listing if x["on"]]
+    print("\n%d scream(s) on, %d suggestion(s) off:" % (len(on), len(listing) - len(on)))
+    for x in on:
+        print("  %s  %.1fs  %-28s %s%s" % (x["at"], x["seconds"], x["spelled"], x["source"],
+                                           "  <- CHECK: long" if x["check"] else ""))
+    print("Switch suggestions on/off in the app (Screams step) or in toolkit.json.")
+
+
+def cmd_prepare(args):
+    """premiere-emphasis.csv: loud lines and screams for premiere/animate-captions.jsx."""
+    import screams as sc
+    import style
+    ctx = load_ctx(args)
+    plan = scream_plan(ctx, args)
+    normal = sc.talk_level(ctx.audio, ctx.regions)
+    hidden = sc.replaced_captions(ctx.captions, plan)
+    rows = []
+    for c in ctx.captions:
+        if not c.text or c.index in hidden:
+            continue
+        r = sc.loudness(ctx.audio, c.start_s, c.end_s) / normal if normal else 0
+        if r >= style.STYLE["loud_ratio"]:
+            rows.append((c.start_s, c.end_s, "loud", r, c.text))
+    for p in plan:
+        if p["on"]:
+            rows.append((p["start"], p["end"], "scream", p["loud"], ""))
+    rows.sort()
+    path = os.path.join(ctx.outdir, "premiere-emphasis.csv")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("start,end,kind,strength,text\n")
+        for s, e, kind, r, text in rows:
+            f.write("%.3f,%.3f,%s,%.2f,%s\n" % (s, e, kind, r, text.replace("\n", " ")))
+    loud = sum(1 for r in rows if r[2] == "loud")
+    print("\n%d loud line(s) and %d scream(s) marked for Premiere -> %s" % (loud, len(rows) - loud, path))
+    print("Now run premiere/animate-captions.jsx - it finds this file next to your project.")
+
+
+def shorts_dir(ctx):
+    d = ctx.base + "_shorts"
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def safe_name(name):
+    return re.sub(r'[<>:"/\\|?*]+', "-", name).strip() or "short"
+
+
+def cmd_make(args):
+    """Render finished vertical Shorts straight from the project."""
+    import render
+    import style
+    ctx = load_ctx(args)
+    plan = scream_plan(ctx, args)
+    events = style.build(ctx, plan)
+    jobs = []
+    if args.start is not None:
+        a, b = parse_time(args.start), parse_time(args.end)
+        jobs.append((args.name or "short %s" % cap.fmt(a).replace(":", "-"), a, b))
+    else:
+        items = ctx.cfg["shorts"]
+        if args.index is not None:
+            items = [items[args.index]]
+        jobs = [(s["name"], float(s["start"]), float(s["end"])) for s in items]
+    if not jobs:
+        sys.exit("No Shorts to render - add some in the app, or pass --start and --end.")
+    out = args.out or shorts_dir(ctx)
+    os.makedirs(out, exist_ok=True)
+    for n, (name, a, b) in enumerate(jobs, 1):
+        if b <= a:
+            print("  skipping %r: end is before start" % name)
+            continue
+        print("[%d/%d] %s  (%s - %s)" % (n, len(jobs), name, cap.fmt(a), cap.fmt(b)))
+        path = os.path.join(out, safe_name(name) + ".mp4")
+        render.make_short(ctx, a, b, path, events, preset=args.preset)
+        print("  -> %s" % path)
+    print("\nDone. Shorts are in %s" % out)
+
+
+def cmd_shorts(args):
+    """List / add / import the project's Shorts (kept in toolkit.json)."""
+    import config
+    ctx = load_ctx(args, need_words=False)
+    cfg = ctx.cfg
+    if args.from_markers:
+        seq = ctx.seq
+        cuts = [m.start_s for m in seq.markers] + [seq.end_s]
+        have = {(round(s["start"], 1), round(s["end"], 1)) for s in cfg["shorts"]}
+        added = 0
+        for a, b in zip(cuts, cuts[1:]):
+            if not (args.min <= b - a <= args.max) or (round(a, 1), round(b, 1)) in have:
+                continue
+            cfg["shorts"].append(dict(name="Clip %02d - %s" % (len(cfg["shorts"]) + 1, cap.fmt(a)[:-3]),
+                                      start=round(a, 3), end=round(b, 3)))
+            added += 1
+        print("Added %d Short(s) from %d markers (segments %g-%gs long)." % (added, len(seq.markers), args.min, args.max))
+    if args.add:
+        a, b = parse_time(args.add[0]), parse_time(args.add[1])
+        cfg["shorts"].append(dict(name=args.name or "Short - %s" % cap.fmt(a)[:-3], start=a, end=b))
+        print("Added %s - %s" % (cap.fmt(a), cap.fmt(b)))
+    config.save(ctx.outdir, cfg)
+    for i, s in enumerate(cfg["shorts"]):
+        print("  %2d  %-32s %s - %s  (%.0fs)" % (i, s["name"], cap.fmt(s["start"]), cap.fmt(s["end"]), s["end"] - s["start"]))
+
+
+def cmd_style(args):
+    """Preview the burned-in look, or burn it onto a Premiere export."""
+    import render
+    import style
+    ctx = load_ctx(args)
+    if args.no_highlight:
+        ctx.cfg["look"]["highlight"] = False
+    plan = scream_plan(ctx, args)
+    events = style.build(ctx, plan)
     if args.preview is not None:
         t0 = parse_time(args.preview)
-        item = next((a for a in seq.audio if a.start / TICKS <= t0 < a.end / TICKS), None)
-        if not item:
-            sys.exit("No clip at %s on the timeline." % cap.fmt(t0))
-        src = (item.src_in + (t0 * TICKS - item.start)) / TICKS
-        pv_ass = os.path.join(outdir, "preview.ass")
-        style.write_ass(pv_ass, events, shift=t0)
-        out = os.path.join(outdir, "preview-%s.mp4" % cap.fmt(t0).replace(":", "-"))
-        # 9:16 preview: gameplay centred over a blurred copy of itself
-        fill = ("split[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-                "boxblur=20:4[b];[fg]scale=1080:-2[f];[b][f]overlay=(W-w)/2:(H-h)/2")
-        style.burn(item.path, pv_ass, out, preset="veryfast", crf=20,
-                   extra_in=["-ss", "%.3f" % src, "-t", "%.3f" % args.seconds], vf_before=fill)
+        out = os.path.join(ctx.outdir, "preview-%s.mp4" % cap.fmt(t0).replace(":", "-"))
+        render.make_short(ctx, t0, min(t0 + args.seconds, ctx.seq.end_s), out, events, preset="veryfast", crf=20)
         print("Preview (%.0fs from %s) -> %s" % (args.seconds, cap.fmt(t0), out))
         return
-
-    style.write_ass(ass, events, shift=parse_time(args.start))
+    ass = os.path.join(ctx.outdir, "styled-captions.ass")
+    style.write_ass(ass, events, st=style.look(ctx.cfg), shift=parse_time(args.start))
     print("Styled captions -> %s" % ass)
     if args.video:
         out = os.path.splitext(args.video)[0] + "_captioned.mp4"
@@ -163,41 +247,6 @@ def cmd_style(args):
         print("Done -> %s" % out)
     else:
         print("Export the sequence from Premiere with captions OFF, then run again with --video <export.mp4>")
-
-
-def cmd_prepare(args):
-    """premiere-emphasis.csv: loud lines and screams for premiere/animate-captions.jsx."""
-    import screams as sc
-    import style
-    proj, seq, stem, base, outdir = open_sequence(args)
-    print("Sequence %r: %d captions" % (seq.name, len(seq.captions)))
-    print("[1/3] rebuilding the sequence audio")
-    audio = cap.timeline_audio(seq)
-    print("[2/3] measuring loudness and screams")
-    words = cap.transcribe(audio, outdir, model=args.model)
-    regions = cap.voice_regions(audio, outdir)
-    normal = sc.talk_level(audio, regions)
-    found = sc.find_screams(seq, regions, words, audio, loud_ratio=args.loud)
-    in_scream = {j for f in found for j in f[4]}
-    rows = []
-    for c in seq.captions:
-        if not c.text or c.index in in_scream:
-            continue
-        r = sc.loudness(audio, c.start_s, c.end_s) / normal if normal else 0
-        if r >= style.STYLE["loud_ratio"]:
-            rows.append((c.start_s, c.end_s, "loud", r, c.text))
-    for s, e, tpl, bang, idx, r in found:
-        rows.append((s, e, "scream", r, ""))
-    rows.sort()
-    path = os.path.join(outdir, "premiere-emphasis.csv")
-    print("[3/3] writing %s" % path)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write("start,end,kind,strength,text\n")
-        for s, e, kind, r, text in rows:
-            f.write("%.3f,%.3f,%s,%.2f,%s\n" % (s, e, kind, r, text.replace("\n", " ")))
-    loud = sum(1 for r in rows if r[2] == "loud")
-    print("\n%d loud line(s) and %d scream(s) marked for Premiere." % (loud, len(found)))
-    print("Now run premiere/animate-captions.jsx - it finds this file next to your project.")
 
 
 def cmd_captions(args):
@@ -445,32 +494,57 @@ def main():
     c.add_argument("--no-durations", action="store_true",
                    help="with --fix: don't fit caption lengths to the sound, only fix timing errors")
     c.set_defaults(func=cmd_captions)
-    k = sub.add_parser("screams", help="animated AAAAHHHH captions that grow with the voice (.srt)")
-    k.add_argument("project", help="saved .prproj file")
-    k.add_argument("--sequence", help="sequence name, if more than one has captions")
-    k.add_argument("--loud", type=float, default=1.6,
-                   help="how much louder than normal talking a scream must be (default 1.6x; lower = more screams)")
-    k.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+    def common(p, words=True):
+        p.add_argument("project", help="saved .prproj file")
+        p.add_argument("--sequence", help="sequence name (default: the one with captions)")
+        if words:
+            p.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+
+    k = sub.add_parser("screams", help="growing-letter scream captions (plan + .srt)")
+    common(k)
+    k.add_argument("--loud", type=float, help="how much louder than normal talk a scream must be (project setting if omitted)")
     k.set_defaults(func=cmd_screams)
-    y = sub.add_parser("style", help="styled, animated captions burned into your export (.ass + ffmpeg)")
-    y.add_argument("project", help="saved .prproj file (its caption timings are used)")
-    y.add_argument("--sequence", help="sequence name, if more than one has captions")
+
+    r = sub.add_parser("prepare", help="mark loud lines + screams for premiere/animate-captions.jsx")
+    common(r)
+    r.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    r.set_defaults(func=cmd_prepare)
+
+    m = sub.add_parser("make", help="render finished vertical Shorts straight from the project")
+    common(m)
+    m.add_argument("--start", help="render one range: start (e.g. 6:18)")
+    m.add_argument("--end", help="...and end (e.g. 6:45)")
+    m.add_argument("--name", help="file name for --start/--end")
+    m.add_argument("--index", type=int, help="render only this Short from the project's list")
+    m.add_argument("--out", help="folder for the videos (default: <project>_shorts)")
+    m.add_argument("--preset", default="medium", help="x264 speed: veryfast (quick) ... slow (smaller file)")
+    m.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    m.set_defaults(func=cmd_make)
+
+    t = sub.add_parser("shorts", help="list / add Shorts, or import them from sequence markers")
+    common(t, words=False)
+    t.add_argument("--from-markers", action="store_true", help="add every marker-to-marker segment")
+    t.add_argument("--min", type=float, default=5, help="with --from-markers: shortest segment, s")
+    t.add_argument("--max", type=float, default=180, help="with --from-markers: longest segment, s")
+    t.add_argument("--add", nargs=2, metavar=("START", "END"), help="add one Short, e.g. --add 6:18 6:45")
+    t.add_argument("--name", help="name for --add")
+    t.set_defaults(func=cmd_shorts)
+
+    y = sub.add_parser("style", help="preview the burned-in look, or burn it onto a Premiere export")
+    common(y)
     y.add_argument("--video", help="the sequence exported from Premiere WITH CAPTIONS OFF")
     y.add_argument("--start", default="0", help="timeline time the export starts at, if not 0 (e.g. 12:30)")
     y.add_argument("--preview", help="render a short test clip from this timeline time (e.g. 50:05)")
     y.add_argument("--seconds", type=float, default=12, help="preview length (default 12)")
     y.add_argument("--no-highlight", action="store_true", help="no spoken-word highlight")
-    y.add_argument("--loud", type=float, default=1.6, help="scream loudness threshold (see screams)")
-    y.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+    y.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     y.set_defaults(func=cmd_style)
-    r = sub.add_parser("prepare", help="mark loud lines + screams for premiere/animate-captions.jsx")
-    r.add_argument("project", help="saved .prproj file")
-    r.add_argument("--sequence", help="sequence name, if more than one has captions")
-    r.add_argument("--loud", type=float, default=1.6, help="scream loudness threshold (see screams)")
-    r.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
-    r.set_defaults(func=cmd_prepare)
     args = ap.parse_args()
-    args.func(args)
+    from pipeline import ProjectError
+    try:
+        args.func(args)
+    except ProjectError as e:
+        sys.exit(str(e))
 
 
 if __name__ == "__main__":

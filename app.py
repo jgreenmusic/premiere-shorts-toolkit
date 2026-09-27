@@ -70,23 +70,55 @@ def list_projects():
     return out
 
 
-_info_cache = {}
+_proj_cache = {}
+
+
+def project(path):
+    """Parsed project, cached until the file changes."""
+    key = (path, os.path.getmtime(path))
+    if key not in _proj_cache:
+        from prproj import Project
+        _proj_cache.clear()
+        _proj_cache[key] = Project(path).sequences()
+    return _proj_cache[key]
+
+
+def pick(seqs, cfg):
+    import pipeline
+    if not seqs:
+        raise pipeline.ProjectError("This project has no sequences yet - add your footage to a timeline in Premiere and save.")
+    name = cfg.get("sequence")
+    for s in seqs:
+        if s.name == name:
+            return s
+    return pipeline.pick_sequence(type("P", (), {"sequences": lambda self: seqs})())
 
 
 def project_info(path):
-    key = (path, os.path.getmtime(path))
-    if key not in _info_cache:
-        from prproj import Project
-        seqs = []
-        for s in Project(path).sequences():
-            end = max([a.end for a in s.audio] or [0]) / 254016000000
-            seqs.append(dict(name=s.name, captions=len(s.captions), audio=len(s.audio), seconds=round(end, 1)))
-        _info_cache[key] = seqs
+    import config
     outdir = base_of(path) + "_captions"
-    return dict(path=path, sequences=_info_cache[key], outdir=outdir, results=results(outdir))
+    cfg = config.load(outdir)
+    seqs = project(path)
+    cur = pick(seqs, cfg)
+    return dict(path=path, outdir=outdir, shorts_dir=base_of(path) + "_shorts", config=cfg,
+                sequence=cur.name,
+                sequences=[dict(name=s.name, captions=len(s.captions), video=len(s.video), audio=len(s.audio),
+                                markers=len(s.markers), seconds=round(s.end_s, 1)) for s in seqs],
+                results=results(outdir, base_of(path) + "_shorts", cfg))
 
 
-def results(outdir):
+def marker_segments(path):
+    import config
+    cfg = config.load(base_of(path) + "_captions")
+    seq = pick(project(path), cfg)
+    cuts = [m.start_s for m in seq.markers] + [seq.end_s]
+    have = {(round(s["start"], 1), round(s["end"], 1)) for s in cfg["shorts"]}
+    return [dict(start=round(a, 3), end=round(b, 3), seconds=round(b - a, 1),
+                 added=(round(a, 1), round(b, 1)) in have)
+            for a, b in zip(cuts, cuts[1:]) if b - a >= 1]
+
+
+def results(outdir, shorts_dir, cfg):
     r = {}
     rep = os.path.join(outdir, "caption-report.csv")
     if os.path.exists(rep):
@@ -109,16 +141,14 @@ def results(outdir):
             m = SYNCED.search(os.path.splitext(open(lc, encoding="utf-8").read().strip())[0])
             of = ("synced v%s" % (m.group(1) or "1")) if m else "original"
         r["check"] = dict(total=total, counts=counts, drift=drift, when=os.path.getmtime(rep), of=of)
-    sc = os.path.join(outdir, "screams.txt")
-    if os.path.exists(sc):
-        items = []
-        for line in open(sc, encoding="utf-8"):
-            m = re.match(r"(\d+:\d\d:\d\d\.\d\d)\s+([\d.]+)s\s+([\d.]+)x loud\s+(\S+)\s+was (.*?)(\s+<- CHECK.*)?$", line.rstrip())
-            if m:
-                items.append(dict(at=m.group(1), seconds=float(m.group(2)), loud=float(m.group(3)),
-                                  spelled=m.group(4), was=m.group(5), check=bool(m.group(6))))
+    sj = os.path.join(outdir, "screams.json")
+    if os.path.exists(sj):
+        with open(sj, encoding="utf-8") as f:
+            items = json.load(f)
         r["screams"] = dict(items=items, srt=os.path.join(outdir, "captions-with-screams.srt"),
-                            when=os.path.getmtime(sc))
+                            when=os.path.getmtime(sj),
+                            stale=os.path.getmtime(os.path.join(outdir, "toolkit.json")) > os.path.getmtime(sj)
+                            if os.path.exists(os.path.join(outdir, "toolkit.json")) else False)
     short = os.path.join(outdir, "too-short-captions.txt")
     if os.path.exists(short):
         r["too_short"] = max(0, sum(1 for _ in open(short, encoding="utf-8")) - 3)
@@ -130,7 +160,13 @@ def results(outdir):
                 kinds[row["kind"]] = kinds.get(row["kind"], 0) + 1
         r["prepare"] = dict(loud=kinds.get("loud", 0), scream=kinds.get("scream", 0), when=os.path.getmtime(em))
     r["previews"] = sorted((os.path.basename(p) for p in glob.glob(os.path.join(outdir, "preview-*.mp4"))),
-                           reverse=True)
+                           key=lambda n: -os.path.getmtime(os.path.join(outdir, n)))
+    from shorts import safe_name
+    r["renders"] = {}
+    for s in cfg.get("shorts", []):
+        f = os.path.join(shorts_dir, safe_name(s["name"]) + ".mp4")
+        if os.path.exists(f):
+            r["renders"][s["name"]] = dict(path=f, when=os.path.getmtime(f))
     return r
 
 
@@ -146,15 +182,16 @@ def command(action, o):
     if action == "fix":
         return ["captions", p, "--fix"]
     if action == "screams":
-        return ["screams", p, "--loud", str(o.get("loud", 1.6))]
+        return ["screams", p]
     if action == "prepare":
-        return ["prepare", p, "--loud", str(o.get("loud", 1.6))]
+        return ["prepare", p]
     if action == "preview":
-        c = ["style", p, "--preview", str(o["at"]), "--seconds", str(o.get("seconds", 12))]
-        return c + (["--no-highlight"] if o.get("no_highlight") else [])
+        return ["style", p, "--preview", str(o["at"]), "--seconds", str(o.get("seconds", 10))]
+    if action == "make":
+        c = ["make", p, "--preset", o.get("preset", "medium")]
+        return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
     if action == "burn":
-        c = ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
-        return c + (["--no-highlight"] if o.get("no_highlight") else [])
+        return ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
     raise ValueError("unknown action %s" % action)
 
 
@@ -194,6 +231,21 @@ def run_job(title, argv):
 
     threading.Thread(target=work, daemon=True).start()
     return jid
+
+
+def make_snippet(path, a, b):
+    """mp3 of the timeline audio around a scream candidate (0.5 s either side)."""
+    import config
+    import render
+    from types import SimpleNamespace
+    outdir = base_of(path) + "_captions"
+    seq = pick(project(path), config.load(outdir))
+    d = os.path.join(outdir, "snippets")
+    os.makedirs(d, exist_ok=True)
+    out = os.path.join(d, "%.2f-%.2f.mp3" % (a, b))
+    if not os.path.exists(out):
+        render.snippet(SimpleNamespace(seq=seq), max(0, a - 0.5), b + 0.5, out)
+    return out
 
 
 # -- native file dialog --------------------------------------------------------------------
@@ -258,6 +310,8 @@ class Handler(BaseHTTPRequestHandler):
                                                           glob.glob(os.path.join(HERE, "premiere", "*.jsx")))))
             if u.path == "/api/info":
                 return self.send_json(project_info(q["path"]))
+            if u.path == "/api/markers":
+                return self.send_json(marker_segments(q["path"]))
             if u.path == "/api/job":
                 start = int(q.get("from", 0))
                 with LOCK:
@@ -266,10 +320,12 @@ class Handler(BaseHTTPRequestHandler):
                                                total=len(JOB["lines"]), started=JOB["started"]))
             if u.path == "/media":
                 p = os.path.normpath(q["path"])
-                if not (os.path.basename(os.path.dirname(p)).endswith("_captions") and p.endswith(".mp4")):
+                folder = os.path.basename(os.path.dirname(p))
+                if not ((folder.endswith("_captions") or folder.endswith("_shorts") or folder == "snippets")
+                        and p.lower().endswith((".mp4", ".mp3"))):
                     return self.send_json({"error": "not allowed"}, 403)
                 return self.send_file(p)
-        except Exception as e:  # show errors in the UI instead of a dead page
+        except (Exception, SystemExit) as e:  # show errors in the UI instead of a dead page
             return self.send_json({"error": str(e)}, 500)
         self.send_json({"error": "not found"}, 404)
 
@@ -295,9 +351,14 @@ class Handler(BaseHTTPRequestHandler):
                     p = os.path.join(HERE, "premiere", os.path.basename(b["script"]))
                 open_path(p, b.get("how", "file"))
                 return self.send_json({"ok": True})
+            if u.path == "/api/config":
+                import config
+                return self.send_json(config.update(base_of(b["path"]) + "_captions", b["patch"]))
+            if u.path == "/api/snippet":
+                return self.send_json({"path": make_snippet(b["path"], float(b["start"]), float(b["end"]))})
             if u.path == "/api/ping":
                 return self.send_json({"ok": True})
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             return self.send_json({"error": str(e)}, 500)
         self.send_json({"error": "not found"}, 404)
 
