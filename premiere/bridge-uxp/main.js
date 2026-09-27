@@ -9,7 +9,7 @@ const uxp = require("uxp");
 // the toolkit uses the first free one of these (app.BRIDGE_PORTS)
 const PORTS = [8765, 8767, 8768, 8769];
 let port = 0;
-const VERSION = "1.0.0";
+const VERSION = "1.0.2";
 let busy = false;
 const lines = [];
 
@@ -34,7 +34,8 @@ async function post(path, body) {
 }
 
 function same(a, b) {
-  const n = (p) => String(p || "").replace(/\//g, "\\").toLowerCase();
+  // Premiere 26 reports project paths with the \\?\ long-path prefix
+  const n = (p) => String(p || "").replace(/\//g, "\\").replace(/^\\\\\?\\/, "").toLowerCase();
   return n(a) === n(b);
 }
 function baseName(p) { return String(p || "").split(/[\\/]/).pop(); }
@@ -136,6 +137,44 @@ async function transcribe(cmd) {
   await post("/api/bridge/report", { job: cmd.job, transcripts, items });
 }
 
+// markers the toolkit placed: replace the ones with this name prefix, keep everything else
+async function placeMarkers(cmd) {
+  const reply = (ok, message) => { log(message); return post("/api/bridge/report", { rid: cmd.rid, ok, message }); };
+  const project = await ppro.Project.getActiveProject();
+  if (!project) return reply(false, "No project is open in Premiere.");
+  if (cmd.project && !same(project.path, cmd.project)) {
+    return reply(false, `Premiere has "${project.name}" open - open ${baseName(cmd.project)} in Premiere, then try again.`);
+  }
+  const seqs = await project.getSequences();
+  const seq = seqs.find((s) => s.name === cmd.sequence) || (await project.getActiveSequence());
+  if (!seq) return reply(false, `No sequence named "${cmd.sequence}".`);
+  show("Placing markers…", "busy");
+  const markers = await ppro.Markers.getMarkers(seq);
+  const all = () => { try { return markers.getMarkers() || []; } catch (e) { return markers.getMarkers(["Comment", "Chapter", "Segmentation", "WebLink"]) || []; } };
+  const old = all().filter((m) => String(m.getName()).indexOf(cmd.prefix) === 0);
+  const rows = cmd.rows.filter((r) => r.end > r.start);
+  project.lockedAccess(() => {
+    project.executeTransaction((ca) => {
+      for (const m of old) ca.addAction(markers.createRemoveMarkerAction(m));
+      for (const r of rows) {
+        ca.addAction(markers.createAddMarkerAction(cmd.prefix + r.name, "Comment",
+          ppro.TickTime.createWithSeconds(r.start), ppro.TickTime.createWithSeconds(r.end - r.start), ""));
+      }
+    }, "Shorts Toolkit markers");
+  });
+  // colour them (a marker has to exist before it can be coloured)
+  let coloured = 0;
+  try {
+    const mine = all().filter((m) => String(m.getName()).indexOf(cmd.prefix) === 0);
+    project.lockedAccess(() => {
+      project.executeTransaction((ca) => {
+        for (const m of mine) if (ca.addAction(m.createSetColorByIndexAction(cmd.color))) coloured++;
+      }, "Shorts Toolkit marker colours");
+    });
+  } catch (e) { log("Couldn't colour the markers: " + e); }
+  return reply(true, `Added ${rows.length} marker(s) to "${seq.name}", replaced ${old.length} old one(s)${coloured ? "" : " (colour not set)"}.`);
+}
+
 async function tick() {
   let wait = 1500;
   try {
@@ -147,10 +186,11 @@ async function tick() {
       busy = true;
       show("Working…", "busy");
       const cmd = r.command;
-      (cmd.op === "transcribe" ? transcribe(cmd) : Promise.resolve())
+      (cmd.op === "transcribe" ? transcribe(cmd) : cmd.op === "markers" ? placeMarkers(cmd) : Promise.resolve())
         .catch((e) => {
           log("Error: " + e);
-          return post("/api/bridge/report", { job: cmd.job, error: "Speech panel error: " + e }).catch(() => {});
+          return post("/api/bridge/report", { job: cmd.job, rid: cmd.rid, ok: false, message: "Speech panel error: " + e,
+                                              error: "Speech panel error: " + e }).catch(() => {});
         })
         .finally(() => { busy = false; });
     }

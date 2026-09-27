@@ -2,6 +2,24 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.11.3 - 2026-09-27
+
+**Markers really go into Premiere now - first confirmed live run.**
+
+Problems found with Premiere open: the docked Captions panel was a blank shell (its page had
+stopped and CEP never restarted it), and the Speech panel never reached the toolkit - UXP blocked
+its requests to 127.0.0.1 (fixed with the `"all"` network permission). Premiere 26 also reports the
+project path as `\?\C:\...`, which would have failed the "right project open" check.
+
+- **Place markers** (and Shorts markers) now go through the **Speech panel** using Adobe's documented
+  markers API (one undoable step, toolkit markers replaced, your own kept, then coloured). The
+  Captions panel is only used if the Speech panel isn't there. Live: 20 markers added to Pt 2.
+- The Speech panel strips the `\?\` prefix before comparing project paths.
+- The Captions panel ships a `.debug` file (DevTools on localhost:8098) so a blank panel can be inspected.
+- Premiere hot-loads a reinstalled Speech panel - no restart needed.
+- Cutting and adding caption tracks still need the Captions panel (Adobe's UXP API has no razor
+  or caption-track call).
+
 ## 0.11.2 - 2026-09-27
 
 **Markers go into Premiere first; captions come after.**

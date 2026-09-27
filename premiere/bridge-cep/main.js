@@ -5,7 +5,7 @@
 // block its requests to the app.
 const http = require("http");
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 // the toolkit uses the first free one of these (app.BRIDGE_PORTS)
 const PORTS = [8765, 8767, 8768, 8769];
 let port = 0;

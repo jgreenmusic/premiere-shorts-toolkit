@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Chrome DevTools for the Captions panel at http://localhost:8098 (this PC only) -->
+<ExtensionList>
+  <Extension Id="com.jgreenmusic.shortstoolkit.captions.panel">
+    <HostList>
+      <Host Name="PPRO" Port="8098"/>
+    </HostList>
+  </Extension>
+</ExtensionList>

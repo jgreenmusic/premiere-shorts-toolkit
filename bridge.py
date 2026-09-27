@@ -74,6 +74,25 @@ def start(project, outdir, sequence, engine, style):
 
 
 SCRIPT = {"n": 0, "results": {}}
+# script -> (marker name prefix, Premiere colour index, csv the toolkit keeps next to the project)
+MARKER_SCRIPTS = {"suggested-markers.jsx": ("Suggested: ", 4, "suggested-markers.csv"),
+                  "shorts-to-markers.jsx": ("Short: ", 3, "shorts-markers.csv")}
+
+
+def outdir_of(project):
+    return re.sub(r"_captions-synced(-v\d+)?$", "", os.path.splitext(project)[0]) + "_captions"
+
+
+def read_marker_csv(path):
+    rows = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            next(f, None)
+            for line in f:
+                p = line.rstrip("\r\n").split(",", 2)
+                if len(p) == 3:
+                    rows.append(dict(start=float(p[0]), end=float(p[1]), name=p[2]))
+    return rows
 
 
 def connected(kind):
@@ -84,12 +103,20 @@ def connected(kind):
 def run_script(project, script, sequence=None, timeout=30):
     """Have the Captions panel run one of premiere/*.jsx on the open project and wait for
     its answer. Returns (ok, message)."""
-    if not connected("cep"):
+    name = os.path.basename(script)
+    if name in MARKER_SCRIPTS and connected("uxp"):
+        # the Speech panel can place markers itself (Adobe's documented markers API)
+        prefix, color, csv_name = MARKER_SCRIPTS[name]
+        kind, cmd = "uxp", dict(op="markers", project=project, sequence=sequence, prefix=prefix, color=color,
+                                rows=read_marker_csv(os.path.join(outdir_of(project), csv_name)))
+    elif connected("cep"):
+        kind, cmd = "cep", dict(op="script", project=project, sequence=sequence, script=script)
+    else:
         return False, None
     with LOCK:
         SCRIPT["n"] += 1
         rid = SCRIPT["n"]
-        QUEUE["cep"].append(dict(op="script", rid=rid, project=project, sequence=sequence, script=script))
+        QUEUE[kind].append(dict(cmd, rid=rid))
     end = now() + timeout
     while now() < end:
         with LOCK:
@@ -97,7 +124,7 @@ def run_script(project, script, sequence=None, timeout=30):
                 return SCRIPT["results"].pop(rid)
         time.sleep(0.2)
     with LOCK:                                   # never picked up: don't run it later by surprise
-        QUEUE["cep"][:] = [q for q in QUEUE["cep"] if q.get("rid") != rid]
+        QUEUE[kind][:] = [q for q in QUEUE[kind] if q.get("rid") != rid]
     return False, "Premiere didn't answer in %d s - is it busy (rendering, a dialog open)?" % timeout
 
 
