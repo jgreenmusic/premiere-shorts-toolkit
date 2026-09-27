@@ -7,6 +7,7 @@ Small tools for cutting long recordings into Shorts in Adobe Premiere Pro.
 | `shorts.py captions` | Checks every caption against the actual speech in the sequence audio and reports which ones are early, late, cut off, or linger. With `--fix`, writes a synced **copy** of the project. |
 | `shorts.py screams` | Turns drawn-out, loud AAAH / OHHH / NOOO / WHOAAA / YEAHHH captions into growing-letter captions ("O" -> "OO" -> ... -> "OOOOOOOHHHH") that follow the voice and speed up when louder. Writes a full replacement caption file. Audio is never changed. |
 | `shorts.py style` | Styled captions with subtle animation (pop-in, spoken-word highlight, loud lines, screams) burned into your export. |
+| `premiere/animate-captions.jsx` | Inside Premiere: gives every caption graphic its own pop-in + fade (after "Upgrade Caption to Graphic"). Settings at the top of the file. |
 | `premiere/import-captions.jsx` | Imports an .srt as a new caption track on the active sequence. |
 | `premiere/cut-at-markers.jsx` | Razors every unlocked track at every sequence marker. |
 | `premiere/match-scale-vertical.jsx` | Sets the sequence to 1080x1920 and gives every clip the first clip's Scale. |

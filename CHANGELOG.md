@@ -2,6 +2,15 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.4.1 - 2026-09-26
+
+- `premiere/animate-captions.jsx`: the in-Premiere route. After "Upgrade Caption to Graphic",
+  adds a pop-in (Scale 88/104/100 over frames 0/3/5) and opacity fade in/out to every caption
+  clip, each keyed to its own start. Selected clips, or all clips on the top video track.
+  Prefers the text layer's own Scale; falls back to Motion with the anchor moved onto the
+  caption line (`CAPTION_Y`) so it grows around the words. Skips clips already keyframed.
+  Not yet run inside Premiere.
+
 ## 0.4.0 - 2026-09-26
 
 **Styled, animated captions.** `shorts.py style` writes an `.ass` subtitle file and burns it into
