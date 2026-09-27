@@ -2,6 +2,35 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.10.0 - 2026-09-27
+
+**Step 1 is now Markers: the toolkit marks the best Shorts for you, from any clip.**
+
+- **Open clip…** opens any recording or video file (mp4, mov, mkv, m4v, webm, avi, flv, ts) as a
+  project - no Premiere project needed. It is treated as a one-clip timeline, so every step
+  (speech, screams & laughs, the look, rendering) works on it. Opened clips are remembered in the
+  project list, tagged "clip".
+- **1 · Markers** (new first step): **Find Shorts & place markers** listens to the whole video and
+  places range markers on the best moments (loud, busy stretches, screams, laughs), each starting
+  and ending in a pause. Choose how many and how long (default 10 of 20-45 s).
+- **+ More suggestions is always there** (top of the step and under the list): it adds more
+  markers, skipping every marker you have, every Short, and everything you removed. When a video
+  has no good moments left at that length, the app says so instead of just "done".
+- Per marker: watch it in the player, **+ Short**, or ✕ remove (removed ones are never suggested
+  again). **Turn all into Shorts**, **Start over**, and - for Premiere projects -
+  **Put them in Premiere** (new `premiere/suggested-markers.jsx`: yellow range markers named
+  "Suggested: …", replaced on each run, your own markers untouched).
+- The placed markers appear on the Shorts timeline (step 3) and in **Import from markers**, and
+  the Shorts suggestions no longer repeat them.
+- CLI: `shorts.py markers <project or clip> [--count 10 --min 20 --max 45] [--replace]`.
+- Steps renumbered: 1 Markers, 2 Captions, 3 Shorts, 4 Screams & laughs, 5 Look, 6 Render.
+  A clip skips straight from Markers to Shorts (it has no Premiere captions to fix).
+
+Tested on a 4-minute cut of the Chained Together Pt 2 recording: first run placed 3, + More
+added 3 new ones with no repeats, Start over reset them, a removed marker stayed out of later
+runs and off the timeline, and a 4th run correctly reported nothing left. The Premiere script
+is **not yet tested inside Premiere**.
+
 ## 0.9.1 - 2026-09-27
 
 **Workflow order, render controls, more suggestions.**

@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import captions as cap
 import config
-from prproj import Project
+from clip import open_project
+from prproj import Marker
 
 
 class ProjectError(Exception):
@@ -34,16 +35,29 @@ def pick_sequence(proj, wanted=None):
     return (with_audio or seqs)[0]
 
 
+def with_toolkit_markers(markers, cfg):
+    """The sequence's own markers plus the ones the toolkit placed (step 1), as range
+    markers. A toolkit marker already put into Premiere (same start) isn't doubled."""
+    out = list(markers)
+    for m in cfg.get("markers", []):
+        if not any(abs(x.start_s - m["start"]) < 0.1 for x in markers):
+            out.append(Marker(m["start"], m["end"] - m["start"], m["name"]))
+    return sorted(out, key=lambda m: m.start_s)
+
+
 def load(project_path, sequence=None, model="small", log=print, need_words=True):
     base, outdir = outdir_for(project_path)
     os.makedirs(outdir, exist_ok=True)
     cfg = config.load(outdir)
-    proj = Project(project_path)
+    proj = open_project(project_path)
     seq = pick_sequence(proj, sequence or cfg.get("sequence"))
+    own_markers = seq.markers
+    seq.markers = with_toolkit_markers(own_markers, cfg)
     log("Sequence %r: %d captions, %d video / %d audio clips" % (seq.name, len(seq.captions), len(seq.video), len(seq.audio)))
     log("[audio] rebuilding the sequence audio")
     audio = cap.timeline_audio(seq, log=log)
-    ctx = SimpleNamespace(path=project_path, base=base, outdir=outdir, cfg=cfg, proj=proj, seq=seq, audio=audio)
+    ctx = SimpleNamespace(path=project_path, base=base, outdir=outdir, cfg=cfg, proj=proj, seq=seq, audio=audio,
+                          own_markers=own_markers)
     if not need_words:
         return ctx
     log("[speech] words and voice")

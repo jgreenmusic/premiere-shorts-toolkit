@@ -69,6 +69,13 @@ def list_projects():
             out.append(dict(path=p, name=stem, base=os.path.basename(base_of(p)),
                             version=("synced v%s" % (m.group(1) or "1")) if m else "original",
                             modified=os.path.getmtime(p)))
+    for p in load_settings().get("clips", []):           # recordings opened with "Open clip..."
+        p = os.path.normpath(p)
+        if p in seen or not os.path.exists(p):
+            continue
+        seen.add(p)
+        stem = os.path.splitext(os.path.basename(p))[0]
+        out.append(dict(path=p, name=stem, base=stem, version="clip", clip=True, modified=os.path.getmtime(p)))
     out.sort(key=lambda x: -x["modified"])
     return out
 
@@ -80,9 +87,9 @@ def project(path):
     """Parsed project, cached until the file changes."""
     key = (path, os.path.getmtime(path))
     if key not in _proj_cache:
-        from prproj import Project
+        from clip import open_project
         _proj_cache.clear()
-        _proj_cache[key] = Project(path).sequences()
+        _proj_cache[key] = open_project(path).sequences()
     return _proj_cache[key]
 
 
@@ -103,8 +110,9 @@ def project_info(path):
     cfg = config.load(outdir)
     seqs = project(path)
     cur = pick(seqs, cfg)
+    from clip import is_clip
     return dict(path=path, outdir=outdir, shorts_dir=base_of(path) + "_shorts", config=cfg,
-                sequence=cur.name,
+                sequence=cur.name, clip=is_clip(path),
                 sequences=[dict(name=s.name, captions=len(s.captions), video=len(s.video), audio=len(s.audio),
                                 markers=len(s.markers), seconds=round(s.end_s, 1)) for s in seqs],
                 results=results(outdir, base_of(path) + "_shorts", cfg))
@@ -117,10 +125,12 @@ def marker_segments(path):
     have = {(round(s["start"], 1), round(s["end"], 1)) for s in cfg["shorts"]}
     seg = lambda a, b, name, kind: dict(start=round(a, 3), end=round(b, 3), seconds=round(b - a, 1), name=name,
                                         kind=kind, added=(round(a, 1), round(b, 1)) in have)
-    # range markers (made in Premiere, or by shorts-to-markers.jsx) are Shorts already
-    ranges = [seg(m.start_s, m.start_s + m.dur_s, m.name.replace("Short: ", ""), "range")
-              for m in seq.markers if m.dur_s > 0.5]
-    cuts = [m.start_s for m in seq.markers if m.dur_s <= 0.5] + [seq.end_s]
+    import pipeline
+    markers = pipeline.with_toolkit_markers(seq.markers, cfg)        # + the ones placed in step 1
+    # range markers (made in Premiere, by step 1, or by shorts-to-markers.jsx) are Shorts already
+    ranges = [seg(m.start_s, m.start_s + m.dur_s, re.sub(r"^(Short|Suggested): ", "", m.name), "range")
+              for m in markers if m.dur_s > 0.5]
+    cuts = [m.start_s for m in markers if m.dur_s <= 0.5] + [seq.end_s]
     between = [seg(a, b, "", "between") for a, b in zip(cuts, cuts[1:]) if b - a >= 1]
     return ranges + between
 
@@ -250,6 +260,9 @@ def command(action, o):
         if o.get("indexes"):
             return c + ["--indexes", ",".join(str(int(i)) for i in o["indexes"])]
         return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
+    if action == "markers":
+        return ["markers", p, "--count", str(int(o.get("count", 10))), "--min", str(o.get("min", 20)),
+                "--max", str(o.get("max", 45))] + (["--replace"] if o.get("replace") else [])
     if action == "timeline":
         return ["timeline", p, "--count", str(int(o.get("count", 12))), "--min", str(o.get("min", 20)),
                 "--max", str(o.get("max", 45))]
@@ -334,6 +347,9 @@ def browse(kind):
     if kind == "project":
         p = filedialog.askopenfilename(title="Choose a Premiere project",
                                        filetypes=[("Premiere project", "*.prproj")])
+    elif kind == "clip":
+        p = filedialog.askopenfilename(title="Choose a recording or video clip",
+                                       filetypes=[("Video", "*.mp4 *.mov *.mkv *.m4v *.webm *.avi *.flv *.ts"), ("All files", "*.*")])
     elif kind == "video":
         p = filedialog.askopenfilename(title="Choose the video you exported from Premiere",
                                        filetypes=[("Video", "*.mp4 *.mov *.mkv"), ("All files", "*.*")])
@@ -455,6 +471,11 @@ class Handler(BaseHTTPRequestHandler):
                 with open(tj, encoding="utf-8") as f:
                     d = json.load(f)
                 d["when"] = os.path.getmtime(tj)
+                import config
+                import pipeline
+                cfg = config.load(base_of(q["path"]) + "_captions")      # markers as they are now, not at analysis time
+                d["markers"] = [dict(t=round(m.start_s, 3), dur=round(m.dur_s, 3), name=m.name) for m in
+                                pipeline.with_toolkit_markers(pick(project(q["path"]), cfg).markers, cfg)]
                 return self.send_json(d)
             if u.path == "/api/job":
                 start = int(q.get("from", 0))
@@ -519,6 +540,13 @@ class Handler(BaseHTTPRequestHandler):
                     s = load_settings()
                     s["dirs"] = [p] + [d for d in s.get("dirs", DEFAULT_DIRS) if d != p]
                     save_settings(s)
+                if p and b.get("kind") == "clip":
+                    from clip import is_clip
+                    if not is_clip(p):
+                        return self.send_json({"error": "That isn't a video file the toolkit can read."}, 400)
+                    s = load_settings()
+                    s["clips"] = [p] + [c for c in s.get("clips", []) if os.path.normcase(c) != os.path.normcase(p)]
+                    save_settings(s)
                 return self.send_json({"path": p})
             if u.path == "/api/open":
                 p = b["path"]
@@ -532,6 +560,9 @@ class Handler(BaseHTTPRequestHandler):
                 if "shorts" in b["patch"]:                 # keep Premiere's marker list in step
                     from shorts import write_marker_csv
                     write_marker_csv(base_of(b["path"]) + "_captions", cfg["shorts"])
+                if "markers" in b["patch"]:
+                    from shorts import write_suggested_csv
+                    write_suggested_csv(base_of(b["path"]) + "_captions", cfg["markers"])
                 return self.send_json(cfg)
             if u.path == "/api/snippet":
                 return self.send_json({"path": make_snippet(b["path"], float(b["start"]), float(b["end"]))})

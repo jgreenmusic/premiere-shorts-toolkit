@@ -54,7 +54,7 @@ aside { border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 1
 .proj .tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .proj.active .tag { border-color: var(--accent); color: var(--text); }
 .proj .when { margin-left: auto; font-size: 12px; color: var(--faint); }
-.side-actions { display: flex; gap: 8px; padding: 0 0 14px; }
+.side-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 14px; }
 
 main { overflow-y: auto; padding: 26px 32px 120px; }
 .wrap { max-width: 1040px; margin: 0 auto; }
@@ -168,10 +168,11 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-s
 @media (max-width: 1000px) { .split { grid-template-columns: 1fr; } .player { position: static; max-width: 300px; } }
 .mobile-only { display: none; }
 .player-split { grid-template-columns: 1fr 320px; }
+.marker-split { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
 .two.lists { grid-template-columns: 3fr 2fr; }
 @media (max-width: 1000px) { .player-split, .two.lists { grid-template-columns: 1fr; } }
 body.remote .pc-only, body.remote [data-folder], body.remote [data-open], body.remote [data-script],
-body.remote #browseProject, body.remote #addFolder, body.remote #toPremiere, body.remote #pickVideo { display: none !important; }
+body.remote #browseProject, body.remote #browseClip, body.remote #addFolder, body.remote #mkPremiere, body.remote #toPremiere, body.remote #pickVideo { display: none !important; }
 canvas#ov, canvas#dt { touch-action: none; }
 .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; z-index: 20; padding: 16px; }
 .modal { width: 100%; max-width: 640px; max-height: 90vh; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow); }
@@ -214,12 +215,13 @@ canvas#ov, canvas#dt { touch-action: none; }
     <input class="search" id="search" placeholder="Filter projects…" aria-label="Filter projects">
     <div class="side-actions">
       <button class="btn" id="browseProject">Open project…</button>
+      <button class="btn" id="browseClip" title="Any recording or video file - no Premiere project needed">Open clip…</button>
       <button class="btn link" id="addFolder" title="Add a folder to scan for projects">+ Folder</button>
     </div>
     <div id="projects"></div>
   </aside>
   <main><div class="wrap" id="main">
-    <div class="empty"><h2>Pick a project</h2><p>Choose a Premiere project on the left.<br>Save it in Premiere first (Ctrl+S) — the toolkit reads the saved file.</p></div>
+    <div class="empty"><h2>Pick a project</h2><p>Choose a Premiere project or open any video clip on the left.<br>Save projects in Premiere first (Ctrl+S) — the toolkit reads the saved file.</p></div>
   </div></main>
 </div>
 <div class="log closed" id="log">
@@ -254,8 +256,8 @@ const setTheme = t => { document.documentElement.dataset.theme = t; store.set("t
 setTheme(store.get("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
 $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
 
-let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "captions"), sel: 0, markers: null, showSugg: false, showLSugg: false };
-if (["shorts", "screams", "look", "captions", "render", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
+let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "markers"), sel: 0, markers: null, showSugg: false, showLSugg: false };
+if (["markers", "shorts", "screams", "look", "captions", "render", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
 
 async function loadState() {
   const st = await api("/api/state");
@@ -271,7 +273,7 @@ function renderProjects() {
     <div class="group"><div class="group-name" title="${esc(base)}">${esc(short(base))}</div>
     ${list.sort((a, b) => a.version === "original" ? -1 : b.version === "original" ? 1 : a.version.localeCompare(b.version, undefined, { numeric: true }))
       .map(p => `<button class="proj ${p.path === S.current ? "active" : ""}" data-path="${esc(p.path)}"><span class="tag">${esc(p.version)}</span><span class="when">${ago(p.modified)}</span></button>`).join("")}
-    </div>`).join("") || `<p class="hint" style="padding:0 8px">No projects found. Use “Open project…”.</p>`;
+    </div>`).join("") || `<p class="hint" style="padding:0 8px">No projects found. Use “Open project…” or “Open clip…”.</p>`;
   $$(".proj").forEach(b => b.onclick = () => { document.body.classList.remove("show-projects"); select(b.dataset.path); });
 }
 $("#search").oninput = renderProjects;
@@ -315,6 +317,7 @@ async function openPhone() {
   draw(); document.body.appendChild(back);
 }
 $("#browseProject").onclick = async () => { const r = await api("/api/browse", { kind: "project" }); if (r.path) select(r.path); };
+$("#browseClip").onclick = async () => { try { const r = await api("/api/browse", { kind: "clip" }); if (r.path) { await loadState(); select(r.path); } } catch (e) { toast(e.message); } };
 $("#addFolder").onclick = async () => { const r = await api("/api/browse", { kind: "folder" }); if (r.path) loadState(); };
 
 async function select(path, keep) {
@@ -330,15 +333,16 @@ async function saveCfg(patch, rerender = true) {
 }
 
 // ---------------------------------------------------------------- views
-// in the order you work: fix captions (optional) -> pick Shorts -> screams & laughs -> look -> render
-const TABS = [["captions", "1 · Captions"], ["shorts", "2 · Shorts"], ["screams", "3 · Screams & laughs"], ["look", "4 · Look"], ["render", "5 · Render"], ["premiere", "Or: finish in Premiere"]];
-const NEXT = { captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
+// in the order you work: markers -> fix captions (optional) -> pick Shorts -> screams & laughs -> look -> render
+const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["render", "6 · Render"], ["premiere", "Or: finish in Premiere"]];
+const NEXT = { markers: ["captions", "Next: captions"], captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
   look: ["render", "Next: render"] };
 
 function render() {
   const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
-  const name = I.path.split(/[\\/]/).pop().replace(/\.prproj$/i, "");
-  const counts = { shorts: C.shorts.length, screams: (I.results.screams?.items || []).filter(x => x.on).length
+  const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
+  const next = I.clip && S.tab === "markers" ? ["shorts", "Next: pick your Shorts"] : NEXT[S.tab];   // a clip has no Premiere captions to fix
+  const counts = { markers: (C.markers || []).length, shorts: C.shorts.length, screams: (I.results.screams?.items || []).filter(x => x.on).length
     + (I.results.laughs?.items || []).filter(x => x.on).length,
     render: C.shorts.length ? `${Object.keys(I.results.renders || {}).length}/${C.shorts.length}` : 0 };
   $("#main").innerHTML = `
@@ -347,8 +351,8 @@ function render() {
     <div class="meta">
       <span class="pill"><b>${seq.seconds ? hms(seq.seconds) : "—"}</b> long</span>
       <span class="pill"><b>${(seq.captions || 0).toLocaleString()}</b> captions${seq.captions ? "" : " — made from speech"}</span>
-      <span class="pill"><b>${seq.markers || 0}</b> markers</span>
-      <span class="pill">${/_captions-synced/.test(name) ? "Synced copy" : "Original"}</span>
+      <span class="pill"><b>${(seq.markers || 0) + (C.markers || []).length}</b> markers</span>
+      <span class="pill">${I.clip ? "Video clip" : /_captions-synced/.test(name) ? "Synced copy" : "Original"}</span>
     </div></div>
     ${I.sequences.length > 1 ? `<label class="field" style="min-width:220px">Sequence
       <select class="text" id="seqPick">${I.sequences.map(s => `<option ${s.name === I.sequence ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>` : ""}
@@ -357,15 +361,83 @@ function render() {
   <div id="view"></div>`;
   $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
-  if (S.tab === "shorts" && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
-  ({ shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, premiere: viewPremiere })[S.tab]();
-  if (NEXT[S.tab]) {
-    $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${NEXT[S.tab][1]} →</button></div>`);
-    $("#nextStep").onclick = () => { S.tab = NEXT[S.tab][0]; store.set("tab", S.tab); render(); $("main").scrollTop = 0; };
+  if ((S.tab === "shorts" || S.tab === "markers") && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
+  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, premiere: viewPremiere })[S.tab]();
+  if (next) {
+    $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${next[1]} →</button></div>`);
+    $("#nextStep").onclick = () => { S.tab = next[0]; store.set("tab", S.tab); render(); $("main").scrollTop = 0; };
   }
   wireCommon();
 }
 const dis = () => S.busy ? "disabled" : "";
+
+// ---- Markers (step 1): the toolkit marks the best moments; + More always digs up more
+const mkList = () => S.info.config.markers || [];
+const isShort = m => shortsList().some(x => Math.abs(x.start - m.start) < 1 && Math.abs(x.end - m.end) < 1);
+function viewMarkers() {
+  const I = S.info, list = mkList(), st = store.get("mkSettings", { count: 10, min: 20, max: 45 });
+  const have = list.length > 0, inShorts = list.filter(isShort).length;
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Markers for your Shorts</h3>
+      <p>The toolkit listens to the whole ${I.clip ? "clip" : "sequence"} and marks the best moments — loud, busy stretches, screams, laughs — each one a range that starts and ends in a pause, so no Short begins mid-word. Want more? <b>+ More suggestions</b> always finds more, skipping the ones you have or removed.</p></div></div>
+    <div class="toolbar" style="margin:0">
+      <button class="btn primary" id="mkMore" ${dis()}>${have ? "+ More suggestions" : "Find Shorts &amp; place markers"}</button>
+      <label class="row hint" style="gap:6px">${have ? "Add" : "Place"} <input class="text time" id="mkCount" style="width:52px" value="${st.count}"> markers of
+        <input class="text time" id="mkMin" style="width:52px" value="${st.min}">–<input class="text time" id="mkMax" style="width:52px" value="${st.max}"> s</label>
+      <span style="flex:1"></span>
+      ${have ? `<button class="btn" id="mkAll" ${inShorts === list.length ? "disabled" : ""} title="Add every marker to your Shorts list">Turn all into Shorts</button>` : ""}
+      ${have && !I.clip ? `<button class="btn" id="mkPremiere" title="Put these markers on Premiere's timeline">Put them in Premiere</button>` : ""}
+      ${have ? `<button class="btn link" id="mkReset" ${dis()} title="Remove every suggested marker and pick again from scratch">Start over</button>` : ""}
+    </div>
+    ${have ? "" : `<p class="hint" style="margin:12px 0 0">The first run on a new video transcribes the speech — a few minutes for an hour of footage. After that it takes seconds.</p>`}
+  </div>
+  ${have ? `<div class="split player-split marker-split">
+    <div class="card" style="padding:12px">
+      <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
+        <video id="src" playsinline preload="metadata" style="width:100%;height:100%;aspect-ratio:auto;border-radius:0"></video>
+        <div id="srcMsg" class="hint" style="position:absolute;inset:0;display:grid;place-items:center;color:#aaa">${T.tl ? "" : "Loading…"}</div>
+      </div>
+      <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="pPlay">▶ Play</button>
+        <span id="pTime" style="font-variant-numeric:tabular-nums;font-weight:600;margin-left:6px">0:00.0</span></div>
+    </div>
+    <div class="card" style="padding:14px 16px">
+      <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>${list.length} marker${list.length === 1 ? "" : "s"}</h3>
+        <p style="font-size:13px">${inShorts ? `${inShorts} already in your Shorts · ` : ""}click one to watch it</p></div></div>
+      <div class="scroll" style="max-height:420px"><table><tbody>
+      ${list.map((m, i) => `<tr class="${S.mkSel === i ? "sel" : ""}" data-mkplay="${i}" style="cursor:pointer">
+        <td style="width:62px"><div class="bar" style="width:40px"><i style="width:${m.score || 0}%;background:#f5c542"></i></div><div class="hint" style="white-space:nowrap">score ${m.score ?? "–"}</div></td>
+        <td><b>${tc(m.start)} → ${tc(m.end)}</b> <span class="muted" style="font-size:12px">#${i + 1}</span><div class="hint">${Math.round(m.end - m.start)}s${m.why ? " · " + esc(m.why) : ""}</div></td>
+        <td style="white-space:nowrap">${isShort(m) ? `<span class="badge ok">Short</span>` : `<button class="btn sm" data-mkshort="${i}">+ Short</button>`}
+          <button class="btn sm icon" data-mkdel="${i}" title="Remove (won't be suggested again)">✕</button></td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="mkMore2" ${dis()}>+ More suggestions</button></div>
+    </div>
+  </div>` : ""}`;
+  const more = replace => {
+    const o = { count: Math.max(1, +$("#mkCount").value || 10), min: +$("#mkMin").value || 20, max: +$("#mkMax").value || 45 };
+    if (o.max <= o.min) return toast("The longest length must be more than the shortest.");
+    store.set("mkSettings", o); run("markers", { ...o, replace });
+  };
+  $("#mkMore").onclick = () => more(false);
+  if ($("#mkMore2")) $("#mkMore2").onclick = () => more(false);
+  if ($("#mkReset")) $("#mkReset").onclick = () => more(true);
+  if ($("#mkPremiere")) $("#mkPremiere").onclick = () => {
+    api("/api/open", { path: "", script: "suggested-markers.jsx", how: "vscode" });
+    toast("Opened suggested-markers.jsx — run it in VS Code (Ctrl+Shift+P → Evaluate Script in Attached Host) with the project open in Premiere.", true);
+  };
+  const toShort = ms => [...shortsList(), ...ms.map(m => ({ name: m.name.replace(/^Marker/, "Short"), start: m.start, end: m.end }))];
+  if ($("#mkAll")) $("#mkAll").onclick = async () => { const add = list.filter(m => !isShort(m)); await saveShorts(toShort(add), `Added ${add.length} Short${add.length === 1 ? "" : "s"}`); render(); };
+  $$("[data-mkshort]").forEach(b => b.onclick = async () => { await saveShorts(toShort([list[+b.dataset.mkshort]]), "Added to your Shorts"); render(); });
+  $$("[data-mkdel]").forEach(b => b.onclick = async () => {
+    const m = list[+b.dataset.mkdel]; S.mkSel = null;
+    await saveCfg({ markers: list.filter(x => x !== m), dismissed: [...(S.info.config.dismissed || []), [m.start, m.end]] });
+    toast("Removed — + More suggestions won't bring it back", true);
+  });
+  $$("[data-mkplay]").forEach(tr => tr.onclick = e => { if (e.target.closest("button")) return; S.mkSel = +tr.dataset.mkplay;
+    $$("[data-mkplay]").forEach(r => r.classList.toggle("sel", r === tr)); seek(list[S.mkSel].start); playNow(); });
+  if (have && T.tl) { setupPlayer(); $("#pPlay").onclick = togglePlay; if (S.mkSel != null && list[S.mkSel]) seek(list[S.mkSel].start); }
+}
 
 // ---- Shorts: timeline editor, player, list, suggestions
 const T = { tl: null, v0: 0, v1: 120, play: 0, sel: null, drag: null, undo: [], loadedFor: null, playing: false, seg: null };
@@ -393,7 +465,7 @@ const sugList = () => (T.tl?.suggestions || []).filter(s => !(S.info.config.dism
 async function saveShorts(list, note) {
   T.undo.push(structuredClone(shortsList())); if (T.undo.length > 50) T.undo.shift();
   S.info.config = await api("/api/config", { path: S.current, patch: { shorts: list } });
-  refreshShorts(); if (note) toast(note, true);
+  if ($("#shortsCard")) refreshShorts(); if (note) toast(note, true);
 }
 
 function viewShorts() {
@@ -407,7 +479,7 @@ function viewShorts() {
       <span style="flex:1"></span>
       <button class="btn" id="importMarkers">Import from markers</button>
       <button class="btn" id="addShort">+ Add Short</button>
-      <button class="btn" id="toPremiere" title="Put your Shorts on Premiere's timeline as named range markers">Send to Premiere</button>
+      ${S.info.clip ? "" : `<button class="btn" id="toPremiere" title="Put your Shorts on Premiere's timeline as named range markers">Send to Premiere</button>`}
     </div>
   </div>
   ${S.markers ? `<div class="card">${markerPicker()}</div>` : ""}
@@ -452,14 +524,14 @@ function wireShorts() {
   const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || 20, max: +$("#sgMax").value || 45 });
   $("#analyse").onclick = go; const a2 = $("#analyse2"); if (a2) a2.onclick = go;
   $("#addShort").onclick = () => { const s = T.tl ? T.play : (shortsList().at(-1)?.end || 0); addShort(s, s + 30); };
-  $("#toPremiere").onclick = () => {
+  if ($("#toPremiere")) $("#toPremiere").onclick = () => {
     api("/api/open", { path: "", script: "shorts-to-markers.jsx", how: "vscode" });
     toast("Opened shorts-to-markers.jsx — run it in VS Code (Ctrl+Shift+P → Evaluate Script in Attached Host) with the project open in Premiere.", true);
   };
   $("#importMarkers").onclick = async () => {
     if (S.markers) { S.markers = null; return render(); }
     const segs = await api("/api/markers?path=" + encodeURIComponent(S.current));
-    if (!segs.length) return toast("This sequence has no markers.");
+    if (!segs.length) return toast("No markers yet — place some in step 1.");
     S.markers = segs.map(s => ({ ...s, pick: !s.added && (s.kind === "range" || (s.seconds >= 15 && s.seconds <= 60)) }));
     render();
   };
@@ -1097,10 +1169,10 @@ const STATUS = [["ok", "In sync", "var(--ok)"], ["early", "Appear too early", "v
   ["cut-off", "Disappear too soon", "var(--bad)"], ["lingers", "Stay up too long", "var(--warn)"], ["no-match", "Couldn't hear the words", "var(--faint)"], ["empty", "Empty captions", "var(--bad)"]];
 function viewCaptions() {
   const I = S.info, R = I.results, seq = I.sequences.find(s => s.name === I.sequence) || {};
-  const name = I.path.split(/[\\/]/).pop().replace(/\.prproj$/i, "");
+  const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
   const synced = S.projects.filter(p => p.base === name.replace(/_captions-synced(-v\d+)?$/, "") && p.version !== "original");
   if (!seq.captions) {
-    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>No Premiere captions in this sequence</h3>
+    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>${I.clip ? "A video clip has no Premiere captions" : "No Premiere captions in this sequence"}</h3>
       <p>That's fine — the toolkit makes captions from the speech itself (1–3 words at a time) for everything it renders. Timing checks here are only for captions made in Premiere.</p></div></div></div>`;
     return;
   }
@@ -1170,12 +1242,13 @@ function wireCommon() {
 }
 
 // ---------------------------------------------------------------- jobs
-const TITLES = { timeline: "Analysing the video", check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
+const TITLES = { markers: "Finding the best moments", timeline: "Analysing the video", check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
   preview: "Rendering preview", make: "Rendering", burn: "Burning captions onto video" };
 async function run(action, data = {}) {
   if (S.busy) return;
   const body = { action, title: TITLES[action], path: S.current };
-  if (action === "timeline") { Object.assign(body, { count: data.count, min: data.min, max: data.max }); }
+  if (action === "timeline" || action === "markers") { Object.assign(body, { count: data.count, min: data.min, max: data.max, replace: !!data.replace }); }
+  S.mkBefore = action === "markers" ? (data.replace ? 0 : (S.info.config.markers || []).length) : null;
   if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; }
   if (action === "make") {
     body.preset = store.get("preset", "medium");
@@ -1217,6 +1290,11 @@ async function poll(from) {
   }
   T.loadedFor = null; T.tl = null;
   await loadState(); await select(S.current, true);
+  if (S.mkBefore != null && !j.stopped && j.code === 0) {
+    const n = (S.info.config.markers || []).length - S.mkBefore;
+    toast(n > 0 ? `Placed ${n} new marker${n === 1 ? "" : "s"}` : "No more good moments at that length — try a different length, or remove markers you don't want.", n > 0);
+  }
+  S.mkBefore = null;
 }
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }
 function openLog(open) { $("#log").classList.toggle("closed", !open); $("#toggleHint").textContent = open ? "Hide log ▾" : "Show log ▴"; }

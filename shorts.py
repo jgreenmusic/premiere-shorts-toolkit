@@ -1,5 +1,6 @@
 """Premiere Shorts Toolkit - main script.
 
+    python shorts.py markers  "Project.prproj" (or "clip.mp4")   markers where the best Shorts are
     python shorts.py captions "Project.prproj" [--fix]   check caption timing / write a synced COPY
     python shorts.py screams  "Project.prproj"           growing-letter scream captions
     python shorts.py shorts   "Project.prproj" --from-markers   list of Shorts from your markers
@@ -21,7 +22,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.9.1"
+__version__ = "0.10.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -175,24 +176,84 @@ def write_marker_csv(outdir, shorts):
     return path
 
 
-def cmd_timeline(args):
-    """timeline.json: per-second picture of the video + predicted Shorts, for the app."""
-    import json
+def write_suggested_csv(outdir, markers):
+    """suggested-markers.csv for premiere/suggested-markers.jsx."""
+    path = os.path.join(outdir, "suggested-markers.csv")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("start,end,name\n")
+        for m in markers:
+            label = "%s (%s)" % (m["name"], m["why"].replace(", ", "; ")) if m.get("why") else m["name"]
+            f.write("%.3f,%.3f,%s\n" % (float(m["start"]), float(m["end"]), label.replace(",", " ").replace("\n", " ")))
+    return path
+
+
+def analyse(ctx, args):
+    """The per-second picture of the video (screams, laughs, loud lines, excitement)."""
     import timeline
-    ctx = load_ctx(args)
     plan = scream_plan(ctx, args)
     lplan = laugh_plan(ctx, plan)
     print("[timeline] scoring every second")
-    summ = timeline.summary(ctx, plan, lplan, loud_lines(ctx, plan))
-    # never re-suggest what's already a Short or what you dismissed - "More" digs further down
-    avoid = [(s["start"], s["end"]) for s in ctx.cfg["shorts"]] + [tuple(d) for d in ctx.cfg.get("dismissed", [])]
-    summ["suggestions"] = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=avoid)
+    return timeline.summary(ctx, plan, lplan, loud_lines(ctx, plan))
+
+
+def taken(cfg):
+    """Ranges never to suggest again: Shorts, placed markers, anything you dismissed."""
+    return ([(s["start"], s["end"]) for s in cfg["shorts"]] + [(m["start"], m["end"]) for m in cfg.get("markers", [])]
+            + [tuple(d) for d in cfg.get("dismissed", [])])
+
+
+def save_timeline(ctx, summ, args):
+    import json
+    import timeline
+    summ["suggestions"] = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=taken(ctx.cfg))
     summ["settings"] = dict(count=args.count, min=args.min, max=args.max)
     with open(os.path.join(ctx.outdir, "timeline.json"), "w", encoding="utf-8") as f:
         json.dump(summ, f)
     write_marker_csv(ctx.outdir, ctx.cfg["shorts"])
+    return summ
+
+
+def cmd_timeline(args):
+    """timeline.json: per-second picture of the video + predicted Shorts, for the app."""
+    ctx = load_ctx(args)
+    # never re-suggest what's already a Short, a marker, or dismissed - "More" digs further down
+    summ = save_timeline(ctx, analyse(ctx, args), args)
     print("\n%d suggested Short(s), best first:" % len(summ["suggestions"]))
     for s in summ["suggestions"]:
+        print("  %3d  %s - %s  (%2.0fs)  %s" % (s["score"], cap.fmt(s["start"]), cap.fmt(s["end"]),
+                                              s["end"] - s["start"], s["why"]))
+
+
+def cmd_markers(args):
+    """Step 1: place range markers where the best Shorts are. Run again for more -
+    it skips every marker already placed, every Short and everything you removed."""
+    import config
+    import timeline
+    import pipeline
+    ctx = load_ctx(args)
+    cfg = ctx.cfg
+    if args.replace:
+        print("Starting over: removing %d suggested marker(s)" % len(cfg["markers"]))
+        cfg["markers"] = []
+    summ = analyse(ctx, args)
+    found = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=taken(cfg))
+    n0 = len(cfg["markers"])
+    for s in found:
+        cfg["markers"].append(dict(start=s["start"], end=s["end"], score=s["score"], why=s["why"]))
+    cfg["markers"].sort(key=lambda m: m["start"])
+    for k, m in enumerate(cfg["markers"]):          # numbered in time order, whenever they were found
+        m["name"] = "Marker %02d - %s" % (k + 1, cap.fmt(m["start"])[:-3])
+    config.save(ctx.outdir, cfg)
+    write_suggested_csv(ctx.outdir, cfg["markers"])
+    # the timeline (step 3) shows the new markers and suggests around them
+    ctx.seq.markers = pipeline.with_toolkit_markers(ctx.own_markers, cfg)
+    summ["markers"] = [dict(t=round(m.start_s, 3), dur=round(m.dur_s, 3), name=m.name) for m in ctx.seq.markers]
+    save_timeline(ctx, summ, argparse.Namespace(count=12, min=args.min, max=args.max))
+    if not found:
+        print("\nNo more good moments left at %g-%gs long - try a different length, or remove markers you don't want." % (args.min, args.max))
+        return
+    print("\nPlaced %d marker(s)%s, best first:" % (len(found), " (%d in total)" % len(cfg["markers"]) if n0 else ""))
+    for s in found:
         print("  %3d  %s - %s  (%2.0fs)  %s" % (s["score"], cap.fmt(s["start"]), cap.fmt(s["end"]),
                                               s["end"] - s["start"], s["why"]))
 
@@ -578,7 +639,7 @@ def main():
                    help="with --fix: don't fit caption lengths to the sound, only fix timing errors")
     c.set_defaults(func=cmd_captions)
     def common(p, words=True):
-        p.add_argument("project", help="saved .prproj file")
+        p.add_argument("project", help="saved .prproj file, or any video clip (.mp4 .mov .mkv ...)")
         p.add_argument("--sequence", help="sequence name (default: the one with captions)")
         if words:
             p.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
@@ -613,6 +674,15 @@ def main():
     t.add_argument("--add", nargs=2, metavar=("START", "END"), help="add one Short, e.g. --add 6:18 6:45")
     t.add_argument("--name", help="name for --add")
     t.set_defaults(func=cmd_shorts)
+
+    mk = sub.add_parser("markers", help="step 1: place markers where the best Shorts are (run again for more)")
+    common(mk)
+    mk.add_argument("--count", type=int, default=10, help="how many new markers to place (default 10)")
+    mk.add_argument("--min", type=float, default=20, help="shortest, s (default 20)")
+    mk.add_argument("--max", type=float, default=45, help="longest, s (default 45)")
+    mk.add_argument("--replace", action="store_true", help="start over: remove the markers placed before")
+    mk.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    mk.set_defaults(func=cmd_markers)
 
     tl = sub.add_parser("timeline", help="whole-video picture + predicted best Shorts (for the app)")
     common(tl)

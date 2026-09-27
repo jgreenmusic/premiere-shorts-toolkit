@@ -38,6 +38,9 @@ DEFAULTS = {
         "style": {},              # {"start": "heh"} spelling choice: heh, huh, hehe, ha, HA
     },
     "shorts": [],                 # [{"name": "...", "start": s, "end": s}]
+    "markers": [],                # step 1: suggested range markers placed by the toolkit
+                                  # [{"name", "start", "end", "score", "why"}]
+    "dismissed": [],              # [[start, end]] suggestions you removed - never suggested again
 }
 
 

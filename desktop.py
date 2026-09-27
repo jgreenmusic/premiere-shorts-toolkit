@@ -39,7 +39,8 @@ def main():
             types = ()
         else:
             mode = FD.OPEN if FD else webview.OPEN_DIALOG
-            types = ("Premiere project (*.prproj)",) if kind == "project" else ("Video (*.mp4;*.mov;*.mkv)", "All files (*.*)")
+            types = (("Premiere project (*.prproj)",) if kind == "project" else
+                     ("Video (*.mp4;*.mov;*.mkv;*.m4v;*.webm;*.avi;*.flv;*.ts)", "All files (*.*)"))
         res = window.create_file_dialog(mode, file_types=types)
         if not res:
             return None
