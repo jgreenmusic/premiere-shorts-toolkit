@@ -2,6 +2,20 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.11.2 - 2026-09-27
+
+**Markers go into Premiere first; captions come after.**
+
+Problem: the Premiere panel's status and install button only lived under step 2 (Captions), so it
+looked like captions had to be made before markers could go on the timeline. And the panel had
+never connected: Premiere did start it at launch, but that was the old panel looking on 8765 while
+the old toolkit sat on a random port.
+
+- Step 1 has an **In Premiere** card: the panel's status (connected / not open / Install), then
+  **1 · Place markers in Premiere** and **2 · Cut at the markers**, then Next → captions.
+- `cut-at-markers.jsx` now cuts at the **start and end** of range markers (it used to cut only at
+  starts), so each Short becomes its own piece; its messages are full sentences.
+
 ## 0.11.1 - 2026-09-27
 
 **Premiere scripts run from the toolkit - no more VS Code.**

@@ -387,11 +387,20 @@ function viewMarkers() {
         <input class="text time" id="mkMin" style="width:52px" value="${st.min}">–<input class="text time" id="mkMax" style="width:52px" value="${st.max}"> s</label>
       <span style="flex:1"></span>
       ${have ? `<button class="btn" id="mkAll" ${inShorts === list.length ? "disabled" : ""} title="Add every marker to your Shorts list">Turn all into Shorts</button>` : ""}
-      ${have && !I.clip ? `<button class="btn" id="mkPremiere" title="Put these markers on Premiere's timeline">Put them in Premiere</button>` : ""}
       ${have ? `<button class="btn link" id="mkReset" ${dis()} title="Remove every suggested marker and pick again from scratch">Start over</button>` : ""}
     </div>
     ${have ? "" : `<p class="hint" style="margin:12px 0 0">The first run on a new video transcribes the speech — a few minutes for an hour of footage. After that it takes seconds.</p>`}
   </div>
+  ${have && !I.clip ? `<div class="card">
+    <div class="card-head"><div class="grow"><h3>In Premiere</h3>
+      <p>Put these markers on your timeline, then — if you want — cut every track where they start and end, so each Short is its own piece. Captions come after, in step 2.</p></div>
+      <div id="pnStatus">${panelStatus()}</div></div>
+    <div class="row">
+      <button class="btn primary" id="mkPremiere">1 · Place markers in Premiere</button>
+      <button class="btn" id="mkCut">2 · Cut at the markers</button>
+      <span class="hint">Your own markers are kept. Placing again replaces only the toolkit's. Ctrl+Z in Premiere undoes cuts.</span>
+    </div>
+  </div>` : ""}
   ${have ? `<div class="split player-split marker-split">
     <div class="card" style="padding:12px">
       <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
@@ -423,6 +432,9 @@ function viewMarkers() {
   if ($("#mkMore2")) $("#mkMore2").onclick = () => more(false);
   if ($("#mkReset")) $("#mkReset").onclick = () => more(true);
   if ($("#mkPremiere")) $("#mkPremiere").onclick = e => runInPremiere("suggested-markers.jsx", e.currentTarget);
+  if ($("#mkCut")) $("#mkCut").onclick = e => runInPremiere("cut-at-markers.jsx", e.currentTarget);
+  wirePanelStatus();
+  if (!I.clip && !W.bTimer) bridgePoll();
   const toShort = ms => [...shortsList(), ...ms.map(m => ({ name: m.name.replace(/^Marker/, "Short"), start: m.start, end: m.end }))];
   if ($("#mkAll")) $("#mkAll").onclick = async () => { const add = list.filter(m => !isShort(m)); await saveShorts(toShort(add), `Added ${add.length} Short${add.length === 1 ? "" : "s"}`); render(); };
   $$("[data-mkshort]").forEach(b => b.onclick = async () => { await saveShorts(toShort([list[+b.dataset.mkshort]]), "Added to your Shorts"); render(); });
@@ -1198,6 +1210,20 @@ function viewCaptions() {
 //  • Automatic: the Premiere panels (bridge.py) transcribe + add the caption track + save
 //  • By hand: you press Create captions in Premiere and save; the toolkit watches
 const W = { on: false, timer: null, for: null, bridge: null, bTimer: null };
+// the Captions panel's connection, shown wherever a step needs Premiere
+function panelStatus() {
+  const B = W.bridge, p = B && B.panels && B.panels.cep, inst = B && B.installed && B.installed.cep;
+  if (p && p.connected) return `<span class="pill"><span class="dot ok" style="display:inline-block;margin-right:6px"></span>Premiere panel: <b>connected</b></span>`;
+  return `<span class="pill" title="In Premiere: Window › Extensions › Shorts Toolkit - Captions"><span class="dot" style="display:inline-block;margin-right:6px"></span>Premiere panel: <b>${B ? (inst ? "not open" : "not installed") : "…"}</b></span>
+    ${B && !inst ? `<button class="btn sm" data-pinstall>Install</button>` : B ? `<span class="hint" style="margin-left:6px">Window › Extensions › Shorts Toolkit - Captions</span>` : ""}`;
+}
+function wirePanelStatus() {
+  $$("[data-pinstall]").forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = "Installing…";
+    try { const r = await api("/api/bridge/install", {}); toast(r.lines.join(" · "), r.ok); } catch (e) { toast(e.message); }
+    bridgePoll();
+  });
+}
 function viewMakeCaptions() {
   const B = W.bridge, P = (B && B.panels) || {}, job = B && B.job, inst = B && B.installed;
   const engine = store.get("capEngine", "adobe"), style = store.get("capStyle", "premiere"), autoNext = store.get("capNext", true);
@@ -1271,8 +1297,10 @@ async function bridgePoll() {
     if (step === "click") { toast("Finish in Premiere: Text panel › Create captions, then Ctrl+S — watching for it.", true); watch(true); }
   }
   if (changed && S.tab === "captions" && S.info && !capCount()) render();
+  const ps = $("#pnStatus"); if (ps && changed) { ps.innerHTML = panelStatus(); wirePanelStatus(); }   // step 1: just the badge, not the player
   const busy = ["speech", "words", "srt", "import"].includes(step);
-  if (busy || (S.tab === "captions" && S.info && !capCount())) W.bTimer = setTimeout(bridgePoll, busy ? 1000 : 3000);
+  if (busy || (S.tab === "captions" && S.info && !capCount()) || (S.tab === "markers" && S.info && !S.info.clip))
+    W.bTimer = setTimeout(bridgePoll, busy ? 1000 : 3000);
 }
 // re-read the saved project every 2 s until its sequence has captions
 function watch(on) {

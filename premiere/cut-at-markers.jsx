@@ -1,10 +1,11 @@
 // Premiere Pro: razor every unlocked video + audio track of the ACTIVE sequence
-// at every SEQUENCE marker (markers on the timeline ruler, not clip markers).
-// Run with VS Code + "ExtendScript Debugger" -> target "Adobe Premiere Pro".
+// at every SEQUENCE marker (markers on the timeline ruler, not clip markers) -
+// at both the start and the end of a range marker, so each Short is its own piece.
+// Run it from the toolkit (Run in Premiere), or VS Code + "ExtendScript Debugger".
 // Undo: Ctrl+Z steps back one cut at a time (or use History panel).
 (function () {
     var seq = app.project.activeSequence;
-    if (!seq) { $.writeln("No active sequence - click into a timeline first."); return "no sequence"; }
+    if (!seq) { $.writeln("No active sequence - click into a timeline first."); return "No active sequence - click into a timeline first."; }
 
     app.enableQE();
     var qeSeq = qe.project.getActiveSequence();
@@ -14,16 +15,20 @@
     var TICKS = 254016000000;
     var seqEnd = parseFloat(seq.end) / TICKS;
 
-    // Collect unique marker times, in order.
+    // Collect unique marker times (start, and end of range markers), in order.
     var seen = {}, times = [];
+    function add(t) {
+        var s = t.seconds;
+        if (!seen[t.ticks] && s > 0 && s < seqEnd) { seen[t.ticks] = true; times.push(t); }
+    }
     var m = seq.markers.getFirstMarker();
     while (m) {
-        var s = m.start.seconds;
-        var key = m.start.ticks;
-        if (!seen[key] && s > 0 && s < seqEnd) { seen[key] = true; times.push(m.start); }
+        add(m.start);
+        if (m.end && m.end.seconds > m.start.seconds) add(m.end);
         m = seq.markers.getNextMarker(m);
     }
-    if (!times.length) { $.writeln("No sequence markers found inside the sequence."); return "no markers"; }
+    if (!times.length) { $.writeln("No sequence markers found inside the sequence."); return "No markers on this sequence yet - place them first."; }
+    times.sort(function (a, b) { return a.seconds - b.seconds; });
 
     var cuts = 0;
     for (var t = 0; t < times.length; t++) {
@@ -39,7 +44,7 @@
         cuts++;
         $.writeln("Cut at " + tc);
     }
-    var msg = "Done: cut at " + cuts + " marker(s) on sequence '" + seq.name + "'.";
+    var msg = "Cut every track at " + cuts + " point(s) on '" + seq.name + "'. Ctrl+Z in Premiere undoes a cut.";
     $.writeln(msg);
     return msg;
 })();
