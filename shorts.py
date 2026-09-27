@@ -16,7 +16,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -112,6 +112,57 @@ def cmd_screams(args):
     print("\n%d captions (%d screams animated, %d empty dropped) -> %s"
           % (len(cues), len(found), sum(1 for c in seq.captions if not c.text), srt))
     print("Import it with premiere/import-captions.jsx - see the README.")
+
+
+def parse_time(t):
+    """'50:05', '1:02:03.5' or '3005' -> seconds."""
+    sec = 0.0
+    for part in str(t).split(":"):
+        sec = sec * 60 + float(part)
+    return sec
+
+
+def cmd_style(args):
+    import style
+    proj, seq, stem, base, outdir = open_sequence(args)
+    print("Sequence %r: %d captions" % (seq.name, len(seq.captions)))
+    print("[1/3] rebuilding the sequence audio")
+    audio = cap.timeline_audio(seq)
+    print("[2/3] matching words and voice")
+    words = cap.transcribe(audio, outdir, model=args.model)
+    regions = cap.voice_regions(audio, outdir)
+    matches = cap.align(seq.captions, words)
+    events, n_screams = style.build(seq, matches, words, regions, audio,
+                                    highlight=not args.no_highlight, scream_loud=args.loud)
+    ass = os.path.join(outdir, "styled-captions.ass")
+    print("[3/3] writing %d caption events (%d screams)" % (len(events), n_screams))
+
+    if args.preview is not None:
+        t0 = parse_time(args.preview)
+        item = next((a for a in seq.audio if a.start / TICKS <= t0 < a.end / TICKS), None)
+        if not item:
+            sys.exit("No clip at %s on the timeline." % cap.fmt(t0))
+        src = (item.src_in + (t0 * TICKS - item.start)) / TICKS
+        pv_ass = os.path.join(outdir, "preview.ass")
+        style.write_ass(pv_ass, events, shift=t0)
+        out = os.path.join(outdir, "preview-%s.mp4" % cap.fmt(t0).replace(":", "-"))
+        # 9:16 preview: gameplay centred over a blurred copy of itself
+        fill = ("split[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                "boxblur=20:4[b];[fg]scale=1080:-2[f];[b][f]overlay=(W-w)/2:(H-h)/2")
+        style.burn(item.path, pv_ass, out, preset="veryfast", crf=20,
+                   extra_in=["-ss", "%.3f" % src, "-t", "%.3f" % args.seconds], vf_before=fill)
+        print("Preview (%.0fs from %s) -> %s" % (args.seconds, cap.fmt(t0), out))
+        return
+
+    style.write_ass(ass, events, shift=parse_time(args.start))
+    print("Styled captions -> %s" % ass)
+    if args.video:
+        out = os.path.splitext(args.video)[0] + "_captioned.mp4"
+        print("Burning onto %s (audio copied untouched) ..." % args.video)
+        style.burn(args.video, ass, out)
+        print("Done -> %s" % out)
+    else:
+        print("Export the sequence from Premiere with captions OFF, then run again with --video <export.mp4>")
 
 
 def cmd_captions(args):
@@ -364,6 +415,17 @@ def main():
                    help="how much louder than normal talking a scream must be (default 1.6x; lower = more screams)")
     k.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
     k.set_defaults(func=cmd_screams)
+    y = sub.add_parser("style", help="styled, animated captions burned into your export (.ass + ffmpeg)")
+    y.add_argument("project", help="saved .prproj file (its caption timings are used)")
+    y.add_argument("--sequence", help="sequence name, if more than one has captions")
+    y.add_argument("--video", help="the sequence exported from Premiere WITH CAPTIONS OFF")
+    y.add_argument("--start", default="0", help="timeline time the export starts at, if not 0 (e.g. 12:30)")
+    y.add_argument("--preview", help="render a short test clip from this timeline time (e.g. 50:05)")
+    y.add_argument("--seconds", type=float, default=12, help="preview length (default 12)")
+    y.add_argument("--no-highlight", action="store_true", help="no spoken-word highlight")
+    y.add_argument("--loud", type=float, default=1.6, help="scream loudness threshold (see screams)")
+    y.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+    y.set_defaults(func=cmd_style)
     args = ap.parse_args()
     args.func(args)
 

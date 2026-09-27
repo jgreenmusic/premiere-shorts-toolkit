@@ -119,7 +119,9 @@ def align(captions, words, max_shift=8.0):
             first_heard=any(pos[0] == 0 for w, n, pos in inside),
             last_heard=any(pos[0] == pos[1] - 1 for w, n, pos in inside),
             speech_start=min(w[0] for w in h) if h else None,
-            speech_end=max(w[1] for w in h) if h else None))
+            speech_end=max(w[1] for w in h) if h else None,
+            # (position of the word in the caption, start, end) for word highlighting
+            words=sorted((pos[0], fw[0], fw[1]) for (w, n, pos), fw in zip(inside, h))))
     reject_outliers(captions, out)
     return out
 
@@ -172,7 +174,7 @@ def reject_outliers(captions, matches, window=12, max_dev=0.75, strong_run=3):
         if not near:
             continue
         if abs(offs[i] - median(near)) > max_dev and matches[i]["run"] < strong_run:
-            matches[i].update(ratio=0.0, speech_start=None, speech_end=None, rejected=True)
+            matches[i].update(ratio=0.0, speech_start=None, speech_end=None, words=[], rejected=True)
 
 
 # -- 4. decide new timing ------------------------------------------------------
