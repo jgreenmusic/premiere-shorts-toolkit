@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+# never commit media, projects or transcripts
+*.prproj
+*.prproj.FAILED
+*_captions/
+*.wav
+*.mp4
+*.srt
