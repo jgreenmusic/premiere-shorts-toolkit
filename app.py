@@ -378,8 +378,9 @@ def bridge_start(path, engine, style):
     import bridge
     import config
     outdir = base_of(path) + "_captions"
-    seq = pick(project(path), config.load(outdir))
-    err = bridge.start(path, outdir, seq.name, engine, style)
+    cfg = config.load(outdir)
+    seq = pick(project(path), cfg)
+    err = bridge.start(path, outdir, seq.name, engine, style, cfg["look"].get("punct", "keep"))
     if err or engine == "adobe":
         return err
 

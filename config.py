@@ -19,6 +19,7 @@ DEFAULTS = {
         "scream_col": "FF5A3C",
         "laugh_col": "8AE3FF",
         "loud_lines": True,       # shouted lines bigger + capitals
+        "punct": "keep",          # punctuation on screen: keep / soft (no . , ; :) / all (no ? ! either)
     },
     "layout": {
         "blur_trim": 0.25,        # 0 = whole gameplay visible with tall blur bands above/below;

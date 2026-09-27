@@ -56,13 +56,13 @@ def hello(kind, info):
         return QUEUE[kind].pop(0) if QUEUE[kind] else None
 
 
-def start(project, outdir, sequence, engine, style):
+def start(project, outdir, sequence, engine, style, punct="keep"):
     """Queue 'make captions' for this project. Returns an error string or None."""
     with LOCK:
         if JOB["step"] in ("speech", "words", "srt", "import"):
             return "Premiere captions are already being made."
         JOB.update(id=JOB["id"] + 1, step="speech", lines=[], project=project, outdir=outdir,
-                   sequence=sequence, engine=engine, style=style, started=now())
+                   sequence=sequence, engine=engine, style=style, punct=punct, started=now())
         jid = JOB["id"]
     say("Making captions for %s (%s)" % (sequence or "the active sequence",
                                          "Adobe Speech to Text" if engine == "adobe" else "toolkit speech"))
@@ -180,7 +180,7 @@ def words_ready(words):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "premiere-words.json"), "w", encoding="utf-8") as f:
         json.dump(words, f)
-    cues = caption_lines(words, JOB.get("style") or "premiere")
+    cues = caption_lines(words, JOB.get("style") or "premiere", JOB.get("punct") or "keep")
     # a new name each time, so Premiere never confuses it with an earlier import
     srt = os.path.join(out, "premiere-captions-%s.srt" % time.strftime("%Y%m%d-%H%M%S"))
     write_srt(srt, cues)
@@ -296,7 +296,10 @@ STYLES = {
 }
 
 
-def caption_lines(words, style="premiere"):
+def caption_lines(words, style="premiere", punct="keep"):
+    """Caption lines from timeline words. Lines break at sentence ends first, then the
+    punctuation is dropped as asked (so it still shapes the lines, just not shown)."""
+    from captions import strip_punct_text
     s = STYLES.get(style, STYLES["premiere"])
     chunks, cur = [], []
     for w in words:
@@ -319,7 +322,9 @@ def caption_lines(words, style="premiere"):
         b = max(ch[-1][1] + 0.15, a + s["min_dur"])
         if nxt is not None:
             b = min(b, nxt)
-        cues.append((a, max(b, a + 0.1), " ".join(x[2] for x in ch)))
+        text = strip_punct_text(" ".join(x[2] for x in ch), punct)
+        if text:
+            cues.append((a, max(b, a + 0.1), text))
     return cues
 
 

@@ -126,6 +126,10 @@ def word_times(c, m, start, end):
 
 def caption_events(c, m, start, end, loud, st, highlight=True):
     shown, times = word_times(c, m, start, end)
+    if st.get("punct", "keep") != "keep":            # drop punctuation, keep each word's time
+        kept = [(cap.strip_punct(w, st["punct"]), t) for w, t in zip(shown, times)]
+        kept = [(w, t) for w, t in kept if w]
+        shown, times = [w for w, _ in kept], [t for _, t in kept]
     if not shown:
         return []
     col = st["loud_col"] if loud else st["highlight"]
@@ -196,6 +200,7 @@ def look(cfg):
               loud_col=lk.get("loud_col", st["loud_col"]), scream_col=lk.get("scream_col", st["scream_col"]),
               laugh_col=lk.get("laugh_col", "8AE3FF"))
     st["scream_size"] = int(round(st["size"] * 1.32))
+    st["punct"] = lk.get("punct", "keep")
     return st
 
 

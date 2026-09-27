@@ -79,6 +79,30 @@ def transcribe(audio, cache_dir, model="small", log=print):
     return words
 
 
+# -- punctuation on screen ----------------------------------------------------
+# "keep": as heard.  "soft": no . , ; : or … (? and ! stay - they change how a line
+# reads).  "all": none of those either. Apostrophes in words (don't) and hyphens inside
+# words (co-op) and decimal points (2.5) always stay.
+PUNCT_MODES = ("keep", "soft", "all")
+_SOFT = re.compile(r"(?<!\d)[.,;:…]+|[.,;:…]+(?!\d)")
+_HARD = re.compile(r"[?!¿¡\"“”«»()\[\]]+|(?<![\w])[-–—]+|[-–—]+(?![\w])")
+
+
+def strip_punct(word, mode="keep"):
+    """One word without the punctuation this mode drops ("" if nothing is left)."""
+    if mode not in ("soft", "all"):
+        return word
+    w = _SOFT.sub("", word)
+    if mode == "all":
+        w = re.sub(r"(?<=\w)[–—](?=\w)", " ", w)     # "no—way" -> "no way"
+        w = _HARD.sub("", w)
+    return w.strip()
+
+
+def strip_punct_text(text, mode="keep"):
+    return " ".join(x for x in (strip_punct(w, mode) for w in text.split()) if x)
+
+
 # -- 3. match caption text to spoken words -----------------------------------
 def norm(word):
     return re.sub(r"[^a-z0-9']", "", word.lower().replace("’", "'"))

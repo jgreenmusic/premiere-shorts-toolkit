@@ -2,6 +2,22 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.11.5 - 2026-09-27
+
+**Punctuation setting: captions without periods.**
+
+Asked for: captions that don't show periods, from the app. Premiere has this built in only as the
+**Remove Punctuation** checkbox in its Create captions dialog (scripts can't tick it), so:
+
+- **Punctuation** setting per project, on the Look tab and on step 2's Automatic card (same setting):
+  *Keep* / *No periods or commas (keep ? and !)* / *No punctuation at all*.
+- Applies to the captions the toolkit adds to Premiere (Automatic) and to every Short it renders.
+  Lines still break at sentence ends; the punctuation just isn't shown. Each word keeps its
+  highlight timing. Apostrophes (don't), hyphens in words (co-op) and numbers (2.5) always stay;
+  "no—way" becomes "no way".
+- Step 2's By hand steps now point at Premiere's own **Remove Punctuation** checkbox.
+- Screams and laughs are spelled as before (their "!" is part of the effect).
+
 ## 0.11.4 - 2026-09-27
 
 **The Captions panel's script engine was broken - fixed, so cutting and caption tracks can run.**
