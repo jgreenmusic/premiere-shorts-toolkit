@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.jgreenmusic.shortstoolkit.captions" ExtensionBundleVersion="1.0.0"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.jgreenmusic.shortstoolkit.captions" ExtensionBundleVersion="1.0.3"
                    ExtensionBundleName="Shorts Toolkit - Captions" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.jgreenmusic.shortstoolkit.captions.panel" Version="1.0.0" />
+    <Extension Id="com.jgreenmusic.shortstoolkit.captions.panel" Version="1.0.3" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -28,11 +28,8 @@
         </Resources>
         <Lifecycle>
           <AutoVisible>true</AutoVisible>
-          <StartOn>
-            <!-- start with Premiere, so the toolkit can reach it even if the panel is closed -->
-            <Event>com.adobe.csxs.events.ApplicationActivate</Event>
-            <Event>applicationActivate</Event>
-          </StartOn>
+          <!-- No StartOn: a hidden start-up copy left the docked tab blank in Premiere 26.5.
+               Premiere reopens a docked panel by itself. -->
         </Lifecycle>
         <UI>
           <Type>Panel</Type>
