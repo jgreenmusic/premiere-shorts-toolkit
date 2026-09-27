@@ -55,7 +55,7 @@ What counts as "off" is set at the top of `shorts.py` (`START_TOL`, `CUTOFF_TOL`
 ## Animated screams
 
 ```
-.venv\Scripts\python shorts.py screams "C:\path	o\Project_captions-synced-v2.prproj"
+.venv\Scripts\python shorts.py screams "C:\path\to\Project_captions-synced-v2.prproj"
 ```
 Run it on your latest synced project. It writes `Project_captions\captions-with-screams.srt`:
 every caption with its current timing, the screams replaced by growing letters, empty captions
