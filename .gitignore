@@ -9,3 +9,7 @@ __pycache__/
 *.srt
 *_shorts/
 snippets/
+build/
+dist/
+models/*.onnx
+*.spec.bak

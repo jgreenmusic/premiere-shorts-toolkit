@@ -2,6 +2,37 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.9.0 - 2026-09-27
+
+**Standalone Windows app + phone/tablet companion.**
+
+- **Windows installer** (`ShortsToolkit-Setup-0.9.0.exe`, ~400 MB, per-user, no admin): the app
+  runs in its own window (pywebview / Edge WebView2) with a console twin `shorts-cli.exe` for
+  background jobs and terminal use. Bundles its own ffmpeg, fonts, Premiere scripts and the laugh
+  model. Tested: silent install, from-scratch analysis, render with the system ffmpeg hidden,
+  uninstall leaves nothing behind.
+- **Laugh model runs on ONNX Runtime** - no PyTorch in the app. `tools/export_panns_onnx.py`
+  converts it; the log-mel front end is numpy with the model's own mel filterbank. Matches the
+  PyTorch original to 3e-7, and is a little faster (21 s vs 23 s per hour).
+- **ffprobe dropped** (PyAV reads size and frame rate); ffmpeg "essentials" build (105 MB vs 242).
+- **Phone & tablet companion:** 📱 Phone switches on a second listener (port 8766, home network +
+  Tailscale). Pair with a 6-digit one-time code or QR code; devices get a revocable key (only its
+  hash is stored), 10 wrong codes lock pairing for 5 minutes. Paired devices can't use file
+  dialogs, open files/folders, change remote settings, or touch projects the toolkit doesn't
+  list. Installable (manifest, icons, service worker where https allows).
+- **Touch:** pointer events on the timeline, pinch to zoom, double-tap, wider edge grips.
+  Phone layout: projects drawer, stacked panels, icon header, no keyboard hints.
+
+Found while building:
+- ffmpeg 9 **removed `-filter_complex_script`**, so renders crashed with the bundled ffmpeg;
+  now `-/filter_complex` (works on 8 and 9).
+- A "black render" was the game's own black frame at 6:21 - both ffmpeg builds matched exactly.
+- The laugh package pulls in librosa + matplotlib (+PyTorch, ~1.5 GB) just for a spectrogram;
+  replaced as above.
+- Tested security through the real network address: unpaired -> pairing page / 401, wrong code
+  403, codes work once, PC-only actions 403, unknown projects 403, removed device 401, off =
+  unreachable.
+
 ## 0.8.0 - 2026-09-26
 
 **Timeline editor + predicted Shorts.** The Shorts tab is now an editor for the whole video.

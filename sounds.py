@@ -6,30 +6,73 @@ On this footage it hears laughter well; it rates gamer yelling as ~0 "Screaming"
 so screams are still found the old way - this only takes laughs OUT of the scream
 suggestions.
 
-Optional: without torch + panns_inference installed, everything else still works.
+Runs on onnxruntime + numpy (no PyTorch): the log-mel front end is computed here with
+the model's own mel filterbank, and the network is models/panns_sed.onnx (made once by
+tools/export_panns_onnx.py). Without the model file, laugh detection is simply skipped.
 """
 import hashlib
 import os
+import sys
 
 import numpy as np
 
 import captions as cap
 
 RATE = 32000                     # the model's sample rate
-FPS = 100                        # frames per second it outputs
-CLASSES = ["Laughter", "Giggle", "Snicker", "Belly laugh", "Chuckle, chortle",
-           "Screaming", "Yell", "Shout"]
+FPS = 100                        # frames per second it outputs (hop 320)
+N_FFT, HOP = 1024, 320
+# AudioSet class indices (class_labels_indices.csv)
+CLASS_INDEX = {"Laughter": 16, "Giggle": 18, "Snicker": 19, "Belly laugh": 20, "Chuckle, chortle": 21,
+               "Screaming": 14, "Yell": 11, "Shout": 8}
+CLASSES = list(CLASS_INDEX)
 LAUGH = CLASSES[:5]
-MODEL = os.path.join(os.path.expanduser("~"), "panns_data", "Cnn14_DecisionLevelMax.pth")
+
+
+def _res(*parts):
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
+MODEL = _res("models", "panns_sed.onnx")
+MELW = _res("models", "panns_melW.npy")
+_session = None
 
 
 def available():
     try:
-        import panns_inference  # noqa: F401
-        import torch  # noqa: F401
+        import onnxruntime  # noqa: F401
     except ImportError:
         return False
-    return os.path.exists(MODEL)
+    return os.path.exists(MODEL) and os.path.exists(MELW)
+
+
+def _logmel(audio):
+    """Same front end as torchlibrosa: centred reflect-padded STFT, periodic Hann,
+    power spectrum, the model's mel filterbank, 10*log10 (amin 1e-10, ref 1)."""
+    pad = N_FFT // 2
+    x = np.pad(audio.astype(np.float32), (pad, pad), mode="reflect")
+    n = 1 + (len(x) - N_FFT) // HOP
+    frames = np.lib.stride_tricks.as_strided(x, shape=(n, N_FFT), strides=(x.strides[0] * HOP, x.strides[0]))
+    win = (0.5 - 0.5 * np.cos(2 * np.pi * np.arange(N_FFT) / N_FFT)).astype(np.float32)
+    spec = np.abs(np.fft.rfft(frames * win, axis=1)) ** 2
+    mel = spec.astype(np.float32) @ np.load(MELW)
+    return (10.0 * np.log10(np.maximum(mel, 1e-10))).astype(np.float32)
+
+
+def infer(audio):
+    """(frames, 527) probabilities for 32 kHz mono audio, 100 frames/s."""
+    global _session
+    if _session is None:
+        import onnxruntime as ort
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = os.cpu_count() or 4
+        _session = ort.InferenceSession(MODEL, opts, providers=["CPUExecutionProvider"])
+    lm = _logmel(audio)
+    probs = _session.run(None, {"logmel": lm[None, None]})[0][0]     # (T/32, 527)
+    out = np.repeat(probs, 32, axis=0)[:len(lm)]
+    if len(out) < len(lm):                                            # pad with the last frame
+        out = np.concatenate([out, np.repeat(out[-1:], len(lm) - len(out), axis=0)])
+    return out
 
 
 def detect(seq, cache_dir, audio16, log=print):
@@ -40,28 +83,20 @@ def detect(seq, cache_dir, audio16, log=print):
         d = np.load(cache)
         return {c: d[c].astype(np.float32) for c in CLASSES}
     if not available():
-        log("  (laugh detection off: install torch + panns_inference and the Cnn14 model - see README)")
+        log("  (laugh detection off: models/panns_sed.onnx is missing)")
         return None
-    import torch
-    from panns_inference import SoundEventDetection, labels
-    torch.set_num_threads(os.cpu_count() or 4)
     log("  listening for laughs (sound-event model)")
     audio = cap.timeline_audio(seq, log=lambda *a: None, rate=RATE)
-    import contextlib
-    import io
-    with contextlib.redirect_stdout(io.StringIO()):            # it prints its checkpoint path
-        model = SoundEventDetection(checkpoint_path=MODEL, device="cpu")
-    ix = [labels.index(c) for c in CLASSES]
+    ix = [CLASS_INDEX[c] for c in CLASSES]
     chunk = 60 * RATE
     parts = []
     for i in range(0, len(audio), chunk):
         seg = audio[i:i + chunk]
+        frames = len(seg) * FPS // RATE
         if len(seg) < RATE:
-            parts.append(np.zeros((len(seg) * FPS // RATE, len(ix)), np.float32))
+            parts.append(np.zeros((frames, len(ix)), np.float32))
             continue
-        with contextlib.redirect_stdout(io.StringIO()):
-            fw = model.inference(seg[None, :])[0]
-        parts.append(fw[:len(seg) * FPS // RATE, ix])
+        parts.append(infer(seg)[:frames, ix])
     fw = np.concatenate(parts)
     out = {c: fw[:, j] for j, c in enumerate(CLASSES)}
     os.makedirs(cache_dir, exist_ok=True)

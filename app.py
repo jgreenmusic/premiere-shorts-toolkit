@@ -22,6 +22,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+FROZEN = getattr(sys, "frozen", False)                 # running as the installed app
+RES = getattr(sys, "_MEIPASS", HERE)                   # bundled files (ui, fonts, scripts, models)
+APPDIR = os.path.dirname(sys.executable) if FROZEN else HERE
 PORT = 8765
 PY = sys.executable.replace("pythonw.exe", "python.exe")
 SETTINGS = os.path.join(os.path.expanduser("~"), ".shorts-toolkit.json")
@@ -217,7 +220,9 @@ def run_job(title, argv):
 
     def work():
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
-        proc = subprocess.Popen([PY, os.path.join(HERE, "shorts.py")] + argv, cwd=HERE, env=env,
+        # the installed app ships a console twin, shorts-cli.exe; from source we run shorts.py
+        cmd = [os.path.join(APPDIR, "shorts-cli.exe")] if FROZEN else [PY, os.path.join(HERE, "shorts.py")]
+        proc = subprocess.Popen(cmd + argv, cwd=APPDIR, env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         buf = b""
@@ -261,7 +266,12 @@ def make_snippet(path, a, b):
 
 
 # -- native file dialog --------------------------------------------------------------------
+DIALOG = None          # set by desktop.py: native dialogs from the app window
+
+
 def browse(kind):
+    if DIALOG:
+        return DIALOG(kind)
     import tkinter as tk
     from tkinter import filedialog
     root = tk.Tk()
@@ -290,11 +300,24 @@ def open_path(path, how):
 
 # -- HTTP -------------------------------------------------------------------------------------
 LAST_SEEN = [time.time()]
+# installable-app files (phones fetch these before pairing)
+STATIC = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
+          "/sw.js": ("sw.js", "text/javascript"), "/icon-192.png": ("icon-192.png", "image/png"),
+          "/icon-512.png": ("icon-512.png", "image/png"), "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png")}
+PUBLIC = set(STATIC) | {"/api/pair"}
+PC_ONLY = {"/api/browse", "/api/open"}
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
+
+    def handle(self):
+        # a video player cancels downloads whenever it seeks - that's normal, not an error
+        try:
+            super().handle()
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj).encode("utf-8")
@@ -308,18 +331,65 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n) or b"{}")
 
+    # -- the phone/tablet listener (remote.py) -----------------------------------------
+    @property
+    def remote(self):
+        return getattr(self.server, "remote", False)
+
+    def cookie(self, name):
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == name:
+                return v
+        return None
+
+    def guard(self, path):
+        """True if the request may go on. On the remote listener: paired devices only,
+        and never the things that act on the PC itself."""
+        if not self.remote:
+            return True
+        import remote
+        if path in PUBLIC:
+            return True
+        if not remote.check(self.cookie(remote.COOKIE)):
+            if path == "/":
+                self.send_file(os.path.join(RES, "ui", "pair.html"))
+            else:
+                self.send_json({"error": "This device isn't paired - open the toolkit's address again to pair."}, 401)
+            return False
+        if path in PC_ONLY or path.startswith("/api/remote"):
+            self.send_json({"error": "That only works on the PC itself."}, 403)
+            return False
+        return True
+
+    def known_project(self, p):
+        """Remote devices may only work on projects the toolkit already lists."""
+        if not self.remote or not p:
+            return True
+        want = os.path.normcase(os.path.normpath(p))
+        return any(os.path.normcase(x["path"]) == want for x in list_projects())
+
     def do_GET(self):
         LAST_SEEN[0] = time.time()
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         try:
+            if not self.guard(u.path):
+                return
+            if not self.known_project(q.get("path") if u.path != "/media" else q.get("project")):
+                return self.send_json({"error": "Unknown project."}, 403)
             if u.path == "/":
-                return self.send_file(os.path.join(HERE, "ui", "index.html"))
+                return self.send_file(os.path.join(RES, "ui", "index.html"))
+            if u.path in STATIC:
+                return self.send_file(os.path.join(RES, "ui", STATIC[u.path][0]), STATIC[u.path][1])
+            if u.path == "/api/remote":
+                import remote
+                return self.send_json(remote.info())
             if u.path == "/api/state":
-                return self.send_json(dict(version=__version__, projects=list_projects(),
+                return self.send_json(dict(version=__version__, projects=list_projects(), remote=self.remote,
                                            dirs=load_settings().get("dirs", DEFAULT_DIRS),
                                            scripts=sorted(os.path.basename(p) for p in
-                                                          glob.glob(os.path.join(HERE, "premiere", "*.jsx")))))
+                                                          glob.glob(os.path.join(RES, "premiere", "*.jsx")))))
             if u.path == "/api/info":
                 return self.send_json(project_info(q["path"]))
             if u.path == "/api/markers":
@@ -358,7 +428,33 @@ class Handler(BaseHTTPRequestHandler):
         LAST_SEEN[0] = time.time()
         u = urlparse(self.path)
         try:
+            if not self.guard(u.path):
+                return
             b = self.body()
+            if not self.known_project(b.get("path")):
+                return self.send_json({"error": "Unknown project."}, 403)
+            if u.path == "/api/pair":
+                import remote
+                token = remote.pair(b.get("code", ""), self.headers.get("User-Agent") or "device")
+                if not token:
+                    return self.send_json({"error": "That code didn't match - check the code on the PC."}, 403)
+                body = json.dumps({"ok": True}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Set-Cookie", "%s=%s; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax" % (remote.COOKIE, token))
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if u.path == "/api/remote":
+                import remote
+                if "enabled" in b:
+                    remote.set_enabled(b["enabled"], Handler)
+                if b.get("new_code"):
+                    remote.new_code()
+                if b.get("revoke"):
+                    remote.revoke(b["revoke"])
+                return self.send_json(remote.info())
             if u.path == "/api/run":
                 jid = run_job(b.get("title", b["action"]), command(b["action"], b))
                 return self.send_json({"id": jid} if jid else {"error": "Something is already running."},
@@ -373,7 +469,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/open":
                 p = b["path"]
                 if b.get("script"):
-                    p = os.path.join(HERE, "premiere", os.path.basename(b["script"]))
+                    p = os.path.join(RES, "premiere", os.path.basename(b["script"]))
                 open_path(p, b.get("how", "file"))
                 return self.send_json({"ok": True})
             if u.path == "/api/config":
@@ -391,9 +487,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": str(e)}, 500)
         self.send_json({"error": "not found"}, 404)
 
-    def send_file(self, path):
+    def send_file(self, path, ctype=None):
         size = os.path.getsize(path)
-        ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+        ctype = ctype or mimetypes.guess_type(path)[0] or "application/octet-stream"
         rng = self.headers.get("Range")
         start, end = 0, size - 1
         if rng:                                  # video seeking needs byte ranges
@@ -424,6 +520,10 @@ class Handler(BaseHTTPRequestHandler):
                 left -= len(chunk)
 
 
+def make_server(port, host="127.0.0.1"):
+    return ThreadingHTTPServer((host, port), Handler)
+
+
 def already_running():
     with socket.socket() as s:
         return s.connect_ex(("127.0.0.1", PORT)) == 0
@@ -435,6 +535,8 @@ def main():
         webbrowser.open(url)
         return
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    import remote
+    remote.autostart(Handler)
 
     def reaper():                                # quit once the tab has been closed for a minute
         while True:

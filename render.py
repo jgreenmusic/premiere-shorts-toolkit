@@ -40,13 +40,14 @@ def _src(item, t):
 
 
 def probe(path):
-    """(width, height, frame rate as an ffmpeg string like '60/1')."""
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                        "stream=width,height,r_frame_rate", "-of", "csv=p=0", path], capture_output=True, text=True)
+    """(width, height, frame rate as an ffmpeg string like '60/1'), via PyAV (no ffprobe needed)."""
     try:
-        w, h, fps = r.stdout.strip().split(",")[:3]
-        return int(w), int(h), fps
-    except ValueError:
+        import av
+        with av.open(path) as c:
+            v = c.streams.video[0]
+            r = v.average_rate or v.guessed_rate or 30
+            return v.codec_context.width, v.codec_context.height, "%d/%d" % (r.numerator, r.denominator)
+    except Exception:
         return 1920, 1080, "30/1"
 
 
@@ -115,7 +116,7 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
     with open(graph, "w", encoding="utf-8") as f:
         f.write(";\n".join(fl))
     cmd = ["ffmpeg", "-v", "error", "-stats", "-y"] + inputs + [
-        "-filter_complex_script", "graph.txt", "-map", "[vout]"]
+        "-/filter_complex", "graph.txt", "-map", "[vout]"]
     cmd += (["-map", "[acat]", "-c:a", "aac", "-b:a", "320k"] if alabels else [])
     cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p",
             "-movflags", "+faststart", "-t", "%.4f" % (b - a), os.path.abspath(out_path)]

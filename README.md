@@ -8,10 +8,38 @@ if you'd rather finish there.
 Works on any Premiere Pro project. If a sequence has no captions, the toolkit writes its own
 from the speech (1–3 words at a time).
 
-## Start
+## Install (Windows)
 
-Double-click **`Shorts Toolkit.cmd`** (or the desktop shortcut). It opens in your browser and
-runs only on this PC. Save your project in Premiere first (Ctrl+S) — the toolkit reads the
+Run **`ShortsToolkit-Setup-0.9.0.exe`** — no admin rights needed, no Python, nothing else to
+install: the app bundles its own ffmpeg, fonts and laugh model. It opens in its own window
+(Start menu / desktop shortcut). The first time a project is analysed it downloads the Whisper
+speech model (~500 MB) once.
+
+Build it yourself with `packaging\build-windows.cmd` (needs the dev setup below, PyInstaller,
+Inno Setup, the ffmpeg "essentials" build in `build\ffmpeg\`, and `models\panns_sed.onnx` from
+`tools\export_panns_onnx.py`).
+
+## Phone & tablet
+
+Your phone or tablet can use the toolkit while your PC does the work:
+
+1. On the PC, click **📱 Phone** (top right) and switch on **Allow my other devices**.
+   Windows may ask about the firewall — allow **Private networks**.
+2. On the phone, scan the QR code (or type the address shown) and enter the 6-digit code.
+3. Install it like an app: **iPhone** — Share → *Add to Home Screen*; **Android** — ⋮ →
+   *Add to Home screen*.
+
+Works on your home Wi-Fi, and anywhere with Tailscale on the phone (use the Tailscale address).
+Only paired devices get in; they can't open files, folders or dialogs on the PC, and you can
+remove any device from the same panel. Switched off, nothing outside the PC can reach it.
+For a full Android install over https: `tailscale serve --bg 8766` on the PC.
+
+The timeline works by touch: drag edges, drag to move, double-tap between markers, pinch to zoom.
+
+## Start (from source)
+
+Installed: open **Shorts Toolkit** from the Start menu. From source: `.venv\Scripts\python desktop.py`
+(own window) or double-click **`Shorts Toolkit.cmd`** (in your browser). Save your project in Premiere first (Ctrl+S) — the toolkit reads the
 saved file and never changes it.
 
 Pick a project on the left, then use the tabs:

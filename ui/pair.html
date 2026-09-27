@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pair · Shorts Toolkit</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0E1014">
+<style>
+:root { --bg:#0e1014; --surface:#161a20; --border:#262c36; --text:#e8eaed; --muted:#98a2ae; --accent:#f5c542; --ink:#1a1400; --bad:#f85149; color-scheme: dark; }
+@media (prefers-color-scheme: light) { :root { --bg:#f5f6f8; --surface:#fff; --border:#e1e5ea; --text:#15181d; --muted:#5b6470; --accent:#c9960e; --ink:#fff; --bad:#cf222e; color-scheme: light; } }
+* { box-sizing: border-box; }
+body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text);
+  font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding:24px 16px; }
+.card { width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:28px 22px; text-align:center; }
+.logo { width:56px; height:56px; border-radius:14px; background:var(--accent); margin:0 auto 14px; display:grid; place-items:center; }
+.logo span { width:26px; height:5px; border-radius:3px; background:var(--ink); box-shadow:0 -9px 0 var(--ink), 0 9px 0 var(--ink); }
+h1 { font-size:21px; margin:0 0 6px; }
+p { color:var(--muted); margin:0 0 20px; font-size:15px; }
+input { width:100%; font:600 30px/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing:.35em; text-align:center;
+  padding:14px 10px; border-radius:12px; border:1px solid var(--border); background:var(--bg); color:var(--text); outline:none; }
+input:focus { border-color:var(--accent); }
+button { margin-top:14px; width:100%; padding:14px; border:0; border-radius:12px; background:var(--accent); color:var(--ink); font:600 16px system-ui, sans-serif; cursor:pointer; }
+button:disabled { opacity:.5; }
+.err { color:var(--bad); min-height:22px; margin-top:12px; font-size:14px; }
+.hint { font-size:13px; margin-top:16px; }
+</style>
+</head>
+<body>
+<form class="card" id="f">
+  <div class="logo" aria-hidden="true"><span></span></div>
+  <h1>Pair with your PC</h1>
+  <p>Enter the 6-digit code shown in Shorts Toolkit on your computer<br>(the <b>Phone</b> button, top right).</p>
+  <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" aria-label="Pairing code" required>
+  <button id="go">Pair this device</button>
+  <div class="err" id="err" role="alert"></div>
+  <p class="hint">Only devices you pair can use the toolkit. You can remove a device from the PC any time.</p>
+</form>
+<script>
+const code = document.getElementById("code"), err = document.getElementById("err"), go = document.getElementById("go");
+async function pair() {
+  err.textContent = ""; go.disabled = true;
+  try {
+    const r = await fetch("/api/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code.value.trim() }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Pairing failed");
+    location.replace("/");
+  } catch (e) { err.textContent = e.message; go.disabled = false; code.select(); }
+}
+document.getElementById("f").onsubmit = e => { e.preventDefault(); pair(); };
+const m = location.hash.match(/code=(\d{6})/);            // from the QR code
+if (m) { code.value = m[1]; history.replaceState(null, "", "/"); pair(); } else code.focus();
+</script>
+</body>
+</html>

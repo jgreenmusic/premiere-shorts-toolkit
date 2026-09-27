@@ -11,6 +11,7 @@ import os
 import random
 import shutil
 import subprocess
+import sys
 
 import numpy as np
 
@@ -18,7 +19,7 @@ import captions as cap
 import screams as sc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FONTS = os.path.join(HERE, "fonts")
+FONTS = os.path.join(getattr(sys, "_MEIPASS", HERE), "fonts")     # bundled in the installed app
 
 STYLE = dict(
     font="Montserrat Black",

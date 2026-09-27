@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shorts Toolkit</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0E1014">
 <style>
 :root {
   --bg: #0e1014; --surface: #161a20; --surface-2: #1c2129; --border: #262c36;
@@ -160,7 +166,30 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-s
 .toast.good { border-left-color: var(--ok); }
 
 @media (max-width: 1000px) { .split { grid-template-columns: 1fr; } .player { position: static; max-width: 300px; } }
+.mobile-only { display: none; }
+.player-split { grid-template-columns: 1fr 320px; }
+.two.lists { grid-template-columns: 3fr 2fr; }
+@media (max-width: 1000px) { .player-split, .two.lists { grid-template-columns: 1fr; } }
+body.remote .pc-only, body.remote [data-folder], body.remote [data-open], body.remote [data-script],
+body.remote #browseProject, body.remote #addFolder, body.remote #toPremiere, body.remote #pickVideo { display: none !important; }
+canvas#ov, canvas#dt { touch-action: none; }
+.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; z-index: 20; padding: 16px; }
+.modal { width: 100%; max-width: 640px; max-height: 90vh; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow); }
+.qr { background: #fff; border-radius: 12px; padding: 10px; width: 180px; height: 180px; flex: none; }
+.qr svg { width: 100%; height: 100%; }
+.code { font: 700 30px/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .25em; }
 @media (max-width: 900px) {
+  .mobile-only { display: inline-block; }
+  .kbd-hint { display: none; }
+  .icon-btn .lbl { display: none; }
+  .icon-btn { width: 38px; padding: 0; }
+  .toolbar .btn, .toolbar label { flex: 1 1 auto; }
+  .card { padding: 14px; }
+  .hero h2 { font-size: 18px; }
+  aside { display: none; }
+  body.show-projects aside { display: block; }
+  header { padding: 0 12px; gap: 8px; padding-top: env(safe-area-inset-top); }
+  header .ver { display: none; }
   .app { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
   aside { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--border); }
   .log { left: 0; }
@@ -176,7 +205,9 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-s
     <div class="logo" aria-hidden="true"><span></span></div>
     <h1>Shorts Toolkit</h1><span class="ver" id="ver"></span>
     <div class="spacer"></div>
-    <button class="icon-btn" id="theme" title="Switch light / dark">◐ Theme</button>
+    <button class="icon-btn mobile-only" id="projToggle" title="Projects">☰<span class="lbl"> Projects</span></button>
+    <button class="icon-btn pc-only" id="phoneBtn" title="Use the toolkit from your phone or tablet">📱<span class="lbl"> Phone</span></button>
+    <button class="icon-btn" id="theme" title="Switch light / dark">◐<span class="lbl"> Theme</span></button>
   </header>
   <aside>
     <div class="side-title"><h2>Projects</h2></div>
@@ -228,7 +259,8 @@ if (["shorts", "screams", "look", "captions", "premiere"].includes(location.hash
 
 async function loadState() {
   const st = await api("/api/state");
-  S.projects = st.projects; S.scripts = st.scripts;
+  S.projects = st.projects; S.scripts = st.scripts; S.remote = !!st.remote;
+  document.body.classList.toggle("remote", S.remote);
   $("#ver").textContent = "v" + st.version;
   renderProjects();
 }
@@ -240,9 +272,48 @@ function renderProjects() {
     ${list.sort((a, b) => a.version === "original" ? -1 : b.version === "original" ? 1 : a.version.localeCompare(b.version, undefined, { numeric: true }))
       .map(p => `<button class="proj ${p.path === S.current ? "active" : ""}" data-path="${esc(p.path)}"><span class="tag">${esc(p.version)}</span><span class="when">${ago(p.modified)}</span></button>`).join("")}
     </div>`).join("") || `<p class="hint" style="padding:0 8px">No projects found. Use “Open project…”.</p>`;
-  $$(".proj").forEach(b => b.onclick = () => select(b.dataset.path));
+  $$(".proj").forEach(b => b.onclick = () => { document.body.classList.remove("show-projects"); select(b.dataset.path); });
 }
 $("#search").oninput = renderProjects;
+$("#projToggle").onclick = () => document.body.classList.toggle("show-projects");
+$("#phoneBtn").onclick = () => openPhone();
+
+// ---- Phone & tablet (desktop only): switch the companion on, pair devices
+async function openPhone() {
+  let R;
+  try { R = await api("/api/remote"); } catch (e) { return toast(e.message); }
+  const back = document.createElement("div"); back.className = "modal-back";
+  const draw = () => {
+    back.innerHTML = `<div class="modal" role="dialog" aria-label="Phone and tablet">
+      <div class="card-head"><div class="grow"><h3>Use it from your phone or tablet</h3>
+        <p>Your phone connects to this PC, which does all the work. Only devices you pair can get in, and they can't open files or folders on this PC.</p></div>
+        <button class="btn sm icon" id="phClose" title="Close">✕</button></div>
+      <div class="toggle-row" style="margin:6px 0 16px"><div><b>Allow my other devices</b><small>Listens on port ${R.port} on your home network and Tailscale. Windows may ask to allow it through the firewall — choose <b>Private networks</b>.</small></div>
+        <label class="switch"><input type="checkbox" id="phOn" ${R.enabled ? "checked" : ""}><span></span></label></div>
+      ${R.enabled ? `
+      <div class="row" style="gap:20px;align-items:flex-start;flex-wrap:wrap">
+        ${R.qr ? `<div class="qr" title="Scan with your phone's camera">${R.qr}</div>` : ""}
+        <div style="flex:1;min-width:220px">
+          <div class="hint">Pairing code (works once)</div>
+          <div class="row" style="gap:10px;margin:4px 0 14px"><span class="code">${R.code}</span><button class="btn sm" id="phNew">New code</button></div>
+          <div class="hint">Open on your phone</div>
+          ${R.urls.map(u => `<div style="margin:4px 0"><b>${u.kind}:</b> <code style="user-select:all">${esc(u.url)}</code></div>`).join("") || `<p class="hint">No network address found.</p>`}
+          <p class="hint" style="margin-top:12px">Scan the QR code or type the address, then enter the code. To install it like an app: iPhone — Share → <b>Add to Home Screen</b>; Android — ⋮ → <b>Add to Home screen</b>.</p>
+        </div>
+      </div>
+      <h4 style="margin:18px 0 6px;font-size:14px">Paired devices</h4>
+      ${R.devices.length ? `<table><tbody>${R.devices.map(d => `<tr><td>${esc(d.name.replace(/\(.*?\)/g, "").slice(0, 60) || "device")}<div class="hint">paired ${ago(d.added)}${d.seen ? " · last used " + ago(d.seen) : ""}</div></td>
+        <td style="text-align:right"><button class="btn sm danger" data-revoke="${d.id}">Remove</button></td></tr>`).join("")}</tbody></table>` : `<p class="hint">None yet.</p>`}
+      <p class="hint" style="margin-top:14px">Away from home: with Tailscale on the phone, use the Tailscale address. For a full install on Android, run <code>tailscale serve --bg ${R.port}</code> on this PC to get an https address.</p>` : `<p class="hint">Switched off — nothing outside this PC can reach the toolkit.</p>`}
+    </div>`;
+    back.querySelector("#phClose").onclick = () => back.remove();
+    back.onclick = e => { if (e.target === back) back.remove(); };
+    back.querySelector("#phOn").onchange = async e => { try { R = await api("/api/remote", { enabled: e.target.checked }); } catch (err) { toast(err.message); } draw(); };
+    const nw = back.querySelector("#phNew"); if (nw) nw.onclick = async () => { R = await api("/api/remote", { new_code: true }); draw(); };
+    back.querySelectorAll("[data-revoke]").forEach(b => b.onclick = async () => { R = await api("/api/remote", { revoke: b.dataset.revoke }); draw(); toast("Device removed", true); });
+  };
+  draw(); document.body.appendChild(back);
+}
 $("#browseProject").onclick = async () => { const r = await api("/api/browse", { kind: "project" }); if (r.path) select(r.path); };
 $("#addFolder").onclick = async () => { const r = await api("/api/browse", { kind: "folder" }); if (r.path) loadState(); };
 
@@ -332,7 +403,7 @@ function viewShorts() {
     </div>
   </div>
   ${S.markers ? `<div class="card">${markerPicker()}</div>` : ""}
-  <div class="split" style="grid-template-columns: 1fr 320px">
+  <div class="split player-split">
     <div class="card" style="padding:12px">
       <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
         <video id="src" playsinline preload="metadata" style="width:100%;height:100%;aspect-ratio:auto;border-radius:0"></video>
@@ -343,7 +414,7 @@ function viewShorts() {
         <button class="btn sm" id="pPrevM" title="P">◀ marker</button><button class="btn sm" id="pNextM" title="N">marker ▶</button>
         <span id="pTime" style="font-variant-numeric:tabular-nums;font-weight:600;margin-left:6px">0:00.0</span>
         <span style="flex:1"></span>
-        <span class="hint">Space play · I / O set start / end · N / P markers · ← → step · Ctrl+Z undo</span>
+        <span class="hint kbd-hint">Space play · I / O set start / end · N / P markers · ← → step · Ctrl+Z undo</span>
       </div>
     </div>
     <div class="card" id="selPanel" style="padding:14px 16px"></div>
@@ -362,7 +433,7 @@ function viewShorts() {
         <p class="hint" style="margin:6px 0 12px">Analysing scores every second (loudness, talking, screams, laughs) — about a few seconds once the speech is cached, longer the first time.</p>
         <button class="btn primary" id="analyse2" ${dis()}>Analyse video</button></div>`}
   </div>
-  <div class="two" style="grid-template-columns: 3fr 2fr">
+  <div class="two lists">
     <div class="card" id="shortsCard"></div>
     <div class="card" id="sugCard"></div>
   </div>`;
@@ -626,12 +697,24 @@ function setupCanvases() {
   const ov = $("#ov"), dt = $("#dt");
   const tAtOv = e => { const r = ov.getBoundingClientRect(); return (e.clientX - r.left) / r.width * T.tl.duration; };
   let ovDrag = false;
-  ov.onmousedown = e => { ovDrag = true; const t = tAtOv(e), w = T.v1 - T.v0; setView(t - w / 2, t + w / 2); seek(t); };
-  window.onmousemove = e => {
+  // pointer events = mouse, pen and touch alike
+  ov.onpointerdown = e => { ovDrag = true; const t = tAtOv(e), w = T.v1 - T.v0; setView(t - w / 2, t + w / 2); seek(t); };
+  const pts = new Map();                            // fingers on the zoomed timeline (for pinch)
+  let pinch = null, lastTap = null;
+  window.onpointermove = e => {
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, e.clientX);
+    if (pinch && pts.size === 2) {                  // pinch to zoom
+      const [a, b] = [...pts.values()], d = Math.max(20, Math.abs(a - b)), f = pinch.d / d;
+      const w = Math.max(8, Math.min(T.tl.duration, pinch.w * f)), c = pinch.c;
+      setView(c - (c - pinch.v0) / pinch.w * w, c - (c - pinch.v0) / pinch.w * w + w); draw(); return;
+    }
     if (ovDrag) { const t = tAtOv(e), w = T.v1 - T.v0; setView(t - w / 2, t + w / 2); draw(); return; }
-    if (T.drag) dragMove(e); else hover(e);
+    if (T.drag) dragMove(e); else if (e.pointerType === "mouse") hover(e);
   };
-  window.onmouseup = () => { if (ovDrag) { ovDrag = false; } if (T.drag) dragEnd(); };
+  window.onpointerup = window.onpointercancel = e => {
+    pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+    if (ovDrag) { ovDrag = false; } if (T.drag) dragEnd();
+  };
   const tAt = e => { const r = dt.getBoundingClientRect(); return T.v0 + (e.clientX - r.left) / r.width * (T.v1 - T.v0); };
   const hit = e => {
     const r = dt.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, W = r.width, X = t => (t - T.v0) / (T.v1 - T.v0) * W;
@@ -639,14 +722,28 @@ function setupCanvases() {
     const list = shortsList(), rows = shortRows(), rh = 28 / rows.n, row = Math.floor((y - 3) / rh);
     for (let i = list.length - 1; i >= 0; i--) { const s = list[i], x0 = X(s.start), x1 = X(s.end);
       if (rows.row[i] !== row) continue;
-      if (Math.abs(x - x0) < 7) return { kind: "short", i, part: "start" };
-      if (Math.abs(x - x1) < 7) return { kind: "short", i, part: "end" };
+      const grip = e.pointerType === "touch" ? 16 : 7;
+      if (Math.abs(x - x0) < grip) return { kind: "short", i, part: "start" };
+      if (Math.abs(x - x1) < grip) return { kind: "short", i, part: "end" };
       if (x > x0 && x < x1) return { kind: "short", i, part: "body" }; }
     const sg = sugList(); for (let i = 0; i < sg.length; i++) { const x0 = X(sg[i].start), x1 = X(sg[i].end); if (x > x0 && x < x1) return { kind: "sug", i, part: "body" }; }
     return null;
   };
   const hover = e => { if (e.target !== dt) return; const h = hit(e); dt.style.cursor = h ? (h.part === "body" ? (h.kind === "short" ? "grab" : "pointer") : "ew-resize") : "crosshair"; };
-  dt.onmousedown = e => {
+  dt.onpointerdown = e => {
+    pts.set(e.pointerId, e.clientX);
+    if (pts.size === 2) {                           // second finger: start a pinch, cancel any drag
+      if (T.drag && T.drag.before) { T.undo.push(T.drag.before); }
+      T.drag = null;
+      const [a, b] = [...pts.values()], r = dt.getBoundingClientRect();
+      pinch = { d: Math.max(20, Math.abs(a - b)), w: T.v1 - T.v0, v0: T.v0, c: T.v0 + (((a + b) / 2) - r.left) / r.width * (T.v1 - T.v0) };
+      return;
+    }
+    if (e.pointerType !== "mouse") {                // double-tap = double-click
+      const now = Date.now();
+      if (lastTap && now - lastTap.t < 320 && Math.abs(e.clientX - lastTap.x) < 24) { lastTap = null; dt.ondblclick(e); return; }
+      lastTap = { t: now, x: e.clientX };
+    }
     const h = hit(e), t = tAt(e);
     if (!h) { seek(t); T.drag = { scrub: true }; return; }
     if (h.kind === "sug") { select2({ kind: "sug", i: h.i }, false); seek(sugList()[h.i].start); return; }
@@ -1035,6 +1132,7 @@ async function poll(from) {
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }
 function openLog(open) { $("#log").classList.toggle("closed", !open); $("#toggleHint").textContent = open ? "Hide log ▾" : "Show log ▴"; }
 $("#logHead").onclick = () => openLog($("#log").classList.contains("closed"));
+if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
 setInterval(() => api("/api/ping", {}).catch(() => setStatus("bad", "Toolkit closed — start it again")), 15000);
 
 (async () => {
