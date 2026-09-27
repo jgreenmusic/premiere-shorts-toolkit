@@ -18,7 +18,7 @@ Pick a project on the left, then use the tabs:
 
 | Tab | What it does |
 |---|---|
-| **Shorts** | Your list of Shorts (timeline ranges). **Import from markers** turns the segments between your sequence markers into Shorts — tick the ones you want. **Render** makes finished vertical videos straight from your recording; they play right in the page and land in `<project>_shorts\`. |
+| **Shorts** | The editor. **Analyse video** scores every second and **suggests the best Shorts** (built around a payoff, snapped to pauses and markers) — accept, trim or dismiss them. The **timeline** shows the whole video with your markers, Shorts, suggestions, screams and laughs; drag edges to trim, drag to move, double-click between markers to add. The **player** plays your footage at the playhead (Space, I/O for start/end, N/P for markers, Ctrl+Z undo). **Import from markers** turns marker segments (or Premiere range markers) into Shorts; **Send to Premiere** puts your Shorts back on Premiere's timeline as range markers. **Render** makes finished vertical videos into `<project>_shorts\`. |
 | **Screams & laughs** | Long "AAAH / OHHH / NOOO" moments spelled out letter by letter as the voice goes on. Loud ones are found automatically. Quieter or **uncaptioned** ones (Premiere often doesn't transcribe a scream) are listed as suggestions — press ▶ to listen and switch them on. You can also add one by hand and pick its letters. **Laughs** are spelled the same way — "heh heh", "hahaha", "HAHAHA", one syllable per burst — and never cover someone's speech unless you switch them on. |
 | **Look** | Gameplay size (how much blur shows above and below), caption size and height, spoken-word highlight, bigger loud lines, colours, and a quick preview. Saved per project. |
 | **Captions** | For captions made in Premiere: check their timing against the speech, and write a synced copy of the project that fixes them (your original is never changed). |
@@ -66,6 +66,7 @@ A synced copy (`_captions-synced`, `-v2`, …) shares the original's folders.
 Every button runs one of these, so they work from a terminal too:
 
 ```
+.venv\Scripts\python shorts.py timeline "Project.prproj" --count 12 --min 20 --max 45   # analyse + suggest Shorts
 .venv\Scripts\python shorts.py shorts   "Project.prproj" --from-markers   # add marker segments as Shorts
 .venv\Scripts\python shorts.py make     "Project.prproj"                  # render every Short
 .venv\Scripts\python shorts.py make     "Project.prproj" --start 6:16 --end 6:32
@@ -87,6 +88,7 @@ Save your project first.
 | Script | What it does |
 |---|---|
 | `animate-captions.jsx` | After "Upgrade Caption to Graphic": a pop-in and fade per caption — full pop after a pause, tiny in fast talk, fade only when very short, bigger for loud lines, wobble for screams (from **Prepare for Premiere**). Selected clips, else In/Out, else the top track. `MODE = "remove"` undoes it. |
+| `shorts-to-markers.jsx` | Puts your Shorts on the active sequence as named range markers ("Short: …"), replacing only the ones it made before. |
 | `import-captions.jsx` | Imports an .srt (e.g. `captions-with-screams.srt`) as a new caption track. |
 | `cut-at-markers.jsx` | Razors every unlocked track at every sequence marker. |
 | `match-scale-vertical.jsx` | Sets the sequence to 1080×1920 and gives every clip the first clip's Scale. |

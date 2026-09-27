@@ -111,11 +111,15 @@ def marker_segments(path):
     import config
     cfg = config.load(base_of(path) + "_captions")
     seq = pick(project(path), cfg)
-    cuts = [m.start_s for m in seq.markers] + [seq.end_s]
     have = {(round(s["start"], 1), round(s["end"], 1)) for s in cfg["shorts"]}
-    return [dict(start=round(a, 3), end=round(b, 3), seconds=round(b - a, 1),
-                 added=(round(a, 1), round(b, 1)) in have)
-            for a, b in zip(cuts, cuts[1:]) if b - a >= 1]
+    seg = lambda a, b, name, kind: dict(start=round(a, 3), end=round(b, 3), seconds=round(b - a, 1), name=name,
+                                        kind=kind, added=(round(a, 1), round(b, 1)) in have)
+    # range markers (made in Premiere, or by shorts-to-markers.jsx) are Shorts already
+    ranges = [seg(m.start_s, m.start_s + m.dur_s, m.name.replace("Short: ", ""), "range")
+              for m in seq.markers if m.dur_s > 0.5]
+    cuts = [m.start_s for m in seq.markers if m.dur_s <= 0.5] + [seq.end_s]
+    between = [seg(a, b, "", "between") for a, b in zip(cuts, cuts[1:]) if b - a >= 1]
+    return ranges + between
 
 
 def results(outdir, shorts_dir, cfg):
@@ -195,6 +199,9 @@ def command(action, o):
     if action == "make":
         c = ["make", p, "--preset", o.get("preset", "medium")]
         return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
+    if action == "timeline":
+        return ["timeline", p, "--count", str(int(o.get("count", 12))), "--min", str(o.get("min", 20)),
+                "--max", str(o.get("max", 45))]
     if action == "burn":
         return ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
     raise ValueError("unknown action %s" % action)
@@ -317,6 +324,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(project_info(q["path"]))
             if u.path == "/api/markers":
                 return self.send_json(marker_segments(q["path"]))
+            if u.path == "/api/timeline":
+                tj = os.path.join(base_of(q["path"]) + "_captions", "timeline.json")
+                if not os.path.exists(tj):
+                    return self.send_json({"missing": True})
+                with open(tj, encoding="utf-8") as f:
+                    d = json.load(f)
+                d["when"] = os.path.getmtime(tj)
+                return self.send_json(d)
             if u.path == "/api/job":
                 start = int(q.get("from", 0))
                 with LOCK:
@@ -326,8 +341,13 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/media":
                 p = os.path.normpath(q["path"])
                 folder = os.path.basename(os.path.dirname(p))
-                if not ((folder.endswith("_captions") or folder.endswith("_shorts") or folder == "snippets")
-                        and p.lower().endswith((".mp4", ".mp3"))):
+                allowed = ((folder.endswith("_captions") or folder.endswith("_shorts") or folder == "snippets")
+                           and p.lower().endswith((".mp4", ".mp3")))
+                if not allowed and q.get("project"):      # source footage of the open project, for the player
+                    seqs = project(q["project"])
+                    allowed = any(os.path.normcase(os.path.normpath(v.path or "")) == os.path.normcase(p)
+                                  for sq in seqs for v in sq.video + sq.audio)
+                if not allowed:
                     return self.send_json({"error": "not allowed"}, 403)
                 return self.send_file(p)
         except (Exception, SystemExit) as e:  # show errors in the UI instead of a dead page
@@ -358,7 +378,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True})
             if u.path == "/api/config":
                 import config
-                return self.send_json(config.update(base_of(b["path"]) + "_captions", b["patch"]))
+                cfg = config.update(base_of(b["path"]) + "_captions", b["patch"])
+                if "shorts" in b["patch"]:                 # keep Premiere's marker list in step
+                    from shorts import write_marker_csv
+                    write_marker_csv(base_of(b["path"]) + "_captions", cfg["shorts"])
+                return self.send_json(cfg)
             if u.path == "/api/snippet":
                 return self.send_json({"path": make_snippet(b["path"], float(b["start"]), float(b["end"]))})
             if u.path == "/api/ping":

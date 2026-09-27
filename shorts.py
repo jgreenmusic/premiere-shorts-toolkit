@@ -21,7 +21,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -153,6 +153,47 @@ def cmd_screams(args):
         for x in lon:
             print("  %s  %.1fs  %-22s %s" % (x["at"], x["seconds"], x["spelled"], x["kind"]))
     print("Switch suggestions on/off in the app (Screams & laughs tab) or in toolkit.json.")
+
+
+def loud_lines(ctx, plan):
+    import screams as sc
+    import style
+    normal = sc.talk_level(ctx.audio, ctx.regions)
+    hidden = sc.replaced_captions(ctx.captions, plan)
+    return [(c.start_s, c.end_s) for c in ctx.captions
+            if c.text and c.index not in hidden and normal
+            and sc.loudness(ctx.audio, c.start_s, c.end_s) / normal >= style.STYLE["loud_ratio"]]
+
+
+def write_marker_csv(outdir, shorts):
+    """shorts-markers.csv for premiere/shorts-to-markers.jsx (ExtendScript has no JSON)."""
+    path = os.path.join(outdir, "shorts-markers.csv")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("start,end,name\n")
+        for s in shorts:
+            f.write("%.3f,%.3f,%s\n" % (float(s["start"]), float(s["end"]), s["name"].replace(",", " ").replace("\n", " ")))
+    return path
+
+
+def cmd_timeline(args):
+    """timeline.json: per-second picture of the video + predicted Shorts, for the app."""
+    import json
+    import timeline
+    ctx = load_ctx(args)
+    plan = scream_plan(ctx, args)
+    lplan = laugh_plan(ctx, plan)
+    print("[timeline] scoring every second")
+    summ = timeline.summary(ctx, plan, lplan, loud_lines(ctx, plan))
+    avoid = [(s["start"], s["end"]) for s in ctx.cfg["shorts"]]
+    summ["suggestions"] = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=avoid)
+    summ["settings"] = dict(count=args.count, min=args.min, max=args.max)
+    with open(os.path.join(ctx.outdir, "timeline.json"), "w", encoding="utf-8") as f:
+        json.dump(summ, f)
+    write_marker_csv(ctx.outdir, ctx.cfg["shorts"])
+    print("\n%d suggested Short(s), best first:" % len(summ["suggestions"]))
+    for s in summ["suggestions"]:
+        print("  %3d  %s - %s  (%2.0fs)  %s" % (s["score"], cap.fmt(s["start"]), cap.fmt(s["end"]),
+                                              s["end"] - s["start"], s["why"]))
 
 
 def cmd_prepare(args):
@@ -562,6 +603,14 @@ def main():
     t.add_argument("--add", nargs=2, metavar=("START", "END"), help="add one Short, e.g. --add 6:18 6:45")
     t.add_argument("--name", help="name for --add")
     t.set_defaults(func=cmd_shorts)
+
+    tl = sub.add_parser("timeline", help="whole-video picture + predicted best Shorts (for the app)")
+    common(tl)
+    tl.add_argument("--count", type=int, default=12, help="how many Shorts to suggest (default 12)")
+    tl.add_argument("--min", type=float, default=20, help="shortest suggestion, s (default 20)")
+    tl.add_argument("--max", type=float, default=45, help="longest suggestion, s (default 45)")
+    tl.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    tl.set_defaults(func=cmd_timeline)
 
     y = sub.add_parser("style", help="preview the burned-in look, or burn it onto a Premiere export")
     common(y)

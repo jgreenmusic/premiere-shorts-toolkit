@@ -247,7 +247,7 @@ $("#browseProject").onclick = async () => { const r = await api("/api/browse", {
 $("#addFolder").onclick = async () => { const r = await api("/api/browse", { kind: "folder" }); if (r.path) loadState(); };
 
 async function select(path, keep) {
-  if (!keep) { S.markers = null; S.sel = 0; }
+  if (!keep) { S.markers = null; S.sel = 0; T.tl = null; T.loadedFor = null; T.sel = null; T.undo = []; }
   S.current = path; store.set("project", path); renderProjects();
   if (!keep) $("#main").innerHTML = `<div class="empty"><p>Reading project…</p></div>`;
   try { S.info = await api("/api/info?path=" + encodeURIComponent(path)); render(); }
@@ -282,92 +282,452 @@ function render() {
   <div id="view"></div>`;
   $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
+  if (S.tab === "shorts" && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
   ({ shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, premiere: viewPremiere })[S.tab]();
   wireCommon();
 }
 const dis = () => S.busy ? "disabled" : "";
 
-// ---- Shorts
+// ---- Shorts: timeline editor, player, list, suggestions
+const T = { tl: null, v0: 0, v1: 120, play: 0, sel: null, drag: null, undo: [], loadedFor: null, playing: false, seg: null };
+// sel = { kind: "short"|"sug", i }
+
+async function loadTimeline() {
+  if (T.loadedFor === S.current && T.tl) return;
+  const d = await api("/api/timeline?path=" + encodeURIComponent(S.current));
+  T.tl = d.missing ? null : d; T.loadedFor = S.current;
+  if (T.tl) {
+    const first = S.info.config.shorts[0];
+    const c = first ? (first.start + first.end) / 2 : T.tl.duration / 2;
+    T.v1 = Math.min(T.tl.duration, Math.max(120, 0) + 0); setView(c - 60, c + 60);
+    T.play = first ? first.start : 0;
+  }
+}
+function setView(a, b) {
+  const dur = T.tl ? T.tl.duration : 100, w = Math.max(8, Math.min(dur, b - a));
+  a = Math.max(0, Math.min(dur - w, a)); T.v0 = a; T.v1 = a + w;
+}
+const shortsList = () => S.info.config.shorts;
+const sugList = () => (T.tl?.suggestions || []).filter(s => !(S.info.config.dismissed || []).some(d => Math.abs(d[0] - s.start) < 1 && Math.abs(d[1] - s.end) < 1)
+  && !shortsList().some(x => Math.abs(x.start - s.start) < 1 && Math.abs(x.end - s.end) < 1));
+
+async function saveShorts(list, note) {
+  T.undo.push(structuredClone(shortsList())); if (T.undo.length > 50) T.undo.shift();
+  S.info.config = await api("/api/config", { path: S.current, patch: { shorts: list } });
+  refreshShorts(); if (note) toast(note, true);
+}
+
 function viewShorts() {
-  const I = S.info, C = I.config, R = I.results.renders || {};
-  const cur = C.shorts[S.sel];
-  const playing = cur && R[cur.name];
+  const I = S.info;
   $("#view").innerHTML = `
-  <div class="split"><div>
-    <div class="card">
-      <div class="card-head"><div class="grow"><h3>Your Shorts</h3>
-        <p>Each one is a range of the timeline. Rendering makes a finished 1080×1920 video with the gameplay, blur, captions and screams — straight from your recording, no Premiere export needed.</p></div></div>
-      <div class="toolbar">
-        <button class="btn primary" id="addShort">+ Add Short</button>
-        <button class="btn" id="importMarkers">Import from markers</button>
-        <span style="flex:1"></span>
-        ${C.shorts.length ? `<button class="btn" data-run="make" data-index="" ${dis()}>Render all ${C.shorts.length}</button>
-        <button class="btn link" data-folder="${esc(I.shorts_dir)}">Open folder</button>` : ""}
-      </div>
-      ${S.markers ? markerPicker() : ""}
-      ${C.shorts.length ? `<div class="scroll"><table><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Length</th><th>Video</th><th></th></tr></thead><tbody>
-        ${C.shorts.map((s, i) => `<tr class="${i === S.sel ? "sel" : ""}" data-row="${i}">
-          <td><input class="text" data-edit="name" data-i="${i}" value="${esc(s.name)}"></td>
-          <td><input class="text time" data-edit="start" data-i="${i}" value="${tc(s.start)}"></td>
-          <td><input class="text time" data-edit="end" data-i="${i}" value="${tc(s.end)}"></td>
-          <td class="muted">${Math.round(s.end - s.start)}s</td>
-          <td>${R[s.name] ? `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>` : `<span class="badge">Not yet</span>`}</td>
-          <td style="white-space:nowrap"><button class="btn sm" data-run="make" data-index="${i}" ${dis()}>${R[s.name] ? "Re-render" : "Render"}</button>
-            <button class="btn sm icon danger" data-del="${i}" title="Remove from list">✕</button></td></tr>`).join("")}
-        </tbody></table></div>`
-      : (S.markers ? "" : `<div class="result" style="text-align:center;padding:30px"><b>No Shorts yet.</b><p class="hint" style="margin:6px 0 0">Import the segments between your timeline markers, or add a range by hand.</p></div>`)}
+  <div class="card" style="padding:14px 16px">
+    <div class="toolbar" style="margin:0">
+      <button class="btn primary" id="analyse" ${dis()} title="Score every second and suggest the best Shorts">${T.tl ? "Re-analyse" : "Analyse video"}</button>
+      <label class="row hint" style="gap:6px">Suggest <input class="text time" id="sgCount" style="width:52px" value="${T.tl?.settings?.count ?? 12}"> Shorts of
+        <input class="text time" id="sgMin" style="width:52px" value="${T.tl?.settings?.min ?? 20}">–<input class="text time" id="sgMax" style="width:52px" value="${T.tl?.settings?.max ?? 45}"> s</label>
+      <span style="flex:1"></span>
+      <button class="btn" id="importMarkers">Import from markers</button>
+      <button class="btn" id="addShort">+ Add Short</button>
+      <button class="btn" id="toPremiere" title="Put your Shorts on Premiere's timeline as named range markers">Send to Premiere</button>
     </div>
-    <p class="hint">Tip: times are timeline times (h:mm:ss or m:ss). Length and look come from the <b>Look</b> tab; screams from the <b>Screams</b> tab.</p>
   </div>
-  <div class="player">${playing ? `<video controls playsinline src="${media(playing.path)}#t=0.01"></video>
-      <div class="row" style="margin-top:8px"><b style="flex:1;font-size:14px">${esc(cur.name)}</b><button class="btn link" data-folder="${esc(playing.path)}">Show file</button></div>`
-    : `<div class="video-empty">${cur ? "Render this Short to watch it here" : "Rendered Shorts play here"}</div>`}</div>
+  ${S.markers ? `<div class="card">${markerPicker()}</div>` : ""}
+  <div class="split" style="grid-template-columns: 1fr 320px">
+    <div class="card" style="padding:12px">
+      <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
+        <video id="src" playsinline preload="metadata" style="width:100%;height:100%;aspect-ratio:auto;border-radius:0"></video>
+        <div id="srcMsg" class="hint" style="position:absolute;inset:0;display:grid;place-items:center;color:#aaa">${T.tl ? "" : "Analyse the video to use the player and timeline"}</div>
+      </div>
+      <div class="row" style="margin-top:8px;gap:8px">
+        <button class="btn sm" id="pPlay" title="Space">▶ Play</button>
+        <button class="btn sm" id="pPrevM" title="P">◀ marker</button><button class="btn sm" id="pNextM" title="N">marker ▶</button>
+        <span id="pTime" style="font-variant-numeric:tabular-nums;font-weight:600;margin-left:6px">0:00.0</span>
+        <span style="flex:1"></span>
+        <span class="hint">Space play · I / O set start / end · N / P markers · ← → step · Ctrl+Z undo</span>
+      </div>
+    </div>
+    <div class="card" id="selPanel" style="padding:14px 16px"></div>
+  </div>
+  <div class="card" style="padding:12px 16px">
+    ${T.tl ? `
+    <canvas id="ov" style="width:100%;height:44px;display:block;cursor:pointer;border-radius:6px"></canvas>
+    <div class="row" style="margin:8px 0 6px;gap:6px">
+      <button class="btn sm" id="zOut">−</button><button class="btn sm" id="zIn">+</button>
+      <button class="btn sm" id="zFit">Whole video</button><button class="btn sm" id="zSel">Fit selection</button>
+      <span class="hint" id="zLabel"></span><span style="flex:1"></span>
+      <span class="hint"><span style="color:var(--accent)">■</span> Short &nbsp;<span style="color:var(--info)">▭</span> suggestion &nbsp;<span style="color:#ff5a3c">▲</span> scream &nbsp;<span style="color:#8ae3ff">●</span> laugh &nbsp;│ marker &nbsp; drag edges to trim · drag to move · double-click between markers to add</span>
+    </div>
+    <canvas id="dt" style="width:100%;height:180px;display:block;border-radius:6px"></canvas>`
+    : `<div class="result" style="text-align:center;padding:26px"><b>See the whole video and get suggested Shorts</b>
+        <p class="hint" style="margin:6px 0 12px">Analysing scores every second (loudness, talking, screams, laughs) — about a few seconds once the speech is cached, longer the first time.</p>
+        <button class="btn primary" id="analyse2" ${dis()}>Analyse video</button></div>`}
+  </div>
+  <div class="two" style="grid-template-columns: 3fr 2fr">
+    <div class="card" id="shortsCard"></div>
+    <div class="card" id="sugCard"></div>
   </div>`;
-  $$("[data-row]").forEach(tr => tr.onclick = e => { if (e.target.closest("input,button")) return; S.sel = +tr.dataset.row; render(); });
-  $$("[data-edit]").forEach(inp => inp.onchange = () => {
-    const i = +inp.dataset.i, list = structuredClone(S.info.config.shorts), k = inp.dataset.edit;
-    if (k === "name") list[i].name = inp.value.trim() || list[i].name;
-    else { const v = parseTc(inp.value); if (isNaN(v)) return toast("Use a time like 6:18 or 1:02:03"); list[i][k] = v; }
-    if (list[i].end <= list[i].start) return toast("End must be after start");
-    saveCfg({ shorts: list });
-  });
-  $$("[data-del]").forEach(b => b.onclick = () => { const list = S.info.config.shorts.filter((_, i) => i !== +b.dataset.del); S.sel = 0; saveCfg({ shorts: list }); });
-  $("#addShort").onclick = () => {
-    const last = S.info.config.shorts.at(-1), start = last ? last.end : 0;
-    saveCfg({ shorts: [...S.info.config.shorts, { name: "Short " + (S.info.config.shorts.length + 1), start, end: start + 30 }] })
-      .then(() => { S.sel = S.info.config.shorts.length - 1; render(); });
+  wireShorts();
+}
+
+function wireShorts() {
+  const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || 20, max: +$("#sgMax").value || 45 });
+  $("#analyse").onclick = go; const a2 = $("#analyse2"); if (a2) a2.onclick = go;
+  $("#addShort").onclick = () => { const s = T.tl ? T.play : (shortsList().at(-1)?.end || 0); addShort(s, s + 30); };
+  $("#toPremiere").onclick = () => {
+    api("/api/open", { path: "", script: "shorts-to-markers.jsx", how: "vscode" });
+    toast("Opened shorts-to-markers.jsx — run it in VS Code (Ctrl+Shift+P → Evaluate Script in Attached Host) with the project open in Premiere.", true);
   };
   $("#importMarkers").onclick = async () => {
     if (S.markers) { S.markers = null; return render(); }
     const segs = await api("/api/markers?path=" + encodeURIComponent(S.current));
     if (!segs.length) return toast("This sequence has no markers.");
-    S.markers = segs.map(s => ({ ...s, pick: !s.added && s.seconds >= 15 && s.seconds <= 60 }));
+    S.markers = segs.map(s => ({ ...s, pick: !s.added && (s.kind === "range" || (s.seconds >= 15 && s.seconds <= 60)) }));
     render();
   };
-  const mp = $("#markerAdd");
-  if (mp) {
-    $$("[data-mk]").forEach(c => c.onchange = () => S.markers[+c.dataset.mk].pick = c.checked);
-    $$("[data-mkall]").forEach(b => b.onclick = () => { const [lo, hi] = b.dataset.mkall.split(",").map(Number); S.markers.forEach(s => s.pick = !s.added && s.seconds >= lo && s.seconds <= hi); render(); });
-    mp.onclick = () => {
-      const add = S.markers.filter(s => s.pick && !s.added), base = S.info.config.shorts.length;
-      if (!add.length) return toast("Tick at least one segment.");
-      const list = [...S.info.config.shorts, ...add.map((s, k) => ({ name: `Clip ${String(base + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
-      S.markers = null; saveCfg({ shorts: list }); toast(`Added ${add.length} Short(s)`, true);
-    };
-  }
+  wireMarkerPicker();
+  refreshShorts();
+  if (!T.tl) return;
+  setupPlayer(); setupCanvases();
+  $("#pPlay").onclick = togglePlay;
+  $("#pPrevM").onclick = () => jumpMarker(-1); $("#pNextM").onclick = () => jumpMarker(1);
+  $("#zIn").onclick = () => zoom(0.5); $("#zOut").onclick = () => zoom(2);
+  $("#zFit").onclick = () => { setView(0, T.tl.duration); draw(); };
+  $("#zSel").onclick = () => { const r = selRange(); if (r) { const pad = (r[1] - r[0]) * 0.25 + 3; setView(r[0] - pad, r[1] + pad); draw(); } };
 }
+
+function addShort(a, b, name) {
+  const list = [...shortsList(), { name: name || `Short ${shortsList().length + 1} – ${tc(a).replace(/\.\d$/, "")}`, start: +a.toFixed(2), end: +b.toFixed(2) }];
+  T.sel = { kind: "short", i: list.length - 1 };
+  saveShorts(list, "Added — drag its edges on the timeline to adjust");
+}
+function selRange() {
+  if (!T.sel) return null;
+  const x = T.sel.kind === "short" ? shortsList()[T.sel.i] : sugList()[T.sel.i];
+  return x ? [x.start, x.end] : null;
+}
+
+// ---- lists + side panel
+function refreshShorts() {
+  const R = S.info.results.renders || {}, list = shortsList(), sugs = sugList();
+  $("#shortsCard").innerHTML = `
+    <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Your Shorts <span class="muted" style="font-weight:500">(${list.length})</span></h3></div>
+      ${list.length ? `<button class="btn primary sm" data-run="make" data-index="" ${dis()}>Render all</button><button class="btn link" data-folder="${esc(S.info.shorts_dir)}">Folder</button>` : ""}</div>
+    ${list.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
+      ${list.map((s, i) => `<tr class="${T.sel?.kind === "short" && T.sel.i === i ? "sel" : ""}" data-pick="short,${i}" style="cursor:pointer">
+        <td style="width:18px"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent)"></span></td>
+        <td><b>${esc(s.name)}</b><div class="hint">${tc(s.start)} → ${tc(s.end)} · ${Math.round(s.end - s.start)}s</div></td>
+        <td>${R[s.name] ? `<span class="badge ok">Rendered</span>` : `<span class="badge">Not yet</span>`}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="hint">No Shorts yet. Accept suggestions, import from markers, or press <b>I</b> on the timeline to start one at the playhead.</p>`}`;
+  $("#sugCard").innerHTML = `
+    <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Suggested <span class="muted" style="font-weight:500">(${sugs.length})</span></h3>
+      <p style="font-size:13px">Best moments first, snapped to pauses and markers.</p></div>
+      ${sugs.length ? `<button class="btn sm" id="acceptAll">Accept all</button>` : ""}</div>
+    ${!T.tl ? `<p class="hint">Analyse the video to get suggestions.</p>` : sugs.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
+      ${sugs.map((s, i) => `<tr class="${T.sel?.kind === "sug" && T.sel.i === i ? "sel" : ""}" data-pick="sug,${i}" style="cursor:pointer">
+        <td style="width:46px"><div class="bar" style="width:40px"><i style="width:${s.score}%;background:var(--info)"></i></div><div class="hint">${s.score}</div></td>
+        <td>${tc(s.start)} · ${Math.round(s.end - s.start)}s<div class="hint">${esc(s.why)}</div></td>
+        <td style="white-space:nowrap"><button class="btn sm" data-accept="${i}">Accept</button><button class="btn sm icon" data-dismiss="${i}" title="Dismiss">✕</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="hint">No more suggestions — re-analyse with a bigger count or different lengths.</p>`}`;
+  $$("[data-pick]").forEach(tr => tr.onclick = e => { if (e.target.closest("button")) return; const [k, i] = tr.dataset.pick.split(","); select2({ kind: k, i: +i }, true); });
+  $$("[data-accept]").forEach(b => b.onclick = () => { const s = sugList()[+b.dataset.accept]; addShort(s.start, s.end, `Best ${String(shortsList().length + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`); });
+  $$("[data-dismiss]").forEach(b => b.onclick = async () => {
+    const s = sugList()[+b.dataset.dismiss];
+    S.info.config = await api("/api/config", { path: S.current, patch: { dismissed: [...(S.info.config.dismissed || []), [s.start, s.end]] } });
+    T.sel = null; refreshShorts();
+  });
+  const aa = $("#acceptAll"); if (aa) aa.onclick = () => {
+    const list = [...shortsList(), ...sugs.map((s, k) => ({ name: `Best ${String(shortsList().length + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
+    saveShorts(list, `Added ${sugs.length} Shorts`);
+  };
+  wireCommon();
+  panel(); draw();
+}
+
+function select2(sel, jump) {
+  T.sel = sel; const r = selRange();
+  if (r && jump && T.tl) { if (r[0] < T.v0 || r[1] > T.v1) { const pad = (r[1] - r[0]) * 0.3 + 3; setView(r[0] - pad, r[1] + pad); } seek(r[0]); }
+  refreshShorts();
+}
+
+function panel() {
+  const el = $("#selPanel"); if (!el) return;
+  const R = S.info.results.renders || {};
+  if (!T.sel || !selRange()) {
+    el.innerHTML = `<h3 style="margin:0 0 6px;font-size:16px">Nothing selected</h3><p class="hint">Click a Short or a suggestion — on the timeline or in the lists — to trim, preview and render it.</p>
+      <ol class="howto" style="margin-top:10px"><li><b>I</b> at the playhead starts a Short, <b>O</b> ends it</li><li>Drag its edges on the timeline — they snap to markers and pauses (hold <b>Alt</b> for free)</li><li>Double-click between two markers to make that segment a Short</li></ol>`;
+    return;
+  }
+  if (T.sel.kind === "sug") {
+    const s = sugList()[T.sel.i];
+    el.innerHTML = `<div class="hint">Suggested · score ${s.score}</div><h3 style="margin:2px 0 6px;font-size:16px">${tc(s.start)} → ${tc(s.end)}</h3>
+      <p style="margin:0 0 10px;color:var(--muted)">${Math.round(s.end - s.start)} s · ${esc(s.why)}</p>
+      <div class="row"><button class="btn primary" id="spAccept">Accept</button><button class="btn" id="spPlay">▶ Play it</button></div>
+      <p class="hint" style="margin-top:10px">Snapped to: ${esc(s.snapped)}</p>`;
+    $("#spAccept").onclick = () => addShort(s.start, s.end, `Best ${String(shortsList().length + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`);
+    $("#spPlay").onclick = () => { seek(s.start); playNow(); };
+    return;
+  }
+  const i = T.sel.i, s = shortsList()[i], r = R[s.name];
+  el.innerHTML = `
+    <input class="text" id="spName" value="${esc(s.name)}" style="font-weight:650;font-size:15px;margin-bottom:10px">
+    <div class="row" style="gap:8px">
+      <label class="field">Start<input class="text time" id="spS" value="${tc(s.start)}"></label>
+      <label class="field">End<input class="text time" id="spE" value="${tc(s.end)}"></label>
+      <div class="field">Length<b style="color:var(--text);padding:6px 0">${(s.end - s.start).toFixed(1)} s</b></div>
+    </div>
+    <div class="row" style="margin-top:8px;gap:6px">
+      <button class="btn sm" id="spSetS" title="I">Start = playhead</button><button class="btn sm" id="spSetE" title="O">End = playhead</button>
+      <button class="btn sm" id="spPlay">▶ Play it</button>
+    </div>
+    <div class="row" style="margin-top:12px;gap:6px">
+      <button class="btn primary" data-run="make" data-index="${i}" ${dis()}>${r ? "Re-render" : "Render"}</button>
+      <button class="btn sm danger" id="spDel">Remove</button>
+    </div>
+    ${r ? `<video controls playsinline src="${media(r.path)}#t=0.01" style="margin-top:12px;max-height:340px;width:auto;max-width:100%"></video>
+      <button class="btn link" data-folder="${esc(r.path)}">Show file</button>` : ""}`;
+  const upd = (patch) => { const list = structuredClone(shortsList()); Object.assign(list[i], patch); if (list[i].end <= list[i].start) return toast("End must be after start"); saveShorts(list); };
+  $("#spName").onchange = e => upd({ name: e.target.value.trim() || s.name });
+  $("#spS").onchange = e => { const v = parseTc(e.target.value); isNaN(v) ? toast("Use a time like 6:18") : upd({ start: v }); };
+  $("#spE").onchange = e => { const v = parseTc(e.target.value); isNaN(v) ? toast("Use a time like 6:45") : upd({ end: v }); };
+  $("#spSetS").onclick = () => upd({ start: +T.play.toFixed(2) }); $("#spSetE").onclick = () => upd({ end: +T.play.toFixed(2) });
+  $("#spPlay").onclick = () => { seek(s.start); playNow(); };
+  $("#spDel").onclick = () => { const list = shortsList().filter((_, k) => k !== i); T.sel = null; saveShorts(list, "Removed — Ctrl+Z to undo"); };
+  wireCommon();
+}
+
+// ---- player (plays the source footage at the timeline position)
+function segAt(t) {
+  let best = null;
+  for (const v of T.tl.video) if (v.start <= t && t < v.end && (!best || v.track > best.track)) best = v;
+  return best;
+}
+function setupPlayer() {
+  const v = $("#src");
+  v.addEventListener("timeupdate", () => {
+    if (!T.seg) return;
+    const t = T.seg.start + (v.currentTime - T.seg.src);
+    if (t >= T.seg.end - 0.02) { const nx = segAt(T.seg.end + 0.01); if (nx) { seek(T.seg.end + 0.01, true); return; } }
+    T.play = t; tick();
+  });
+  v.addEventListener("error", () => {
+    const m = $("#srcMsg"); if (!m) return;
+    m.innerHTML = `<span style="padding:20px;text-align:center">This recording can't play in the browser (${v.error && v.error.code === 4 ? "its video format isn't supported — e.g. HEVC/H.265" : "it couldn't be read"}).<br>The timeline, suggestions and rendering all still work — use <b>Render</b> or the Look tab's preview to watch.</span>`;
+  });
+  v.addEventListener("play", () => { T.playing = true; $("#pPlay").textContent = "❚❚ Pause"; });
+  v.addEventListener("pause", () => { T.playing = false; $("#pPlay").textContent = "▶ Play"; });
+  seek(T.play);
+}
+function seek(t, keepPlaying) {
+  if (!T.tl) return;
+  t = Math.max(0, Math.min(T.tl.duration - 0.05, t)); T.play = t;
+  const v = $("#src"); if (!v) return;
+  const g = segAt(t), msg = $("#srcMsg");
+  if (!g) { T.seg = null; v.pause(); if (msg) msg.textContent = "No video here"; tick(); return; }
+  if (msg) msg.textContent = "";
+  const want = "/media?project=" + encodeURIComponent(S.current) + "&path=" + encodeURIComponent(g.path);
+  const was = T.playing || keepPlaying;
+  const go = () => { v.currentTime = g.src + (t - g.start); if (was) v.play().catch(() => {}); };
+  T.seg = g;
+  if (v.dataset.src !== want) { v.dataset.src = want; v.src = want; v.addEventListener("loadedmetadata", go, { once: true }); } else go();
+  if (t < T.v0 || t > T.v1) { const w = T.v1 - T.v0; setView(t - w * 0.2, t + w * 0.8); }
+  tick();
+}
+function togglePlay() { const v = $("#src"); if (!v || !T.seg) return; v.paused ? v.play().catch(() => {}) : v.pause(); }
+function playNow() { const v = $("#src"); if (v) setTimeout(() => v.play().catch(() => {}), 150); }
+function jumpMarker(dir) {
+  const ms = T.tl.markers.map(m => m.t).sort((a, b) => a - b);
+  const t = dir > 0 ? ms.find(x => x > T.play + 0.05) : [...ms].reverse().find(x => x < T.play - 0.05);
+  if (t !== undefined) seek(t);
+}
+function tick() { const el = $("#pTime"); if (el) el.textContent = tc(T.play); draw(); }
+
+// ---- canvases
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, r.width, r.height];
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function draw() {
+  if (!T.tl) return;
+  const ov = $("#ov"), dt = $("#dt"); if (!ov || !dt) return;
+  const L = T.tl, dur = L.duration, acc = css("--accent"), info = css("--info"), fnt = css("--faint"), txt = css("--text"), mut = css("--muted");
+  // overview
+  let [g, W, H] = fitCanvas(ov);
+  g.fillStyle = css("--bg"); g.fillRect(0, 0, W, H);
+  const px = t => t / dur * W;
+  g.fillStyle = fnt; g.globalAlpha = 0.5;
+  for (let x = 0; x < W; x++) { const i0 = Math.floor(x / W * L.excite.length), i1 = Math.max(i0 + 1, Math.floor((x + 1) / W * L.excite.length)); let m = 0; for (let i = i0; i < i1; i++) m = Math.max(m, L.excite[i]); g.fillRect(x, H - m * H * 0.8, 1, m * H * 0.8); }
+  g.globalAlpha = 1;
+  g.strokeStyle = mut; g.globalAlpha = 0.5; for (const m of L.markers) { g.beginPath(); g.moveTo(px(m.t) + .5, 0); g.lineTo(px(m.t) + .5, H * 0.35); g.stroke(); } g.globalAlpha = 1;
+  g.strokeStyle = info; g.setLineDash([3, 2]); for (const s of sugList()) g.strokeRect(px(s.start), 3, Math.max(2, px(s.end) - px(s.start)), H - 6); g.setLineDash([]);
+  g.fillStyle = acc; g.globalAlpha = 0.85; for (const s of shortsList()) g.fillRect(px(s.start), 3, Math.max(2, px(s.end) - px(s.start)), 8); g.globalAlpha = 1;
+  g.strokeStyle = txt; g.lineWidth = 1; g.strokeRect(px(T.v0), 0.5, Math.max(3, px(T.v1) - px(T.v0)), H - 1);
+  g.fillStyle = "#ff4d4d"; g.fillRect(px(T.play) - 1, 0, 2, H);
+  // detail
+  [g, W, H] = fitCanvas(dt);
+  const span = T.v1 - T.v0, X = t => (t - T.v0) / span * W, lane = 34, base = H - 20;
+  g.fillStyle = css("--bg"); g.fillRect(0, 0, W, H);
+  g.fillStyle = css("--surface-2"); g.fillRect(0, 0, W, lane);
+  const i0 = Math.max(0, Math.floor(T.v0 / L.bin)), i1 = Math.min(L.loud.length, Math.ceil(T.v1 / L.bin));
+  const bw = Math.max(1, W / span * L.bin - (span < 400 ? 1 : 0));
+  for (let i = i0; i < i1; i++) {
+    const x = X(i * L.bin), sp = L.speech[i], ld = L.loud[i], hh = (base - lane - 6);
+    g.fillStyle = fnt; g.globalAlpha = 0.18 + 0.25 * sp; g.fillRect(x, base - ld * hh, bw, ld * hh);
+    g.globalAlpha = 1; g.fillStyle = acc; g.globalAlpha = 0.55; const e = L.excite[i]; g.fillRect(x, base - 2 - e * 4, bw, 2); g.globalAlpha = 1;
+  }
+  if (span < 240) { g.fillStyle = fnt; for (const p of L.pauses) if (p > T.v0 && p < T.v1) g.fillRect(X(p), base - 3, 1, 3); }
+  g.font = "11px Segoe UI, sans-serif";
+  for (const m of L.markers) if (m.t >= T.v0 - 1 && m.t <= T.v1 + 1) {
+    g.strokeStyle = mut; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(X(m.t) + .5, lane); g.lineTo(X(m.t) + .5, base); g.stroke(); g.globalAlpha = 1;
+    if (m.dur > 0.5) { g.fillStyle = info; g.globalAlpha = 0.15; g.fillRect(X(m.t), lane, X(m.t + m.dur) - X(m.t), base - lane); g.globalAlpha = 1; }
+    g.fillStyle = mut; g.fillText(tc(m.t).replace(/\.\d$/, ""), X(m.t) + 3, lane + 12);
+  }
+  for (const s of L.screams) if (s.on && s.start < T.v1 && s.end > T.v0) { g.fillStyle = "#ff5a3c"; const x = X(s.start); g.beginPath(); g.moveTo(x, base - 44); g.lineTo(x + 6, base - 34); g.lineTo(x - 6, base - 34); g.fill(); }
+  for (const s of L.laughs) if (s.on && s.start < T.v1 && s.end > T.v0) { g.fillStyle = "#8ae3ff"; g.beginPath(); g.arc(X(s.start), base - 40, 5, 0, 7); g.fill(); }
+  sugList().forEach((s, i) => { if (s.end < T.v0 || s.start > T.v1) return; const sel = T.sel?.kind === "sug" && T.sel.i === i;
+    g.strokeStyle = info; g.lineWidth = sel ? 2 : 1; g.setLineDash([5, 3]); g.strokeRect(X(s.start) + .5, 3.5, X(s.end) - X(s.start), lane - 7); g.setLineDash([]); g.lineWidth = 1;
+    g.fillStyle = info; g.fillText("suggested · " + s.score, X(s.start) + 6, 21); });
+  const rows = shortRows(), rh = (lane - 6) / rows.n;
+  shortsList().forEach((s, i) => { if (s.end < T.v0 || s.start > T.v1) return; const sel = T.sel?.kind === "short" && T.sel.i === i, x0 = X(s.start), x1 = X(s.end), y = 3 + rows.row[i] * rh;
+    g.fillStyle = acc; g.globalAlpha = sel ? 1 : 0.75; g.fillRect(x0, y, x1 - x0, rh - 1); g.globalAlpha = 0.08; g.fillRect(x0, lane, x1 - x0, base - lane); g.globalAlpha = 1;
+    g.fillStyle = css("--accent-ink"); g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, rh - 1); g.clip();
+    g.font = `600 ${rh < 18 ? 10 : 12}px Segoe UI, sans-serif`; g.fillText(s.name, x0 + 6, y + rh / 2 + (rh < 18 ? 3.5 : 4.5)); g.restore();
+    if (sel) { g.fillStyle = txt; g.fillRect(x0 - 1, y, 3, rh - 1); g.fillRect(x1 - 2, y, 3, rh - 1); } });
+  const step = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find(s => span / s < W / 70) || 600;
+  g.fillStyle = fnt; g.font = "10.5px Segoe UI, sans-serif";
+  for (let t = Math.ceil(T.v0 / step) * step; t < T.v1; t += step) { g.fillRect(X(t), base, 1, 5); g.fillText(tc(t).replace(/\.0$/, ""), X(t) + 3, H - 5); }
+  g.fillStyle = "#ff4d4d"; g.fillRect(X(T.play) - 1, 0, 2, base);
+  const zl = $("#zLabel"); if (zl) zl.textContent = `${tc(T.v0).replace(/\.\d$/, "")} – ${tc(T.v1).replace(/\.\d$/, "")}`;
+}
+
+// overlapping Shorts are stacked in rows so each stays visible and grabbable
+function shortRows() {
+  const list = shortsList(), order = list.map((s, i) => i).sort((a, b) => list[a].start - list[b].start), ends = [], row = {};
+  for (const i of order) { let r = ends.findIndex(e => e <= list[i].start + 0.01); if (r < 0) { r = ends.length; ends.push(0); } ends[r] = list[i].end; row[i] = r; }
+  return { row, n: Math.max(1, ends.length) };
+}
+function zoom(f, at) {
+  const c = at ?? (T.play >= T.v0 && T.play <= T.v1 ? T.play : (T.v0 + T.v1) / 2);
+  const a = c - (c - T.v0) * f, b = c + (T.v1 - c) * f; setView(a, b); draw();
+}
+function snapT(t, e, skip) {
+  if (e && e.altKey) return t;
+  const span = T.v1 - T.v0, W = $("#dt").getBoundingClientRect().width, tol = x => x / W * span;
+  const ms = T.tl.markers.map(m => m.t).concat(T.tl.markers.filter(m => m.dur > 0.5).map(m => m.t + m.dur));
+  let best = null, bd = tol(10);
+  for (const m of ms) if (Math.abs(m - t) < bd) { bd = Math.abs(m - t); best = m; }
+  if (best !== null) return best;
+  bd = tol(6);
+  for (const p of T.tl.pauses) if (Math.abs(p - t) < bd) { bd = Math.abs(p - t); best = p; }
+  return best ?? t;
+}
+function setupCanvases() {
+  const ov = $("#ov"), dt = $("#dt");
+  const tAtOv = e => { const r = ov.getBoundingClientRect(); return (e.clientX - r.left) / r.width * T.tl.duration; };
+  let ovDrag = false;
+  ov.onmousedown = e => { ovDrag = true; const t = tAtOv(e), w = T.v1 - T.v0; setView(t - w / 2, t + w / 2); seek(t); };
+  window.onmousemove = e => {
+    if (ovDrag) { const t = tAtOv(e), w = T.v1 - T.v0; setView(t - w / 2, t + w / 2); draw(); return; }
+    if (T.drag) dragMove(e); else hover(e);
+  };
+  window.onmouseup = () => { if (ovDrag) { ovDrag = false; } if (T.drag) dragEnd(); };
+  const tAt = e => { const r = dt.getBoundingClientRect(); return T.v0 + (e.clientX - r.left) / r.width * (T.v1 - T.v0); };
+  const hit = e => {
+    const r = dt.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, W = r.width, X = t => (t - T.v0) / (T.v1 - T.v0) * W;
+    if (y > 34) return null;
+    const list = shortsList(), rows = shortRows(), rh = 28 / rows.n, row = Math.floor((y - 3) / rh);
+    for (let i = list.length - 1; i >= 0; i--) { const s = list[i], x0 = X(s.start), x1 = X(s.end);
+      if (rows.row[i] !== row) continue;
+      if (Math.abs(x - x0) < 7) return { kind: "short", i, part: "start" };
+      if (Math.abs(x - x1) < 7) return { kind: "short", i, part: "end" };
+      if (x > x0 && x < x1) return { kind: "short", i, part: "body" }; }
+    const sg = sugList(); for (let i = 0; i < sg.length; i++) { const x0 = X(sg[i].start), x1 = X(sg[i].end); if (x > x0 && x < x1) return { kind: "sug", i, part: "body" }; }
+    return null;
+  };
+  const hover = e => { if (e.target !== dt) return; const h = hit(e); dt.style.cursor = h ? (h.part === "body" ? (h.kind === "short" ? "grab" : "pointer") : "ew-resize") : "crosshair"; };
+  dt.onmousedown = e => {
+    const h = hit(e), t = tAt(e);
+    if (!h) { seek(t); T.drag = { scrub: true }; return; }
+    if (h.kind === "sug") { select2({ kind: "sug", i: h.i }, false); seek(sugList()[h.i].start); return; }
+    const s = shortsList()[h.i];
+    T.sel = { kind: "short", i: h.i }; T.drag = { i: h.i, part: h.part, t0: t, s0: s.start, e0: s.end, before: structuredClone(shortsList()) }; panel(); draw();
+  };
+  const dragMove = e => {
+    const t = tAt(e);
+    if (T.drag.scrub) { seek(t); return; }
+    const s = shortsList()[T.drag.i], d = t - T.drag.t0;
+    if (T.drag.part === "start") s.start = Math.min(snapT(T.drag.s0 + d, e), s.end - 1);
+    else if (T.drag.part === "end") s.end = Math.max(snapT(T.drag.e0 + d, e), s.start + 1);
+    else { const len = T.drag.e0 - T.drag.s0, ns = snapT(T.drag.s0 + d, e); s.start = Math.max(0, ns); s.end = s.start + len; }
+    s.start = +s.start.toFixed(2); s.end = +s.end.toFixed(2); T.drag.moved = true;
+    dt.style.cursor = T.drag.part === "body" ? "grabbing" : "ew-resize"; draw(); panel();
+  };
+  const dragEnd = () => {
+    const d = T.drag; T.drag = null;
+    if (d.scrub || !d.moved) return;
+    T.undo.push(d.before);
+    api("/api/config", { path: S.current, patch: { shorts: shortsList() } }).then(c => { S.info.config = c; refreshShorts(); });
+  };
+  dt.ondblclick = e => {
+    if (hit(e)) return;
+    const t = tAt(e), ms = T.tl.markers.map(m => m.t).sort((a, b) => a - b);
+    const a = [...ms].reverse().find(x => x <= t), b = ms.find(x => x > t);
+    if (a !== undefined && b !== undefined) addShort(a, b, `Clip – ${tc(a).replace(/\.\d$/, "")}`);
+    else addShort(t, Math.min(T.tl.duration, t + 30));
+  };
+  dt.onwheel = e => { e.preventDefault(); if (e.shiftKey) { const w = T.v1 - T.v0; setView(T.v0 + Math.sign(e.deltaY) * w * 0.15, T.v1 + Math.sign(e.deltaY) * w * 0.15); draw(); } else zoom(e.deltaY > 0 ? 1.25 : 0.8, tAt(e)); };
+  window.onresize = draw;
+  draw();
+}
+
+// keyboard (only on the Shorts tab, never while typing)
+document.addEventListener("keydown", e => {
+  if (S.tab !== "shorts" || !T.tl || !$("#dt")) return;
+  if (e.target.closest("input,select,textarea")) return;
+  const k = e.key;
+  if (k === " ") { e.preventDefault(); togglePlay(); }
+  else if (k === "ArrowRight" || k === "ArrowLeft") { e.preventDefault(); seek(T.play + (k === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 5 : 1)); }
+  else if (k === "n" || k === "N") jumpMarker(1);
+  else if (k === "p" || k === "P") jumpMarker(-1);
+  else if (k === "i" || k === "I") {
+    if (T.sel?.kind === "short") { const l = structuredClone(shortsList()); if (T.play < l[T.sel.i].end) { l[T.sel.i].start = +T.play.toFixed(2); saveShorts(l); } }
+    else addShort(T.play, Math.min(T.tl.duration, T.play + 30));
+  }
+  else if (k === "o" || k === "O") { if (T.sel?.kind === "short") { const l = structuredClone(shortsList()); if (T.play > l[T.sel.i].start) { l[T.sel.i].end = +T.play.toFixed(2); saveShorts(l); } } }
+  else if ((k === "z" || k === "Z") && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault(); const prev = T.undo.pop(); if (!prev) return toast("Nothing to undo");
+    api("/api/config", { path: S.current, patch: { shorts: prev } }).then(c => { S.info.config = c; T.sel = null; refreshShorts(); toast("Undone", true); });
+  }
+  else if (k === "Delete" && T.sel?.kind === "short") { const l = shortsList().filter((_, i) => i !== T.sel.i); T.sel = null; saveShorts(l, "Removed — Ctrl+Z to undo"); }
+  else if (k === "Enter" && T.sel) { const r = selRange(); if (r) { seek(r[0]); playNow(); } }
+});
+
 function markerPicker() {
-  const n = S.markers.filter(s => s.pick).length;
-  return `<div class="result" style="margin-bottom:14px">
-    <h4><span>Segments between your markers — tick the ones to turn into Shorts</span><span>${n} ticked</span></h4>
+  const n = S.markers.filter(s => s.pick).length, ranges = S.markers.some(s => s.kind === "range");
+  return `<div class="result">
+    <h4><span>${ranges ? "Range markers (already Shorts in Premiere) and the segments between your markers" : "Segments between your markers"} — tick the ones to turn into Shorts</span><span>${n} ticked</span></h4>
     <div class="row" style="margin-bottom:8px"><span class="hint">Quick pick:</span>
       <button class="btn sm" data-mkall="15,60">15–60 s</button><button class="btn sm" data-mkall="10,90">10–90 s</button>
       <button class="btn sm" data-mkall="0,99999">All</button><button class="btn sm" data-mkall="-1,-1">None</button></div>
     <div class="scroll" style="max-height:260px"><table><tbody>
     ${S.markers.map((s, i) => `<tr><td style="width:30px"><input type="checkbox" data-mk="${i}" ${s.pick ? "checked" : ""} ${s.added ? "disabled" : ""}></td>
-      <td>${tc(s.start)} → ${tc(s.end)}</td><td class="muted">${s.seconds}s</td><td>${s.added ? `<span class="badge">already added</span>` : ""}</td></tr>`).join("")}
+      <td>${tc(s.start)} → ${tc(s.end)}</td><td class="muted">${s.seconds}s</td>
+      <td>${s.kind === "range" ? `<span class="badge ok">range marker${s.name ? ": " + esc(s.name) : ""}</span>` : ""}${s.added ? ` <span class="badge">already added</span>` : ""}</td></tr>`).join("")}
     </tbody></table></div>
-    <div class="row" style="margin-top:10px"><button class="btn primary" id="markerAdd">Add ${n} Short${n === 1 ? "" : "s"}</button><button class="btn link" id="importMarkers2" onclick="S.markers=null;render()">Cancel</button></div></div>`;
+    <div class="row" style="margin-top:10px"><button class="btn primary" id="markerAdd">Add ${n} Short${n === 1 ? "" : "s"}</button><button class="btn link" id="markerCancel">Cancel</button></div></div>`;
+}
+function wireMarkerPicker() {
+  const mp = $("#markerAdd"); if (!mp) return;
+  $$("[data-mk]").forEach(c => c.onchange = () => S.markers[+c.dataset.mk].pick = c.checked);
+  $$("[data-mkall]").forEach(b => b.onclick = () => { const [lo, hi] = b.dataset.mkall.split(",").map(Number); S.markers.forEach(s => s.pick = !s.added && s.seconds >= lo && s.seconds <= hi); render(); });
+  $("#markerCancel").onclick = () => { S.markers = null; render(); };
+  mp.onclick = () => {
+    const add = S.markers.filter(s => s.pick && !s.added), base = shortsList().length;
+    if (!add.length) return toast("Tick at least one segment.");
+    const list = [...shortsList(), ...add.map((s, k) => ({ name: s.name || `Clip ${String(base + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
+    S.markers = null; saveShorts(list, `Added ${add.length} Short(s)`).then(render);
+  };
 }
 
 // ---- Screams
@@ -634,11 +994,12 @@ function wireCommon() {
 }
 
 // ---------------------------------------------------------------- jobs
-const TITLES = { check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
+const TITLES = { timeline: "Analysing the video", check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
   preview: "Rendering preview", make: "Rendering", burn: "Burning captions onto video" };
 async function run(action, data = {}) {
   if (S.busy) return;
   const body = { action, title: TITLES[action], path: S.current };
+  if (action === "timeline") { Object.assign(body, { count: data.count, min: data.min, max: data.max }); }
   if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; }
   if (action === "make") {
     if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.sel = body.index; }
@@ -668,6 +1029,7 @@ async function poll(from) {
   S.busy = false;
   setStatus(j.code === 0 ? "ok" : "bad", j.code === 0 ? `${j.title} — done` : `${j.title} — failed (see log)`);
   if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
+  T.loadedFor = null; T.tl = null;
   await loadState(); await select(S.current, true);
 }
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }

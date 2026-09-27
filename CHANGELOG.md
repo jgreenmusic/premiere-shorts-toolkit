@@ -2,6 +2,36 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.8.0 - 2026-09-26
+
+**Timeline editor + predicted Shorts.** The Shorts tab is now an editor for the whole video.
+
+- **Analyse video** (`shorts.py timeline`): scores every second (loudness, talking, word rate,
+  screams, laughs, shouted lines) and writes `timeline.json`. A few seconds once speech is cached.
+- **Suggested Shorts** for any video, with or without markers: each is built around a payoff
+  moment (about 2/3 setup before, 1/3 reaction after), start/end snapped to a marker if one is
+  within 2 s, otherwise to a pause in the talking, never overlapping existing Shorts. Ranked
+  0-100 with a reason ("1 laugh, lots of shouting"). Count and length range are adjustable.
+  Accept, Accept all, or dismiss (remembered).
+- **Timeline:** an overview of the whole video (excitement, markers, Shorts, suggestions, view
+  window) and a zoomed editor: drag a Short's edges to trim (snaps to markers and pauses, Alt
+  for free), drag it to move, double-click between two markers to make that segment a Short,
+  wheel to zoom, Shift+wheel to pan. Overlapping Shorts stack in rows.
+- **Player:** plays the source footage at the timeline position (maps timeline -> source file
+  across clips). Keys: Space play, I / O set start / end at the playhead, N / P next / previous
+  marker, arrows step 1 s (Shift 5 s), Enter play the selection, Delete remove, Ctrl+Z undo.
+- **Premiere round trip:** `premiere/shorts-to-markers.jsx` writes your Shorts onto the
+  timeline as named range markers ("Short: ..."), replacing only its own markers.
+  `shorts-markers.csv` is kept in step on every change. Range markers made in Premiere
+  import as ready-made Shorts.
+- The source footage is served to the page only if the open project uses it.
+
+Found while building:
+- OBS writes the MP4 index at the END of the file (3.5 MB after 3.2 GB of video), so the
+  browser has to fetch the tail first - the server's byte ranges handle it (2 MB in 0.02 s).
+- Chrome doesn't load video in hidden tabs, which made automated playback checks look broken;
+  the player now says plainly when a recording can't play in a browser (e.g. HEVC).
+
 ## 0.7.0 - 2026-09-26
 
 **Laughs.** Chuckles and laughs are detected and spelled out as they happen ("heh heh",
