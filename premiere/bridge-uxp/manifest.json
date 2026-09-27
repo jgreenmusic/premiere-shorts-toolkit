@@ -1,0 +1,22 @@
+{
+  "id": "com.jgreenmusic.shortstoolkit.speech",
+  "name": "Shorts Toolkit - Speech",
+  "version": "1.0.0",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": { "app": "premierepro", "minVersion": "25.6.0" },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "speech",
+      "label": { "default": "Shorts Toolkit - Speech" },
+      "minimumSize": { "width": 220, "height": 120 },
+      "maximumSize": { "width": 2000, "height": 2000 },
+      "preferredDockedSize": { "width": 300, "height": 220 },
+      "preferredFloatingSize": { "width": 300, "height": 220 }
+    }
+  ],
+  "requiredPermissions": {
+    "network": { "domains": ["http://127.0.0.1:8765", "http://127.0.0.1:8767", "http://127.0.0.1:8768", "http://127.0.0.1:8769"] }
+  }
+}

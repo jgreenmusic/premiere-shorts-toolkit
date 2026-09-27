@@ -107,9 +107,26 @@ Every button runs one of these, so they work from a terminal too:
 .venv\Scripts\python shorts.py style    "Project.prproj" --video export.mp4   # burn onto a Premiere export
 .venv\Scripts\python shorts.py captions "Project.prproj" [--fix]          # timing check / synced copy
 .venv\Scripts\python shorts.py prepare  "Project.prproj"                  # data for animate-captions.jsx
+.venv\Scripts\python shorts.py speech   "Project.prproj"                  # timeline words for the Premiere panels
+.venv\Scripts\python premiere_install.py                                  # install the two Premiere panels
 ```
 
 `--sequence NAME` picks a sequence when a project has several.
+
+## Premiere panels (step 2: make captions in Premiere)
+
+Step 2 · Captions, on a sequence with no captions yet, has **Make captions with Premiere**:
+
+- **Automatic:** press **Install Premiere panels** once, restart Premiere, open
+  **Window › Extensions › Shorts Toolkit - Captions** and **Window › Plugins › Shorts Toolkit - Speech**
+  (dock them; they check in with the toolkit every 1.5 s). Then **Make captions**: Adobe Speech to Text
+  (or the toolkit's Whisper) → caption lines → a real caption track in the sequence → project saved.
+- **By hand:** Transcribe + **Create captions** in Premiere yourself, **Ctrl+S**, and press
+  **Watch for captions**.
+
+When the captions show up in the saved project, the toolkit checks their timing and opens step 3.
+Why two panels: Adobe only lets UXP start transcription, and only ExtendScript (CEP) add a
+caption track - neither can press the Text panel's own Create captions button.
 
 ## Premiere scripts (`premiere\`)
 

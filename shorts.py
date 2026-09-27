@@ -7,6 +7,7 @@
     python shorts.py make     "Project.prproj"           render every Short in the list
     python shorts.py prepare  "Project.prproj"           loud/scream data for animate-captions.jsx
     python shorts.py style    "Project.prproj" --preview 6:18   try the look on a few seconds
+    python shorts.py speech   "Project.prproj"           words for Premiere captions (the app's bridge)
 Or just double-click "Shorts Toolkit.cmd" for the app.
 
 Save the project in Premiere (Ctrl+S) first - this reads the file on disk.
@@ -22,7 +23,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -222,6 +223,19 @@ def cmd_timeline(args):
     for s in summ["suggestions"]:
         print("  %3d  %s - %s  (%2.0fs)  %s" % (s["score"], cap.fmt(s["start"]), cap.fmt(s["end"]),
                                               s["end"] - s["start"], s["why"]))
+
+
+def cmd_speech(args):
+    """Timeline words for the Premiere bridge: <outdir>/premiere-words.json. The app
+    turns them into caption lines and has Premiere lay them on a caption track."""
+    import json
+    import pipeline
+    ctx = pipeline.load(args.project, args.sequence, need_words=False)
+    words = cap.transcribe(ctx.audio, ctx.outdir, model=args.model)
+    out = os.path.join(ctx.outdir, "premiere-words.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump([w[:3] for w in words], f)
+    print("%d words -> %s" % (len(words), out))
 
 
 def cmd_markers(args):
@@ -691,6 +705,10 @@ def main():
     tl.add_argument("--max", type=float, default=45, help="longest suggestion, s (default 45)")
     tl.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     tl.set_defaults(func=cmd_timeline)
+
+    sp = sub.add_parser("speech", help="words for Premiere captions (used by the app's Premiere bridge)")
+    common(sp)
+    sp.set_defaults(func=cmd_speech)
 
     y = sub.add_parser("style", help="preview the burned-in look, or burn it onto a Premiere export")
     common(y)

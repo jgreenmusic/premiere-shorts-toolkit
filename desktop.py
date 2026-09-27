@@ -16,6 +16,15 @@ import app  # noqa: E402
 
 
 def free_port():
+    """The Premiere panels look for the toolkit on app.BRIDGE_PORTS, so use the first of
+    those that's free; any free port only if all are taken."""
+    for p in app.BRIDGE_PORTS:
+        with socket.socket() as s:
+            try:
+                s.bind(("127.0.0.1", p))
+                return p
+            except OSError:
+                pass
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]

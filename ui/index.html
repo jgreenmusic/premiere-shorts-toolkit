@@ -1171,11 +1171,12 @@ function viewCaptions() {
   const I = S.info, R = I.results, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
   const synced = S.projects.filter(p => p.base === name.replace(/_captions-synced(-v\d+)?$/, "") && p.version !== "original");
-  if (!seq.captions) {
-    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>${I.clip ? "A video clip has no Premiere captions" : "No Premiere captions in this sequence"}</h3>
+  if (!seq.captions && I.clip) {
+    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>A video clip has no Premiere captions</h3>
       <p>That's fine — the toolkit makes captions from the speech itself (1–3 words at a time) for everything it renders. Timing checks here are only for captions made in Premiere.</p></div></div></div>`;
     return;
   }
+  if (!seq.captions) return viewMakeCaptions();
   $("#view").innerHTML = `
   <div class="card">
     <div class="card-head"><div class="grow"><h3>Check caption timing</h3><p>Compares every Premiere caption with when the words are actually spoken. Changes nothing.</p></div>
@@ -1196,6 +1197,108 @@ function viewCaptions() {
     ${synced.length ? `<div class="row">${synced.map(p => `<button class="btn" data-select="${esc(p.path)}">${esc(p.version)} · ${ago(p.modified)}</button>`).join("")}</div>` : ""}
     ${R.too_short ? `<p class="hint" style="margin:12px 0 0">${R.too_short} captions are too short to read and have no room to grow. <button class="btn link" data-open="${esc(I.outdir)}\\too-short-captions.txt">See list</button></p>` : ""}
   </div>`;
+}
+
+// ---- Making Premiere captions (no captions yet). Two ways that end the same:
+// the toolkit sees captions in the saved project -> checks timing -> step 3.
+//  • Automatic: the Premiere panels (bridge.py) transcribe + add the caption track + save
+//  • By hand: you press Create captions in Premiere and save; the toolkit watches
+const W = { on: false, timer: null, for: null, bridge: null, bTimer: null };
+function viewMakeCaptions() {
+  const B = W.bridge, P = (B && B.panels) || {}, job = B && B.job, inst = B && B.installed;
+  const engine = store.get("capEngine", "adobe"), style = store.get("capStyle", "premiere"), autoNext = store.get("capNext", true);
+  const dot = (p, label) => `<span class="pill"><span class="dot ${p && p.connected ? "ok" : ""}" style="display:inline-block;margin-right:6px"></span>${label}: <b>${p && p.connected ? "connected" : "not seen"}</b></span>`;
+  const active = job && ["speech", "words", "srt", "import"].includes(job.step) && job.project === S.current;
+  const mine = job && job.project === S.current && job.step !== "idle";
+  $("#view").innerHTML = `
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Make captions with Premiere</h3>
+      <p>No captions in this sequence yet. Premiere's <b>Create captions</b> button can't be pressed by a script, so pick a way — either one ends the same: as soon as the saved project has captions, the toolkit ${autoNext ? "checks their timing and moves you to step 3" : "shows them here"}.</p></div></div>
+    <div class="two">
+      <div>
+        <h4 style="margin:0 0 8px;font-size:14px">Automatic — the toolkit drives Premiere</h4>
+        <label class="field">Speech<select class="text" id="capEngine">
+          <option value="adobe" ${engine === "adobe" ? "selected" : ""}>Adobe Speech to Text (inside Premiere)</option>
+          <option value="whisper" ${engine === "whisper" ? "selected" : ""}>Toolkit speech (Whisper, on this PC)</option></select></label>
+        <label class="field" style="margin-top:8px">Caption lines<select class="text" id="capStyle">
+          <option value="premiere" ${style === "premiere" ? "selected" : ""}>Premiere style — up to 42 characters</option>
+          <option value="short" ${style === "short" ? "selected" : ""}>Shorts style — 1–3 words</option></select></label>
+        <div class="row" style="margin:10px 0">${engine === "adobe" ? dot(P.uxp, "Speech panel") : ""}${dot(P.cep, "Captions panel")}</div>
+        <div class="row">
+          <button class="btn primary" id="capGo" ${active || S.busy ? "disabled" : ""}>${active ? "Making captions…" : "Make captions"}</button>
+          ${active ? `<button class="btn" id="capCancel">Cancel</button>` : ""}
+          <button class="btn ${inst && inst.cep ? "link" : ""}" id="capInstall">${inst && inst.cep ? "Reinstall Premiere panels" : "Install Premiere panels"}</button>
+        </div>
+        <p class="hint" style="margin:8px 0 0">The panels run inside Premiere (Window › Extensions / Plugins › Shorts Toolkit). The project must be open in Premiere; it gets <b>saved</b> when the captions go in.</p>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px;font-size:14px">By hand — you click, the toolkit watches</h4>
+        <ol class="howto"><li>Premiere: <b>Window › Text</b> → <b>Transcript</b> → <b>Transcribe sequence</b>.</li>
+          <li><b>Captions</b> → <b>Create captions</b> (your caption preset and style).</li><li><b>Ctrl+S</b>.</li></ol>
+        <div class="row" style="margin-top:10px">${W.on && W.for === S.current
+          ? `<span class="pill"><span class="dot run" style="display:inline-block;margin-right:6px"></span>Watching — save in Premiere when the captions are made</span><button class="btn" id="capUnwatch">Stop watching</button>`
+          : `<button class="btn" id="capWatch">Watch for captions</button>`}</div>
+      </div>
+    </div>
+    <div class="toggle-row" style="margin-top:16px"><label class="switch"><input type="checkbox" id="capNext" ${autoNext ? "checked" : ""}><span></span></label>
+      <div><b>Then check timing and go to step 3</b><small>When the captions arrive, run the timing check and open Shorts.</small></div></div>
+    ${mine ? `<div class="result" style="margin-top:14px"><h4><span>${{ speech: "Listening…", words: "Reading the words…", srt: "Making caption lines…", import: "Adding the caption track in Premiere…",
+        done: "Captions added in Premiere", failed: "Didn't finish", click: "Finish it by hand — the toolkit is watching" }[job.step] || job.step}</span></h4>
+      <pre class="hint" style="white-space:pre-wrap;margin:0;max-height:180px;overflow:auto">${esc(job.lines.join("\n"))}</pre></div>` : ""}
+  </div>`;
+  $("#capEngine").onchange = e => { store.set("capEngine", e.target.value); render(); };
+  $("#capStyle").onchange = e => store.set("capStyle", e.target.value);
+  $("#capNext").onchange = e => { store.set("capNext", e.target.checked); render(); };
+  $("#capGo").onclick = async () => {
+    try { await api("/api/bridge/start", { path: S.current, engine: store.get("capEngine", "adobe"), style: store.get("capStyle", "premiere") }); }
+    catch (e) { return toast(e.message); }
+    watch(true); bridgePoll();
+  };
+  const c = $("#capCancel"); if (c) c.onclick = () => api("/api/bridge/cancel", {}).then(bridgePoll);
+  $("#capInstall").onclick = async () => {
+    toast("Installing the Premiere panels…", true);
+    try { const r = await api("/api/bridge/install", {}); toast(r.lines.join(" · "), r.ok); } catch (e) { toast(e.message); }
+    bridgePoll();
+  };
+  const w = $("#capWatch"); if (w) w.onclick = () => watch(true);
+  const u = $("#capUnwatch"); if (u) u.onclick = () => watch(false);
+  if (!W.bTimer) bridgePoll();
+}
+function capCount() { const I = S.info; return (I.sequences.find(s => s.name === I.sequence) || {}).captions || 0; }
+// panel status + the automatic job's progress; keeps going while a job runs or the tab is open
+async function bridgePoll() {
+  clearTimeout(W.bTimer); W.bTimer = null;
+  let B; try { B = await api("/api/bridge"); } catch (e) { return; }
+  const was = W.bridge && W.bridge.job && W.bridge.job.step, changed = JSON.stringify(W.bridge) !== JSON.stringify(B);
+  W.bridge = B;
+  const step = B.job.step, mine = B.job.project === S.current;
+  if (mine && step !== was) {
+    if (step === "failed") { toast("Premiere captions: " + (B.job.lines.at(-1) || "failed").replace(/^\S+ /, "")); }
+    if (step === "click") { toast("Finish in Premiere: Text panel › Create captions, then Ctrl+S — watching for it.", true); watch(true); }
+  }
+  if (changed && S.tab === "captions" && S.info && !capCount()) render();
+  const busy = ["speech", "words", "srt", "import"].includes(step);
+  if (busy || (S.tab === "captions" && S.info && !capCount())) W.bTimer = setTimeout(bridgePoll, busy ? 1000 : 3000);
+}
+// re-read the saved project every 2 s until its sequence has captions
+function watch(on) {
+  clearInterval(W.timer); W.timer = null;
+  W.on = on; W.for = on ? S.current : null;
+  if (on) {
+    const path = S.current;
+    W.timer = setInterval(async () => {
+      if (S.current !== path) return watch(false);
+      let I; try { I = await api("/api/info?path=" + encodeURIComponent(path)); } catch (e) { return; }
+      const n = (I.sequences.find(s => s.name === I.sequence) || {}).captions || 0;
+      if (n > 0) { watch(false); S.info = I; captionsArrived(n); }
+    }, 2000);
+  }
+  if (S.tab === "captions") render();
+}
+function captionsArrived(n) {
+  toast(`${n.toLocaleString()} captions found in Premiere`, true);
+  if (store.get("capNext", true) && !S.busy) { S.afterJob = "shorts"; run("check"); }
+  else render();
 }
 
 // ---- Premiere
@@ -1289,6 +1392,8 @@ async function poll(from) {
     if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
   }
   T.loadedFor = null; T.tl = null;
+  if (S.afterJob && !j.stopped && j.code === 0) { S.tab = S.afterJob; store.set("tab", S.tab); }   // captions arrived -> checked -> step 3
+  S.afterJob = null;
   await loadState(); await select(S.current, true);
   if (S.mkBefore != null && !j.stopped && j.code === 0) {
     const n = (S.info.config.markers || []).length - S.mkBefore;

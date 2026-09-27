@@ -26,6 +26,7 @@ FROZEN = getattr(sys, "frozen", False)                 # running as the installe
 RES = getattr(sys, "_MEIPASS", HERE)                   # bundled files (ui, fonts, scripts, models)
 APPDIR = os.path.dirname(sys.executable) if FROZEN else HERE
 PORT = 8765
+BRIDGE_PORTS = (8765, 8767, 8768, 8769)   # where the Premiere panels look (8766 is the phone companion)
 PY = sys.executable.replace("pythonw.exe", "python.exe")
 SETTINGS = os.path.join(os.path.expanduser("~"), ".shorts-toolkit.json")
 DEFAULT_DIRS = [os.path.join(os.path.expanduser("~"), "Desktop", "Projects")]
@@ -266,12 +267,14 @@ def command(action, o):
     if action == "timeline":
         return ["timeline", p, "--count", str(int(o.get("count", 12))), "--min", str(o.get("min", 20)),
                 "--max", str(o.get("max", 45))]
+    if action == "speech":
+        return ["speech", p]
     if action == "burn":
         return ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
     raise ValueError("unknown action %s" % action)
 
 
-def run_job(title, argv):
+def run_job(title, argv, after=None):
     with LOCK:
         if not JOB["done"]:
             return None
@@ -312,6 +315,8 @@ def run_job(title, argv):
                 JOB["lines"].append("Stopped.")
             JOB.update(done=True, code=proc.returncode)
         PROC[0] = None
+        if after:
+            after(0 if JOB["stopped"] is False and proc.returncode == 0 else (proc.returncode or 1))
 
     threading.Thread(target=work, daemon=True).start()
     return jid
@@ -366,6 +371,27 @@ def open_path(path, how):
         subprocess.Popen(["explorer", "/select,", path] if os.path.isfile(path) else ["explorer", path])
     else:
         os.startfile(path)
+
+
+# -- Premiere bridge (bridge.py) --------------------------------------------------------------
+def bridge_start(path, engine, style):
+    import bridge
+    import config
+    outdir = base_of(path) + "_captions"
+    seq = pick(project(path), config.load(outdir))
+    err = bridge.start(path, outdir, seq.name, engine, style)
+    if err or engine == "adobe":
+        return err
+
+    def after(code):
+        if code != 0:
+            return bridge.fail("the toolkit couldn't hear the words (see the log)")
+        with open(os.path.join(outdir, "premiere-words.json"), encoding="utf-8") as f:
+            bridge.words_ready(json.load(f))
+    if not run_job("Hearing the words for Premiere captions", ["speech", path], after=after):
+        bridge.fail("something else is running - try again when it's done")
+        return "Something is already running."
+    return None
 
 
 # -- HTTP -------------------------------------------------------------------------------------
@@ -427,7 +453,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_json({"error": "This device isn't paired - open the toolkit's address again to pair."}, 401)
             return False
-        if path in PC_ONLY or path.startswith("/api/remote"):
+        if path in PC_ONLY or path.startswith("/api/remote") or path.startswith("/api/bridge"):
             self.send_json({"error": "That only works on the PC itself."}, 403)
             return False
         return True
@@ -455,6 +481,10 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/remote":
                 import remote
                 return self.send_json(remote.info())
+            if u.path == "/api/bridge":
+                import bridge
+                import premiere_install
+                return self.send_json(dict(bridge.status(), installed=premiere_install.installed()))
             if u.path == "/api/state":
                 return self.send_json(dict(version=__version__, projects=list_projects(), remote=self.remote,
                                            dirs=load_settings().get("dirs", DEFAULT_DIRS),
@@ -500,8 +530,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self):
-        LAST_SEEN[0] = time.time()
         u = urlparse(self.path)
+        if u.path not in ("/api/bridge/hello", "/api/bridge/report"):    # Premiere's panels don't keep the app open
+            LAST_SEEN[0] = time.time()
         try:
             if not self.guard(u.path):
                 return
@@ -570,6 +601,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"stopped": stop_job()})
             if u.path == "/api/pause":
                 return self.send_json({"ok": pause_job(bool(b.get("pause", True))), "paused": JOB["paused"]})
+            if u.path == "/api/bridge/hello":
+                import bridge
+                return self.send_json({"command": bridge.hello(b.get("kind", "uxp"), b)})
+            if u.path == "/api/bridge/report":
+                import bridge
+                bridge.report(b.get("kind", "uxp"), b)
+                return self.send_json({"ok": True})
+            if u.path == "/api/bridge/start":
+                err = bridge_start(b["path"], b.get("engine", "adobe"), b.get("style", "premiere"))
+                return self.send_json({"error": err} if err else {"ok": True}, 409 if err else 200)
+            if u.path == "/api/bridge/cancel":
+                import bridge
+                with bridge.LOCK:
+                    bridge.JOB["step"] = "idle"
+                    bridge.QUEUE["uxp"].clear()
+                    bridge.QUEUE["cep"].clear()
+                return self.send_json({"ok": True})
+            if u.path == "/api/bridge/install":
+                import premiere_install
+                return self.send_json(premiere_install.install())
             if u.path == "/api/ping":
                 return self.send_json({"ok": True})
         except (Exception, SystemExit) as e:

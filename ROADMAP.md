@@ -44,6 +44,16 @@ scream suggestions.
 **Expect:** good on clear laughs; weaker on quiet chuckles under loud game audio or crosstalk
 (the model hears the full mix).
 
+## Premiere captions bridge (0.11.0) - next
+
+- First real run inside Premiere: confirm both panels load, Adobe's transcript JSON is read, and
+  the caption track appears. If the transcript isn't read, `premiere-transcript-raw.json` shows its layout.
+- Premiere's own Text panel calls private APIs (`require("uxp").mediaCoreSpeechToText.AutoCaptioningAPI
+  .segmentIntoCaptions` + `hSLScripting.CaptioningScriptAPI.createCaptionTrack`) - the real Create
+  captions. The Speech panel already reports whether they're visible to it (`apis` in its check-in).
+  If they are, a later version could use them for Premiere's exact segmentation and caption presets.
+- Apply a saved caption Track Style to the new track automatically.
+
 ## General polish
 
 Collect issues here as they come up while making Shorts.

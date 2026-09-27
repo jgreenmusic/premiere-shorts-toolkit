@@ -2,6 +2,48 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.11.0 - 2026-09-27
+
+**Step 2 can make the captions in Premiere, then moves you on by itself.**
+
+The ask: use Premiere's auto captions, but run it from the toolkit, and go straight to the next
+step once the captions exist. Adobe has **no scripting call for the Text panel's Create captions
+button** (checked against the Premiere 26.5 UXP API: transcription is scriptable since 26.5, caption
+tracks are not; ExtendScript can add a caption track from a file but can't transcribe). So there
+are now two ways, and both end the same:
+
+- **Automatic** - two small panels inside Premiere that the toolkit drives (`bridge.py`):
+  - *Shorts Toolkit - Speech* (UXP, `premiere/bridge-uxp`) runs **Adobe Speech to Text** on every
+    audible clip of the sequence and sends the transcript to the toolkit.
+  - The toolkit turns the words into caption lines - **Premiere style** (up to 42 characters, like
+    Create captions' default) or **Shorts style** (1-3 words) - and writes an .srt.
+  - *Shorts Toolkit - Captions* (CEP, `premiere/bridge-cep`) lays it on the sequence as a real
+    Premiere **caption track** and **saves** the project.
+  - Or pick **Toolkit speech (Whisper)** instead of Adobe's - then only the Captions panel is needed.
+- **By hand** - you press Transcribe + Create captions in Premiere (your own caption preset) and
+  save; **Watch for captions** re-reads the saved project every 2 s until they appear.
+- Either way, as soon as the saved project has captions, the toolkit **runs the timing check and
+  opens step 3** (switch: "Then check timing and go to step 3").
+- **Install Premiere panels** button (and `premiere_install.py`): the Captions panel goes to
+  `%APPDATA%\Adobe\CEP\extensions` with Adobe's PlayerDebugMode switch (needed for any panel not
+  from the Adobe Exchange); the Speech panel is packed as a .ccx and installed with Adobe's own
+  UnifiedPluginInstallerAgent. No admin rights. Restart Premiere after installing.
+- CLI: `shorts.py speech <project>` writes the timeline words the panels use.
+- **Fixed before it could bite:** the desktop app picked a random port each launch, so the panels
+  could never have found it. It now uses 8765 (or the first free of 8767-8769) and the panels look
+  on those. Reinstalling the panels now removes the old Speech panel first - Adobe's installer
+  silently keeps an installed copy with the same version.
+
+Tested: the whole toolkit side end to end with stand-in panels (queue, transcript -> timeline
+mapping incl. the same file on two tracks and tick-based times, .srt, finish, failure, a stale
+report ignored), the real panel scripts run under Node against the server with Premiere mocked
+(port search, a muted track skipped, clip time placed on the timeline, the Speech panel staying
+connected through a slow transcription, the import handshake), the Whisper route on the full 85-min Pt 2 (2,730 Shorts-style lines), the new
+card rendered, and both panels installed on Albert (Adobe's installer lists the Speech panel as
+Enabled). **Not yet run inside Premiere** - Adobe's transcript JSON layout isn't documented, so the
+parser looks for any timed word; if it can't read it, the raw transcript is saved as
+`premiere-transcript-raw.json` for the fix.
+
 ## 0.10.0 - 2026-09-27
 
 **Step 1 is now Markers: the toolkit marks the best Shorts for you, from any clip.**
