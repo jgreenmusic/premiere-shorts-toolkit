@@ -2,6 +2,28 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.2.0 - 2026-09-26
+
+**Caption durations now follow the sound.** `--fix` fits every caption's length to how long
+its words are actually voiced (skip with `--no-durations`).
+
+- Voice activity from the Silero detector bundled with faster-whisper (cached per audio).
+- Last word heard: the caption ends where that word's voice stops, + 0.15 s. A drawn-out
+  interjection ("Ohhhh", "Whoa", "AH") may hold up to 4 s; other captions at most 1 s past the
+  word. In continuous talk the word ends where the next spoken word starts.
+- Words not heard by Whisper: the caption follows the FIRST burst of voice in it (its own
+  words), not the last - voice after a real pause belongs to someone else. Trim only.
+- Readable minimum (text length / 20 cps, 0.5-1.5 s) for every caption, only into empty space.
+- Captions under 0.3 s with no room to grow are listed in `too-short-captions.txt` to merge by hand.
+- Running on a synced copy writes `-v2`, `-v3`... and reuses the original's transcript cache.
+- The printed summary reports the real final changes, not the plan before overlaps were settled.
+
+Problems found on the way:
+- Voice regions merge whole back-and-forth exchanges (median 1.15 s), so "voice continues"
+  alone stretched captions over the next speaker's uncaptioned words.
+- Trimming to the LAST voice in a caption kept "You." up for 3 s because someone else spoke later.
+- First synced project opened in Premiere 2026 without errors (patch format confirmed).
+
 ## 0.1.0 - 2026-09-26
 
 First version.

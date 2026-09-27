@@ -216,3 +216,117 @@ def fmt(sec):
     sign = "-" if sec < 0 else ""
     sec = abs(sec)
     return "%s%d:%02d:%05.2f" % (sign, sec // 3600, sec % 3600 // 60, sec % 60)
+
+
+# -- 5. how long each caption's SOUND lasts -----------------------------------
+def voice_regions(audio, cache_dir, log=print):
+    """Where someone is vocalising, from the Silero voice detector bundled with
+    faster-whisper. Much finer than Whisper's word ends (which are packed end to
+    end), and it follows a drawn-out 'Ohhhh' to where the sound actually stops."""
+    key = hashlib.sha1(audio.tobytes()).hexdigest()[:16]
+    cache = os.path.join(cache_dir, "voice-%s.json" % key)
+    if os.path.exists(cache):
+        with open(cache, encoding="utf-8") as f:
+            return json.load(f)
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+    log("  detecting voice activity")
+    opts = VadOptions(threshold=0.5, min_speech_duration_ms=80,
+                      min_silence_duration_ms=120, speech_pad_ms=30)
+    regions = [[round(r["start"] / RATE, 3), round(r["end"] / RATE, 3)]
+               for r in get_speech_timestamps(audio, opts)]
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(cache, "w", encoding="utf-8") as f:
+        json.dump(regions, f)
+    return regions
+
+
+INTERJECTION = re.compile(r"^(o+h+|a+h+|a+w+|o+o+h*|w+h*o+a+h*|n+o+|y+e+a+h+|h+m+|u+g+h+|w+o+w+|h+a+(h+a+)*|e+h+|u+h+|o+w+)$")
+
+
+def fit_durations(captions, matches, regions, times, words=(), pad=0.15, hold=1.0,
+                  interjection_hold=4.0, cps=20.0, min_dur=0.5, max_min_dur=1.5):
+    """New end (seconds) for each caption so it is on screen for the sound it shows.
+
+    times: {index: (start_s, end_s)} after any start-time fixes.
+    - Last word heard: end = where the voice around that word actually stops
+      (+ a short pad). A drawn-out interjection ("Ohhhh") may hold up to 4 s;
+      other captions up to 1 s past the word, so continuous crosstalk can't
+      stretch them. In continuous talk the sound ends where the next word starts.
+    - Not matched: only TRIMMED, to where voice last occurs inside the caption.
+      Never extended - there is no evidence of what it belongs to.
+    - Never shorter than a readable minimum (text length / cps, 0.5-1.5 s).
+    Returns {index: new_end_s} and a per-caption note of what decided it.
+    """
+    import bisect
+    starts = [r[0] for r in regions]
+    word_starts = sorted(w[0] for w in words)
+
+    def next_word_after(t):
+        i = bisect.bisect_right(word_starts, t + 0.02)
+        return word_starts[i] if i < len(word_starts) else None
+
+    def region_at(t):
+        i = bisect.bisect_right(starts, t) - 1
+        return regions[i] if i >= 0 and regions[i][1] >= t else None
+
+    def last_voice(a, b):
+        """Latest moment of voice inside [a, b], or None."""
+        i = bisect.bisect_right(starts, b) - 1
+        if i >= 0 and regions[i][1] > a:
+            return min(regions[i][1], b)
+        return None
+
+    def voice_chain(a, b, max_gap=0.35):
+        """End of the voice burst that starts this caption, or None."""
+        i = bisect.bisect_right(starts, a + 0.5) - 1
+        j = i
+        while j >= 0 and regions[j][1] > a - 0.2:   # earliest region touching the start
+            j -= 1
+        j += 1
+        if j > i or j >= len(regions) or regions[j][0] > a + 0.5:
+            return None
+        end = regions[j][1]
+        k = j + 1
+        while k < len(regions) and regions[k][0] - end < max_gap and regions[k][0] < b:
+            end = regions[k][1]
+            k += 1
+        return min(end, b)
+
+    ends, notes = {}, {}
+    for c, m in zip(captions, matches):
+        s, e = times[c.index]
+        toks = [norm(t) for t in c.text.split() if norm(t)]
+        need = min(max_min_dur, max(min_dur, len(c.text) / cps))
+        if m.get("last_heard") and m["speech_end"] is not None:
+            word_end = m["speech_end"]
+            r = region_at(word_end) or region_at(word_end - 0.1)
+            if r:
+                limit = interjection_hold if (len(toks) == 1 and INTERJECTION.match(toks[0])) else hold
+                sound_end = min(r[1], word_end + limit)
+                # continuous talk: this word's sound ends when the next word
+                # (anyone's) begins, even if the voice detector sees no gap
+                nxt = next_word_after(word_end)
+                if nxt is not None and nxt < sound_end:
+                    sound_end = max(word_end, nxt)
+                note = "voice"
+            else:
+                # Whisper's word end fell in silence: the sound stopped earlier
+                sound_end = last_voice(s, word_end) or word_end
+                note = "voice-trim"
+            new_end = max(sound_end + pad, s + need)
+        else:
+            # Words not heard by Whisper. The caption's own words are the FIRST
+            # burst of voice in it; voice after a real pause is someone/something
+            # else. Follow that burst (gaps under 0.35 s), no longer than the text
+            # could plausibly take to say (interjections: up to 4 s). Trim only.
+            chain = voice_chain(s, e)
+            if chain is None:
+                continue                      # no voice found at all: can't judge
+            interj = len(toks) == 1 and INTERJECTION.match(toks[0])
+            say = interjection_hold if interj else 0.3 + 0.09 * len(c.text)
+            new_end = min(e, max(min(chain, s + say) + pad, s + need))
+            note = "trim-only"
+        if abs(new_end - e) >= 0.05:
+            ends[c.index] = new_end
+            notes[c.index] = note
+    return ends, notes

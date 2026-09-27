@@ -39,6 +39,11 @@ How it works:
 - Transcribes it locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) to get the time of every spoken word. The transcript is cached, so re-runs are fast.
 - Matches caption text to the spoken words, then compares times.
 - `--fix` only retimes captions that are actually off (`--all` retimes every one). Caption text and styling are untouched - only start/end times move, and neighbours are nudged so nothing overlaps.
+- `--fix` also fits each caption's **length to the sound**: it stays up for the whole voiced
+  word (a long "Ohhhh" keeps its length) and comes down when the voice stops. Captions too
+  short to read with no room to grow are listed in `too-short-captions.txt`.
+  Use `--no-durations` to fix timing errors only.
+- Running on an already-synced copy writes `_captions-synced-v2`, `-v3`, ... - never overwrites.
 
 Options: `--model tiny|base|small|medium|large-v3` (bigger = more accurate, slower),
 `--sequence NAME` if several sequences have captions.

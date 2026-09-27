@@ -9,13 +9,14 @@ The original .prproj is never modified.
 import argparse
 import csv
 import os
+import re
 import sys
 from statistics import median
 
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -58,7 +59,9 @@ def cmd_captions(args):
                  % ", ".join(repr(s.name) for s in seqs))
     seq = seqs[0]
     stem = os.path.splitext(args.project)[0]
-    outdir = stem + "_captions"
+    # a synced copy shares the original's cache/report folder (same audio)
+    base = re.sub(r"_captions-synced(-v\d+)?$", "", stem)
+    outdir = base + "_captions"
     os.makedirs(outdir, exist_ok=True)
     print("Sequence %r: %d captions, %d audio clips" % (seq.name, len(seq.captions), len(seq.audio)))
 
@@ -67,6 +70,8 @@ def cmd_captions(args):
     print("[2/4] finding spoken words")
     words = cap.transcribe(audio, outdir, model=args.model)
     print("  %d words heard" % len(words))
+    regions = cap.voice_regions(audio, outdir)
+    print("  %d stretches of voice" % len(regions))
     print("[3/4] matching captions to speech")
     matches = cap.align(seq.captions, words)
     proposed, offsets = cap.retime(seq.captions, matches, seq.caption_frame)
@@ -121,14 +126,74 @@ def cmd_captions(args):
                 e = pe
             if (s, e) != (c.start, c.end):
                 changes[c.index] = (s, e)
+        if not args.no_durations:
+            changes, _ = fit_durations(seq, matches, regions, changes, words)
         new = settle(seq.captions, changes, seq.caption_frame)
-        out = stem + "_captions-synced.prproj"
-        if os.path.exists(out) and not args.overwrite:
-            sys.exit("%s already exists - delete it or pass --overwrite" % out)
+        old = {c.index: c for c in seq.captions}
+        print("\nChanges: %d start(s) moved, %d caption(s) made longer, %d made shorter" % (
+            sum(1 for i, (s, e) in new.items() if s != old[i].start),
+            sum(1 for i, (s, e) in new.items() if e > old[i].end),
+            sum(1 for i, (s, e) in new.items() if e < old[i].end)))
+        final = [new.get(c.index, (c.start, c.end)) for c in seq.captions]
+        flash = [(c, (e - s) / TICKS) for c, (s, e) in zip(seq.captions, final)
+                 if c.text and (e - s) / TICKS < 0.3]
+        if flash:
+            path = os.path.join(outdir, "too-short-captions.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("Captions on screen < 0.3 s with no room to extend (the next caption\n"
+                        "starts right after). Merge each into its neighbour in Premiere.\n\n")
+                for c, d in flash:
+                    f.write("%s  %.2fs  %s\n" % (cap.fmt(c.start_s), d, c.text))
+            print("%d caption(s) too short to read with no room to extend - listed in %s"
+                  % (len(flash), path))
+        out = next_output(base, stem)
         changed = proj.write_patched(seq.captions, new, out)
         verify(out, seq.name, new)
         print("\nFixed %d caption(s) -> %s" % (changed, out))
         print("Open that file in Premiere. Your original project is untouched.")
+
+
+def fit_durations(seq, matches, regions, changes, words):
+    """Merge sound-fitted end times into the start/end changes."""
+    frame = seq.caption_frame
+    snap = lambda sec: int(round(sec * TICKS / frame)) * frame
+    times = {c.index: tuple(t / TICKS for t in changes.get(c.index, (c.start, c.end)))
+             for c in seq.captions}
+    ends, notes = cap.fit_durations(seq.captions, matches, regions, times, words)
+    kinds = {}
+    for i, e in ends.items():
+        c = seq.captions[i]
+        s = changes.get(i, (c.start, c.end))[0]
+        e = max(snap(e), s + frame)
+        old_end = changes.get(i, (c.start, c.end))[1]
+        if e != old_end:
+            changes[i] = (s, e)
+            k = ("longer" if e > old_end else "shorter") + " (%s)" % notes[i]
+            kinds[k] = kinds.get(k, 0) + 1
+    # Any caption too short to read gets extended into EMPTY space only
+    # (never pushes the next caption), including ones we had no evidence for.
+    cur = [changes.get(c.index, (c.start, c.end)) for c in seq.captions]
+    for i, c in enumerate(seq.captions):
+        s, e = cur[i]
+        need = min(1.5, max(0.5, len(c.text) / 20.0)) if c.text else 0
+        limit = cur[i + 1][0] if i + 1 < len(cur) else e + TICKS * 10
+        want = min(snap(s / TICKS + need), limit)
+        if want > e:
+            cur[i] = (s, want)
+            changes[i] = (s, want)
+            kinds["longer (readable minimum)"] = kinds.get("longer (readable minimum)", 0) + 1
+    return changes, kinds
+
+
+def next_output(base, stem):
+    """V0.4.prproj -> V0.4_captions-synced.prproj; a synced copy -> -v2, -v3 ..."""
+    m = re.search(r"_captions-synced(?:-v(\d+))?$", stem)
+    n = (int(m.group(1) or 1) + 1) if m else None
+    while True:
+        out = base + "_captions-synced" + ("-v%d" % n if n else "") + ".prproj"
+        if not os.path.exists(out):
+            return out
+        n = (n or 1) + 1
 
 
 def settle(captions, changes, frame):
@@ -236,7 +301,8 @@ def main():
                    help="Whisper model: tiny, base, small (default), medium, large-v3")
     c.add_argument("--fix", action="store_true", help="write <project>_captions-synced.prproj")
     c.add_argument("--all", action="store_true", help="with --fix: retime every caption, not just flagged ones")
-    c.add_argument("--overwrite", action="store_true", help="replace an existing synced copy")
+    c.add_argument("--no-durations", action="store_true",
+                   help="with --fix: don't fit caption lengths to the sound, only fix timing errors")
     c.set_defaults(func=cmd_captions)
     args = ap.parse_args()
     args.func(args)
