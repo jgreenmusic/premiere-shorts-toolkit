@@ -66,6 +66,16 @@ function host(fn, ...args) {
 
 function baseName(p) { return String(p || "").split(/[\\/]/).pop(); }
 
+// Premiere loads host.jsx once, when the panel first opens, and keeps that copy through page
+// reloads - so load it again ourselves: an updated panel then works without restarting Premiere.
+async function loadHost() {
+  const ext = decodeURI(window.__adobe_cep__.getSystemPath("extension")).replace(/^file:\/+/, "");
+  const r = await new Promise((resolve) => window.__adobe_cep__.evalScript(
+    `try { $.evalFile(new File(${JSON.stringify(ext + "/host.jsx")})); "ok" } catch (e) { "ERR " + e + " (line " + e.line + ")" }`, resolve));
+  trace("host.jsx load: " + r);
+  return r;
+}
+
 async function importCaptions(cmd) {
   log("Adding caption track from " + baseName(cmd.srt));
   show("Adding captions…", "busy");
@@ -124,4 +134,4 @@ async function tick() {
   setTimeout(tick, wait);
 }
 
-tick();
+loadHost().finally(tick);

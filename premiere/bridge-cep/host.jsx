@@ -13,8 +13,16 @@ function shortsQuote(s) {
     return out + '"';
 }
 
-function shortsSame(a, b) {
-    return String(a).replace(/\//g, "\\").toLowerCase() == String(b).replace(/\//g, "\\").toLowerCase();
+// the project the toolkit means, or a copy saved from it next to it ("Name.prproj" ->
+// "NameV0.1.prproj", "Name_captions-synced.prproj")
+function shortsSame(open, wanted) {
+    var n = function (p) { return String(p).replace(/\//g, "\\").replace(/^\\\\\?\\/, "").toLowerCase(); };
+    var o = n(open), w = n(wanted);
+    if (o == w) return true;
+    var od = o.substring(0, o.lastIndexOf("\\")), wd = w.substring(0, w.lastIndexOf("\\"));
+    var os = o.substring(o.lastIndexOf("\\") + 1).replace(/\.prproj$/, "");
+    var ws = w.substring(w.lastIndexOf("\\") + 1).replace(/\.prproj$/, "").replace(/_captions-synced(-v\d+)?$/, "");
+    return od == wd && os.indexOf(ws) == 0;
 }
 
 // what the app sees: the open project and sequence
@@ -54,7 +62,7 @@ function shortsRunScript(scriptPath, seqName, projectPath) {
         var p = app.project;
         if (!p || !p.path) return "ERR:No project is open in Premiere.";
         if (projectPath && !shortsSame(p.path, projectPath)) {
-            return "ERR:Premiere has \"" + p.name + "\" open - open " + projectPath.replace(/^.*[\\/]/, "") + " in Premiere, then try again.";
+            return "ERR:Premiere has \"" + p.name + "\" open - open " + projectPath.replace(/^.*[\\\/]/, "") + " in Premiere, then try again.";
         }
         if (!shortsUseSequence(p, seqName)) return "ERR:No sequence is open.";
         var f = new File(scriptPath);

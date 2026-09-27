@@ -2,6 +2,25 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.11.4 - 2026-09-27
+
+**The Captions panel's script engine was broken - fixed, so cutting and caption tracks can run.**
+
+Problem: "Cut at the markers" said Premiere didn't answer. Through the panel's debug console every
+ExtendScript call - even `1+1` - returned "EvalScript error.": `host.jsx` had the regex
+`/^.*[\\/]/`. An unescaped `/` inside `[...]` is fine in modern JavaScript but a syntax error in
+ExtendScript (ES3), and one syntax error in a panel's host script breaks every call it makes.
+
+- Fixed the regex (`[\\\/]`); scanned every `premiere/*.jsx` for the same mistake (none).
+  Verified live in Premiere: `1+1` answers, `host.jsx` loads, Premiere's cutting tool (QE `razor`) is
+  there. The cut itself hasn't been run yet.
+- The panel now loads `host.jsx` itself on every start: Premiere keeps its first copy through page
+  reloads, so an updated panel used to need a Premiere restart.
+- A saved-as copy counts as the toolkit's project (`Pt_2V0.1.prproj` for `Pt_2.prproj`, same folder),
+  in both panels - Julian saves versions as he goes.
+- The Captions panel no longer starts itself with Premiere (the hidden start-up copy left the docked
+  tab blank) and keeps its own log: `%TEMP%\shorts-toolkit-captions-panel.log`.
+
 ## 0.11.3 - 2026-09-27
 
 **Markers really go into Premiere now - first confirmed live run.**

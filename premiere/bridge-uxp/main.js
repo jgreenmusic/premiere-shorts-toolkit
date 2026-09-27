@@ -9,7 +9,7 @@ const uxp = require("uxp");
 // the toolkit uses the first free one of these (app.BRIDGE_PORTS)
 const PORTS = [8765, 8767, 8768, 8769];
 let port = 0;
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 let busy = false;
 const lines = [];
 
@@ -33,10 +33,16 @@ async function post(path, body) {
   return r.json();
 }
 
-function same(a, b) {
+// the project the toolkit means, or a copy saved from it next to it ("Name.prproj" ->
+// "NameV0.1.prproj", "Name_captions-synced.prproj")
+function same(open, wanted) {
   // Premiere 26 reports project paths with the \\?\ long-path prefix
   const n = (p) => String(p || "").replace(/\//g, "\\").replace(/^\\\\\?\\/, "").toLowerCase();
-  return n(a) === n(b);
+  const o = n(open), w = n(wanted);
+  if (o === w) return true;
+  const dir = (p) => p.slice(0, p.lastIndexOf("\\"));
+  const stem = (p) => p.slice(p.lastIndexOf("\\") + 1).replace(/\.prproj$/, "");
+  return dir(o) === dir(w) && stem(o).startsWith(stem(w).replace(/_captions-synced(-v\d+)?$/, ""));
 }
 function baseName(p) { return String(p || "").split(/[\\/]/).pop(); }
 
