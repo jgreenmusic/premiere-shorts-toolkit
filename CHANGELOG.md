@@ -2,6 +2,23 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.15.2 - 2026-09-27
+
+**Posts sound less like an ad.**
+
+Problem: "the text is a bit too explanatory and cringe" - "That 'oh no' hit different",
+"Confidence vs. Reality", "Maximum focus achieved", "The ultimate pep talk".
+- Quick mode (Post Studio 0.4.1) writes dry and short: a 2-6 word title, usually a real line from
+  the clip; a tiny second line or nothing; never explains the joke; one emoji at most; banned
+  stock phrases (hit different, vs. reality, POV, the ultimate, epic, chaos, achieved...) - a post
+  that uses one is rewritten. Misheard lines are not to be quoted.
+- The louder angles (hot take, tease, question) are off in Quick mode - only "a line from the
+  clip" or deadpan.
+- New **Titles I like** box: a few titles in your own voice and the AI matches them.
+- Tested on Pt 2 Shorts 01-08: "We did it.", "Why would you do that?", "Oh, we went through",
+  "Maybe I'm not moving". Still quotes swearing and real names unless Keep it clean / Never
+  mention are set.
+
 ## 0.15.1 - 2026-09-27
 
 **Step 7 edits are saved the moment you make them.**

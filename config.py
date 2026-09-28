@@ -53,6 +53,7 @@ DEFAULTS = {
         "clean": False,           # no swearing in post text
         "detail": "quick",        # quick = one AI call a Short (title, one line, hashtags, tags to the max, ~10 s);
                                   # full = frames + summary + a write per platform (~95 s a Short)
+        "examples": "",           # titles in Julian's own voice, one per line - the AI copies the voice
         "base_tags": "",          # comma list: tags that top every YouTube Short's tags up to the 500-char limit        # {short name: "what happens in this one"} - the best help for visual gags
     },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
