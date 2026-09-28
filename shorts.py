@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.15.2"
+__version__ = "0.15.3"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -400,6 +400,12 @@ def cmd_post(args):
     ctx = load_ctx(args, need_words=False)
     pc = ctx.cfg.get("post") or {}
     plats = args.platforms.split(",") if args.platforms else pc.get("platforms") or posting.PLATFORMS
+    if args.schedule == "next":
+        # say what's missing BEFORE writing anything, instead of 128 "couldn't schedule" lines after
+        gaps = [m for m in posting.missing(posting.readiness(), plats) if "posting times" in m]
+        if gaps:
+            sys.exit("Can't schedule into the posting plan yet:\n  " + "\n  ".join(gaps) +
+                     "\nSet posting times first (or use Write posts, which doesn't schedule).")
     items = list(enumerate(ctx.cfg["shorts"]))
     if args.indexes:
         want = {int(i) for i in args.indexes.split(",") if i.strip()}

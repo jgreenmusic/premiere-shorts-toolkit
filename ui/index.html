@@ -1141,7 +1141,21 @@ async function viewPost() {
             <input class="text" type="datetime-local" data-pat="${pid}" style="width:auto;display:none">
             <button class="btn sm primary" data-psched="${pid}">Schedule</button></div></div>`; }).join("")}
       <div class="row" style="margin-top:14px"><button class="btn sm" id="pRewrite" ${dis()}>Write this one again</button></div></div>`;
+  const R7 = P.ready || { platforms: {}, task: {} }, NICE = { youtube_shorts: "YouTube Shorts", tiktok: "TikTok", instagram_reels: "Instagram Reels", facebook: "Facebook" };
+  const readyRows = on.map(pid => { const r = R7.platforms[pid]; if (!r) return "";
+    const ok = r.account && r.plan.length;
+    return `<tr><td><b>${NICE[pid] || pid}</b></td><td>${r.account ? `<span class="badge ok">connected</span>` : `<span class="badge bad">not connected</span>`}</td>
+      <td>${r.plan.length ? `<span class="badge ok">${esc(r.plan.join(", "))} daily</span>` : `<span class="badge bad">no times set</span>`}</td>
+      <td class="hint">${ok ? (r.native ? "uploads early; the platform releases it on time" : "posts at the time — PC must be on") : ""}</td></tr>`; }).join("");
+  const allReady = on.every(pid => (R7.platforms[pid] || {}).account && (R7.platforms[pid] || {}).plan.length);
   $("#view").innerHTML = `
+  <div class="card"><div class="card-head"><div class="grow"><h3>Ready to post?</h3>
+    <p>Scheduling needs, per platform: the account connected and posting times set. ${R7.task.on ? "" : "Then turn on <b>Automatic posting</b> so scheduled posts actually go out."}</p></div>
+    ${allReady && R7.task.on ? `<span class="badge ok">all set</span>` : `<span class="badge bad">not yet</span>`}</div>
+    <table><thead><tr><th>Platform</th><th>Account</th><th>Posting times</th><th></th></tr></thead><tbody>${readyRows}</tbody></table>
+    <div class="row" style="margin-top:10px"><span class="hint grow">Automatic posting (checks every 5 min): ${R7.task.on ? `<span class="badge ok">on</span>` : `<span class="badge bad">off</span>`}</span>
+      <button class="btn primary" id="openPS2">Set this up in Post Studio →</button></div>
+    <p class="hint" style="margin:8px 0 0">Already uploaded some Shorts as drafts in YouTube Studio? Fill those in with Post Studio's <b>YouTube drafts</b> screen instead — scheduling here uploads new copies.</p></div>
   <div class="card"><div class="card-head"><div class="grow"><h3>Post your Shorts</h3>
     <p>Post Studio writes a title, description, tags and hashtags for each platform from what's said in the Short, then uploads on schedule. Posts only name what's in <b>Subject</b>.</p></div>
     <button class="btn" id="openPS">Accounts, posting plan &amp; queue →</button></div>
@@ -1163,7 +1177,7 @@ async function viewPost() {
       ${P.ai.can_start ? `<div class="row" style="margin-top:8px"><button class="btn primary" id="pAiStart">Start the AI</button><span class="hint">loads the 12B model (~7 GB); refused while the Omniplaylist is streaming or a game server is up</span></div>` : `<span class="hint">Start Ollama, then come back.</span>`}</div>`}
     <div class="toolbar" style="margin-top:12px">
       <button class="btn primary" id="pWrite" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write posts for ${rendered.length} rendered Short${rendered.length === 1 ? "" : "s"}</button>
-      <button class="btn" id="pWriteSched" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write + schedule all into the posting plan</button>
+      <button class="btn" id="pWriteSched" ${dis()} ${rendered.length && P.ai.up && on.every(pid => ((R7.platforms[pid] || {}).plan || []).length) ? "" : "disabled"} title="${on.every(pid => ((R7.platforms[pid] || {}).plan || []).length) ? "" : "Set posting times first (Ready to post? above)"}">Write + schedule all into the posting plan</button>
       <button class="btn" id="pRedoAll" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"} title="Write every Short again from scratch, each different from the others">Write all again</button>
       <span class="hint">Written ones are reused unless their captions changed. Each Short gets a different angle and never repeats another's opening.</span></div></div>
   <div class="split player-split" style="grid-template-columns:minmax(0,1fr) 420px">
@@ -1172,6 +1186,7 @@ async function viewPost() {
     </tbody></table></div></div>
     <div>${side}</div></div>`;
   const pc = patch => saveCfg({ post: { ...C, ...patch } }, false).then(() => viewPost()).catch(e => toast(e.message));
+  $("#openPS2").onclick = () => api("/api/post/studio", {}).then(() => toast("Opening Post Studio > Publish", true)).catch(e => toast(e.message));
   $("#openPS").onclick = () => api("/api/post/studio", {}).then(() => toast("Opening Post Studio > Publish", true)).catch(e => toast(e.message));
   $("#pSubject").onchange = e => pc({ subject: e.target.value.trim() });
   $("#pNotes").onchange = e => pc({ notes: e.target.value.trim() });

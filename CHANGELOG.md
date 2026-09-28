@@ -2,6 +2,21 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.15.3 - 2026-09-27
+
+**"Write + schedule all" no longer pretends it worked.**
+
+Problem: Julian pressed Write + schedule all twice and "didn't see where they were being scheduled on
+YouTube". Nothing was: no posting times were set and no account was connected, so all 128
+attempts (32 Shorts x 4 platforms) failed with "No posting plan" deep in the log - and it still
+ended with "Done."
+- Step 7 opens with **Ready to post?**: per platform, account connected / posting times set, and
+  whether automatic posting is on, with a button to Post Studio to fix it.
+- Write + schedule all is disabled until posting times exist, and the command itself stops at once
+  with what's missing instead of writing and failing 128 times.
+- A note that Shorts already uploaded as Studio drafts belong in the YouTube drafts screen -
+  scheduling uploads new copies.
+
 ## 0.15.2 - 2026-09-27
 
 **Posts sound less like an ad.**

@@ -92,6 +92,25 @@ def start_ai():
     return dict(ok=p.returncode == 0, code=p.returncode, message=msg)
 
 
+def readiness():
+    return run(["readiness"])
+
+
+def missing(ready, plats):
+    """Plain-English list of what stops these platforms being scheduled."""
+    out = []
+    for pid in plats:
+        r = (ready.get("platforms") or {}).get(pid)
+        if not r:
+            continue
+        name = {"youtube_shorts": "YouTube Shorts", "tiktok": "TikTok", "instagram_reels": "Instagram Reels", "facebook": "Facebook"}.get(pid, pid)
+        if not r["plan"]:
+            out.append("%s: no posting times set (Post Studio > Publish > Posting plan)" % name)
+        if not r["account"]:
+            out.append("%s: %s isn't connected (Post Studio > Publish > Accounts)" % (name, r["account_name"]))
+    return out
+
+
 def platforms():
     return [p for p in run(["platforms", "--json"]) if p["id"] in PLATFORMS]
 

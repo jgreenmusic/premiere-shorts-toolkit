@@ -220,6 +220,7 @@ def post_view(path):
             out["shorts"].append(dict(i=i, name=x["name"], video=v, rendered=os.path.exists(v), seconds=round(x["end"] - x["start"], 1),
                                       posts=r.get("posts") or {}, subject=r.get("subject", "")))
         out["queue"] = posting.queue(os.path.abspath(path))
+        out["ready"] = posting.readiness()
     except Exception as e:                        # Post Studio broken: say so, keep the rest of the app working
         out["status"] = dict(st, ok=False, error="Post Studio answered with an error: %s" % e)
     return out
