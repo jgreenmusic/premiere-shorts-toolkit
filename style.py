@@ -15,6 +15,7 @@ import sys
 
 import numpy as np
 
+import bleep
 import captions as cap
 import screams as sc
 
@@ -130,6 +131,7 @@ def caption_events(c, m, start, end, loud, st, highlight=True):
         kept = [(cap.strip_punct(w, st["punct"]), t) for w, t in zip(shown, times)]
         kept = [(w, t) for w, t in kept if w]
         shown, times = [w for w, _ in kept], [t for _, t in kept]
+    shown = bleep.caption_words(shown, st.get("bleep") or {})     # censor mode, off by default
     if not shown:
         return []
     col = st["loud_col"] if loud else st["highlight"]
@@ -201,6 +203,7 @@ def look(cfg):
               laugh_col=lk.get("laugh_col", "8AE3FF"))
     st["scream_size"] = int(round(st["size"] * 1.32))
     st["punct"] = lk.get("punct", "keep")
+    st["bleep"] = bleep.settings(cfg)
     return st
 
 

@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.16.5"
+__version__ = "0.17.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -836,8 +836,8 @@ def main():
     mk = sub.add_parser("markers", help="step 1: place markers where the best Shorts are (run again for more)")
     common(mk)
     mk.add_argument("--count", type=int, default=10, help="how many new markers to place (default 10)")
-    mk.add_argument("--min", type=float, default=20, help="shortest, s (default 20)")
-    mk.add_argument("--max", type=float, default=45, help="longest, s (default 45)")
+    mk.add_argument("--min", type=float, default=15, help="shortest, s (default 15)")
+    mk.add_argument("--max", type=float, default=30, help="longest, s (default 30)")
     mk.add_argument("--replace", action="store_true", help="start over: remove the markers placed before")
     mk.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     mk.set_defaults(func=cmd_markers)
@@ -845,8 +845,8 @@ def main():
     tl = sub.add_parser("timeline", help="whole-video picture + predicted best Shorts (for the app)")
     common(tl)
     tl.add_argument("--count", type=int, default=12, help="how many Shorts to suggest (default 12)")
-    tl.add_argument("--min", type=float, default=20, help="shortest suggestion, s (default 20)")
-    tl.add_argument("--max", type=float, default=45, help="longest suggestion, s (default 45)")
+    tl.add_argument("--min", type=float, default=15, help="shortest suggestion, s (default 15)")
+    tl.add_argument("--max", type=float, default=30, help="longest suggestion, s (default 30)")
     tl.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     tl.set_defaults(func=cmd_timeline)
 

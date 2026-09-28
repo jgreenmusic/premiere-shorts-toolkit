@@ -250,6 +250,8 @@ const tc = s => { s = Math.max(0, +s); const h = Math.floor(s / 3600), m = Math.
 const parseTc = t => String(t).trim().split(":").reduce((a, p) => a * 60 + parseFloat(p || 0), 0);
 const short = (s, n = 34) => s.length <= n ? s : s.slice(0, 14) + "…" + s.slice(-(n - 15));
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+// 0.17.0 moved the default Short length from 20-45 s to 15-30 s; untouched old defaults follow it
+const oldLen = o => (o && o.min == 20 && o.max == 45 ? { ...o, min: 15, max: 30 } : o);
 function toast(msg, good) { const t = $("#toast"); t.textContent = msg; t.className = "toast" + (good ? " good" : ""); t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
 const media = p => "/media?path=" + encodeURIComponent(p);
 const slug = n => n.replace(/[<>:"/\\|?*]+/g, "-").trim() || "short";
@@ -395,7 +397,7 @@ const dis = () => S.busy ? "disabled" : "";
 const mkList = () => S.info.config.markers || [];
 const isShort = m => shortsList().some(x => Math.abs(x.start - m.start) < 1 && Math.abs(x.end - m.end) < 1);
 function viewMarkers() {
-  const I = S.info, list = mkList(), st = store.get("mkSettings", { count: 10, min: 20, max: 45 });
+  const I = S.info, list = mkList(), st = oldLen(store.get("mkSettings", { count: 10, min: 15, max: 30 }));
   const have = list.length > 0, inShorts = list.filter(isShort).length;
   $("#view").innerHTML = `
   <div class="card">
@@ -444,7 +446,7 @@ function viewMarkers() {
     </div>
   </div>` : ""}`;
   const more = replace => {
-    const o = { count: Math.max(1, +$("#mkCount").value || 10), min: +$("#mkMin").value || 20, max: +$("#mkMax").value || 45 };
+    const o = { count: Math.max(1, +$("#mkCount").value || 10), min: +$("#mkMin").value || 15, max: +$("#mkMax").value || 30 };
     if (o.max <= o.min) return toast("The longest length must be more than the shortest.");
     store.set("mkSettings", o); run("markers", { ...o, replace });
   };
@@ -504,7 +506,7 @@ function viewShorts() {
     <div class="toolbar" style="margin:0">
       <button class="btn primary" id="analyse" ${dis()} title="Score every second and suggest the best Shorts">${T.tl ? "Re-analyse" : "Analyse video"}</button>
       <label class="row hint" style="gap:6px">Suggest <input class="text time" id="sgCount" style="width:52px" value="${T.tl?.settings?.count ?? 12}"> Shorts of
-        <input class="text time" id="sgMin" style="width:52px" value="${T.tl?.settings?.min ?? 20}">–<input class="text time" id="sgMax" style="width:52px" value="${T.tl?.settings?.max ?? 45}"> s</label>
+        <input class="text time" id="sgMin" style="width:52px" value="${oldLen(T.tl?.settings || {}).min ?? 15}">–<input class="text time" id="sgMax" style="width:52px" value="${oldLen(T.tl?.settings || {}).max ?? 30}"> s</label>
       <span style="flex:1"></span>
       <button class="btn" id="importMarkers">Import from markers</button>
       <button class="btn" id="addShort">+ Add Short</button>
@@ -550,7 +552,7 @@ function viewShorts() {
 }
 
 function wireShorts() {
-  const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || 20, max: +$("#sgMax").value || 45 });
+  const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || 15, max: +$("#sgMax").value || 30 });
   $("#analyse").onclick = go; const a2 = $("#analyse2"); if (a2) a2.onclick = go;
   $("#addShort").onclick = () => { const s = T.tl ? T.play : (shortsList().at(-1)?.end || 0); addShort(s, s + 30); };
   if ($("#toPremiere")) $("#toPremiere").onclick = e => runInPremiere("shorts-to-markers.jsx", e.currentTarget);
@@ -614,8 +616,8 @@ function refreshShorts() {
     T.sel = null; refreshShorts();
   });
   const ms = $("#moreSug"); if (ms) ms.onclick = () => {
-    const st = T.tl.settings || {};
-    run("timeline", { count: sugList().length + 8, min: st.min || 20, max: st.max || 45 });
+    const st = oldLen(T.tl.settings || {});
+    run("timeline", { count: sugList().length + 8, min: st.min || 15, max: st.max || 30 });
   };
   const aa = $("#acceptAll"); if (aa) aa.onclick = () => {
     const list = [...shortsList(), ...sugs.map((s, k) => ({ name: `Best ${String(shortsList().length + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
@@ -1246,7 +1248,7 @@ async function viewPublish(refresh, opt = {}) {
   <div class="card"><div class="card-head"><div class="grow"><h3>YouTube</h3>
     <p>${Y.account.connected ? `Connected to <b>${esc(Y.account.who || "your channel")}</b>.` : "Not connected yet — sign in once and the app takes it from there."}
       ${Y.fetched ? `<span class="hint">Channel read ${ago(Y.fetched)}.</span>` : ""}</p></div>
-    ${Y.account.connected ? `<button class="btn" id="yRefresh">↻ Refresh from YouTube</button><button class="btn ghost" id="ySwitch">Switch channel</button>` : `<button class="btn primary" id="yConnect">Connect YouTube</button>`}</div>
+    ${Y.account.connected ? `<button class="btn" id="yRefresh">↻ Refresh from YouTube</button><button class="btn ghost" id="ySwitch">Switch channel</button>` : `<button class="btn primary" id="yConnect">Connect YouTube</button>`}${Y.account.connected && !S.remote ? `<button class="btn ghost" id="yStats" title="Views, watch time and what to make more of - opens in your browser">📊 Channel report</button>` : ""}</div>
     ${Y.error ? `<p class="warn">${esc(Y.error)}</p>` : ""}
     ${Y.account.connected ? `<div class="row" style="gap:6px">${Object.entries(counts).map(([k, n]) => `<span class="badge ${(YT_LBL[k] || [])[1] || ""}">${n} ${(YT_LBL[k] || [k])[0]}</span>`).join("")}</div>` : `<p class="hint">Sign-in opens in your browser: pick the Google account that owns the channel, then the channel itself. "Google hasn't verified this app" is expected — it's your own app — click Continue.</p>`}</div>
   ${Y.account.connected ? `
@@ -1291,6 +1293,9 @@ async function viewPublish(refresh, opt = {}) {
     return { path: S.current, indexes: [...pick], visibility: ["plan", "every"].includes(vis) ? "schedule" : vis, mode: vis === "every" ? "every" : "plan",
       start: vis === "every" ? $("#yStart").value : ($("#yFrom").value ? $("#yFrom").value + "T00:00" : null), every: +$("#yEvery").value || 24, settings }; };
   restore(snap);
+  if ($("#yStats")) $("#yStats").onclick = e => { e.target.disabled = true; toast("Reading your channel…", true);
+    api("/api/post/stats", {}).then(r => toast(r.watch_time ? "Channel report opened" : "Report opened - reconnect YouTube (Switch channel) to add watch time"))
+      .catch(err => toast(err.message)).finally(() => e.target.disabled = false); };
   if ($("#yConnect")) $("#yConnect").onclick = () => api("/api/post/yt-connect", {}).then(() => { S.busy = true; openLog(true); poll(0); toast("Finish the sign-in in your browser", true); }).catch(e => toast(e.message));
   if ($("#ySwitch")) $("#ySwitch").onclick = e => { if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = "Click again to sign in as another channel"; return; }
     api("/api/post/yt-connect", { forget: true }).then(() => { S.busy = true; openLog(true); poll(0); toast("Sign in and pick the channel", true); }).catch(err => toast(err.message)); };
@@ -1417,6 +1422,7 @@ function viewLaughs() {
 // ---- Look
 function viewLook() {
   const I = S.info, L = I.config.look, Y = I.config.layout, pv = I.results.previews || [];
+  const BL = { on: false, level: "strong", look: "grawlix", sound: "beep", extra: "", ...(I.config.bleep || {}) };
   const first = I.config.shorts[S.sel] || I.config.shorts[0];
   const sl = (id, label, val, min, max, step, fmt, help) => `<div class="setting"><label>${label} <span id="${id}V">${fmt(val)}</span></label>
     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><p>${help}</p></div>`;
@@ -1442,6 +1448,16 @@ function viewLook() {
       <div class="row" style="margin-top:16px;gap:20px">${col("cText", "Text", L.text)}${col("cHl", "Highlight", L.highlight_col)}${col("cLoud", "Loud lines", L.loud_col)}${col("cScream", "Screams", L.scream_col)}${col("cLaugh", "Laughs", L.laugh_col || "8AE3FF")}</div>
     </div>
     <div class="card">
+      <div class="card-head"><div class="grow"><h3>Censor (bleep)</h3><p>Off unless you turn it on. Curse words become <b>#$@&amp;%!</b> in the captions and a TV beep in the sound. Saved per project.</p></div></div>
+      <div class="settings">
+        ${tg("blOn", "Bleep curse words", BL.on, "Early-2000s reality TV style. Off = captions and sound exactly as said.")}
+        <div class="setting"><label>Which words</label><select class="text" id="blLevel" ${BL.on ? "" : "disabled"}>${[["strong", "Strong ones (f-word, s-word, b-word...)"], ["all", "Everything (also ass, damn, hell, dick...)"]].map(([k, l]) => `<option value="${k}" ${BL.level === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="setting"><label>In the captions</label><select class="text" id="blLook" ${BL.on ? "" : "disabled"}>${[["grawlix", "Symbols  #$@&%!"], ["stars", "Stars  f**k"], ["none", "Leave the words"]].map(([k, l]) => `<option value="${k}" ${BL.look === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="setting"><label>In the sound</label><select class="text" id="blSound" ${BL.on ? "" : "disabled"}>${[["beep", "Beep"], ["mute", "Silence"], ["none", "Leave the sound"]].map(([k, l]) => `<option value="${k}" ${BL.sound === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="setting"><label>Also bleep</label><input class="text" id="blExtra" placeholder="e.g. a name, a running joke" value="${esc(BL.extra || "")}" ${BL.on ? "" : "disabled"}><p>Comma separated. Render a preview to hear it.</p></div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-head"><div class="grow"><h3>Preview</h3><p>Renders a few seconds with the current look.</p></div></div>
       <div class="row">
         <label class="field">From<input class="text time" id="pvAt" value="${esc(store.get("pvAt", first ? tc(first.start) : "6:18"))}"></label>
@@ -1460,6 +1476,9 @@ function viewLook() {
   $("#hl").onchange = e => saveCfg({ look: { highlight: e.target.checked } }, false);
   $("#loudl").onchange = e => saveCfg({ look: { loud_lines: e.target.checked } }, false);
   $("#lkPunct").onchange = e => saveCfg({ look: { punct: e.target.value } }, false);
+  $("#blOn").onchange = e => saveCfg({ bleep: { on: e.target.checked } });          // re-render: enables the options
+  for (const [id, key] of [["blLevel", "level"], ["blLook", "look"], ["blSound", "sound"], ["blExtra", "extra"]])
+    $("#" + id).onchange = e => saveCfg({ bleep: { [key]: e.target.value } }, false);
   for (const [id, key] of [["cText", "text"], ["cHl", "highlight_col"], ["cLoud", "loud_col"], ["cScream", "scream_col"], ["cLaugh", "laugh_col"]])
     $("#" + id).onchange = e => saveCfg({ look: { [key]: e.target.value.slice(1).toUpperCase() } }, false);
   $("#pvAt").onchange = e => store.set("pvAt", e.target.value);

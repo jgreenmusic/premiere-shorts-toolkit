@@ -2,6 +2,27 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.17.0 - 2026-09-28
+
+**Censor mode (off unless you turn it on), tighter Short suggestions, a channel report.**
+
+- **Censor (bleep)** - step 5 · Look has a new card, OFF by default and saved per project. Turned on,
+  curse words become comic-book symbols in the captions ("This %!*#$.") and a 1 kHz TV beep lands on
+  the spoken word (Whisper's own word time, so it hits the word even on hand-typed captions). Choose
+  strong words only or everything, symbols / stars (f**k) / leave the text, beep / silence / leave the
+  sound, plus your own extra words. Tested on Chained Together Pt 2: 88 spoken curses found; the test
+  clip's audio shows a clean 1000 Hz tone exactly on the word and the caption reads with symbols.
+  "shiitake", "hello", "assassin", "Scunthorpe" are left alone.
+- **Suggestions are built for Shorts viewers who swipe in a second or two**: default length 15-30 s
+  (was 20-45 s; untouched old settings move over too), the payoff sits a little under halfway in
+  instead of two thirds, a quiet opening is trimmed to a later pause, and a strong first 2 seconds
+  (the "hook") counts toward the score ("strong opening" in the reasons).
+- **📊 Channel report** (step 8, when YouTube is connected): most viewed Shorts, typical views by
+  length, what's scheduled, and - after reconnecting YouTube once (Switch channel) to allow YouTube
+  Analytics - how much of each Short people actually watch. Opens in your browser.
+- Post Studio engine 0.4.5: titles and tags get "f*cking" instead of the full word (a swear in a
+  title can get a video limited ads); captions and descriptions stay as written.
+
 ## 0.16.5 - 2026-09-27
 
 **Captions read as "LucidaConsole Yea" instead of "Yea".**

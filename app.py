@@ -396,11 +396,11 @@ def command(action, o):
             return c + ["--indexes", ",".join(str(int(i)) for i in o["indexes"])]
         return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
     if action == "markers":
-        return ["markers", p, "--count", str(int(o.get("count", 10))), "--min", str(o.get("min", 20)),
-                "--max", str(o.get("max", 45))] + (["--replace"] if o.get("replace") else [])
+        return ["markers", p, "--count", str(int(o.get("count", 10))), "--min", str(o.get("min", 15)),
+                "--max", str(o.get("max", 30))] + (["--replace"] if o.get("replace") else [])
     if action == "timeline":
-        return ["timeline", p, "--count", str(int(o.get("count", 12))), "--min", str(o.get("min", 20)),
-                "--max", str(o.get("max", 45))]
+        return ["timeline", p, "--count", str(int(o.get("count", 12))), "--min", str(o.get("min", 15)),
+                "--max", str(o.get("max", 30))]
     if action == "speech":
         return ["speech", p]
     if action == "post":
@@ -794,6 +794,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json(posting.status())
                 if u.path == "/api/post/ai" and not self.remote:
                     return self.send_json(posting.start_ai())
+                if u.path == "/api/post/stats" and not self.remote:
+                    posting.engine()
+                    from publish import stats as yt_stats
+                    try:
+                        r = yt_stats.report(log=lambda m: None)
+                    except Exception as e:                     # not connected, offline, quota...
+                        return self.send_json({"error": str(e)}, 400)
+                    os.startfile(r["path"])
+                    return self.send_json(r)
                 if u.path == "/api/post/studio" and not self.remote:
                     open_post_studio()
                     return self.send_json({"ok": True})

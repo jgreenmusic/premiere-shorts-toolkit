@@ -56,6 +56,13 @@ DEFAULTS = {
         "examples": "",           # titles in Julian's own voice, one per line - the AI copies the voice
         "base_tags": "",          # comma list: tags that top every YouTube Short's tags up to the 500-char limit        # {short name: "what happens in this one"} - the best help for visual gags
     },
+    "bleep": {                    # censor mode - OFF unless switched on (bleep.py)
+        "on": False,
+        "level": "strong",        # strong = f/s/b/c-words...; all = also ass, damn, hell, dick...
+        "look": "grawlix",        # captions: grawlix "#$@&%!" / stars "f**k" / none
+        "sound": "beep",          # audio: beep (1 kHz) / mute / none
+        "extra": "",              # more words to bleep, comma separated
+    },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
                                   # made in the app; null = back to the original
 }

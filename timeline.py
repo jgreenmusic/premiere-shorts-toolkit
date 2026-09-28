@@ -5,9 +5,11 @@ pauses (for snapping), screams, laughs and loud lines - everything the timeline 
 
 suggest(): the best Shorts for this video. Every second gets an excitement score
 (loudness, talk, screams, laughs, shouted lines). The biggest moments are "payoffs";
-each suggestion is built around one - about two thirds setup before it, one third
-reaction after - then its start and end are snapped to a pause in the talking (or a
-marker, if one is close), so a Short never starts or stops mid-word.
+each suggestion is built around one - a short setup before it, the reaction after -
+then its start and end are snapped to a pause in the talking (or a marker, if one is
+close), so a Short never starts or stops mid-word. Shorts viewers swipe in the first
+second or two, so a quiet opening is trimmed to a later pause and a strong opening
+(the "hook") scores higher.
 """
 import numpy as np
 
@@ -93,7 +95,16 @@ def _snap(t, pauses, markers, window, prefer_marker=2.0):
     return t, None
 
 
-def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0, floor=0.2):
+HOOK = 2.0               # seconds of opening that decide whether a viewer swipes away
+SETUP = 0.45             # share of a suggestion before its payoff (the rest is the reaction)
+
+
+def _hook(ex, start, bin_):
+    i = int(start // bin_)
+    return float(ex[i:i + max(1, int(round(HOOK / bin_)))].mean()) if i < len(ex) else 0.0
+
+
+def suggest(summ, count=10, length=(15, 30), avoid=(), gap=5.0, floor=0.2):
     """Ranked Short suggestions: [{start, end, score (0-100), why, peak}]."""
     ex = np.array(summ["excite"])
     n = len(ex)
@@ -110,9 +121,15 @@ def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0, floor=0.2):
         t = (peak + 0.5) * summ["bin"]
         if any(a - gap <= t <= b + gap for a, b in taken):
             continue
-        # payoff sits ~2/3 of the way in: setup before, reaction after
-        start, how_s = _snap(max(0.0, t - 0.66 * target), pauses, markers, 4.0)
-        end, how_e = _snap(min(summ["duration"], t + 0.34 * target), pauses, markers, 3.0)
+        # payoff a little under halfway in: short setup before, reaction after
+        start, how_s = _snap(max(0.0, t - SETUP * target), pauses, markers, 4.0)
+        end, how_e = _snap(min(summ["duration"], t + (1 - SETUP) * target), pauses, markers, 3.0)
+        # dead opening: move the start to a later pause, but keep the payoff and the minimum length
+        for p in pauses:
+            if _hook(ex, start, summ["bin"]) >= 0.35:
+                break
+            if start < p <= min(start + 6.0, t - 2.0, end - lo_len):
+                start, how_s = p, "pause"
         if end - start < lo_len:
             end, how_e = _snap(min(summ["duration"], start + lo_len + 1), pauses, markers, 3.0)
         if end - start > hi_len:
@@ -121,7 +138,8 @@ def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0, floor=0.2):
         if end - start < min(lo_len, 8) or any(not (end + gap <= a or start - gap >= b) for a, b in taken):
             continue
         i0, i1 = int(start // summ["bin"]), max(int(start // summ["bin"]) + 1, int(end // summ["bin"]))
-        score = 0.6 * float(ex[i0:i1].mean()) + 0.4 * float(ex[i0:i1].max())
+        hook = _hook(ex, start, summ["bin"])
+        score = 0.5 * float(ex[i0:i1].mean()) + 0.3 * float(ex[i0:i1].max()) + 0.2 * hook
         inside = lambda lst: sum(1 for x in lst if x.get("on", True) and start <= x["start"] < end)
         sc, lg = inside(summ["screams"]), inside(summ["laughs"])
         ll = sum(1 for s, e in summ["loud_lines"] if start <= s < end)
@@ -132,10 +150,12 @@ def suggest(summ, count=10, length=(20, 45), avoid=(), gap=5.0, floor=0.2):
             why.append("%d laugh%s" % (lg, "s" if lg > 1 else ""))
         if ll >= 3:
             why.append("lots of shouting")
+        if hook >= 0.6:
+            why.append("strong opening")
         if not why:
             why.append("loud, busy moment")
         out.append(dict(start=round(start, 2), end=round(end, 2), peak=round(t, 1),
-                        score=int(round(100 * score)), why=", ".join(why),
+                        score=int(round(100 * score)), hook=int(round(100 * hook)), why=", ".join(why),
                         snapped="%s / %s" % (how_s or "free", how_e or "free")))
         taken.append((start, end))
     out.sort(key=lambda s: -s["score"])

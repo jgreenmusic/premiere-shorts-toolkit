@@ -39,9 +39,9 @@ for pkg in ("faster_whisper", "ctranslate2", "onnxruntime", "av", "tokenizers", 
     binaries += b
     hidden += h
 hidden += ["app", "shorts", "captions", "prproj", "pipeline", "config", "screams", "laughs", "sounds",
-           "style", "render", "timeline", "runtime", "remote", "posting", "youtube_step", "clr",
+           "style", "render", "timeline", "bleep", "runtime", "remote", "posting", "youtube_step", "clr",
            # the Post Studio engine
-           "poststudio", "generate", "llm", "quick", "store", "publish", "publish.accounts", "publish.net", "publish.youtube",
+           "poststudio", "generate", "llm", "quick", "store", "publish", "publish.accounts", "publish.net", "publish.youtube", "publish.stats",
            "publish.tiktok", "publish.meta", "publish.postiz", "publish.studio", "analyzers", "analyzers.probe",
            "analyzers.document", "analyzers.speech", "analyzers.sound", "analyzers.visual", "analyzers.understand"]
 excludes = ["torch", "torchaudio", "torchlibrosa", "librosa", "matplotlib", "panns_inference", "numba",

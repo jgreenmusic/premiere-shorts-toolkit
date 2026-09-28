@@ -10,6 +10,7 @@ import shutil
 import subprocess
 
 from prproj import TICKS
+import bleep
 import style
 
 W, H = 1080, 1920
@@ -99,8 +100,14 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
         fl.append("[%d:a]aresample=48000,asetpts=PTS-STARTPTS,adelay=%d:all=1[a%d]" % (idx, ms, len(alabels)))
         alabels.append("[a%d]" % len(alabels))
     if alabels:
-        fl.append("%samix=inputs=%d:normalize=0:duration=longest,apad,atrim=0:%.4f[acat]"
+        fl.append("%samix=inputs=%d:normalize=0:duration=longest,apad,atrim=0:%.4f[amix]"
                   % ("".join(alabels), len(alabels), b - a))
+        # censor mode (off unless switched on): beep or mute each spoken curse
+        bl = bleep.settings(ctx.cfg)
+        sp = bleep.spans(getattr(ctx, "words", None), bl, a, b)
+        fl += bleep.audio_filter("[amix]", "[acat]", sp, bl.get("sound"), b - a)
+        if sp:
+            log("  bleeping %d word(s)" % len(sp))
 
     # captions for this range, times shifted to start at 0
     ass = os.path.join(work, "short.ass")
