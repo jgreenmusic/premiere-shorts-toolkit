@@ -2,6 +2,14 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.16.3 - 2026-09-27
+
+**Publish is never a mystery grey button.** Julian: "why is the publish button greyed out? I just
+set my time preferences" - it only enabled after Preview, and any change (like the times) reset it.
+Now it's always clickable when Shorts are ticked: "Preview & publish N" runs the preview first and
+fills the Will do column, then "Publish N" (click twice) sends it. The hint under it says which step
+you're on.
+
 ## 0.16.2 - 2026-09-27
 
 **Clicking around no longer "refreshes" the app.**

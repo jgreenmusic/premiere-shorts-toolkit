@@ -1284,8 +1284,8 @@ async function viewPublish(refresh, opt = {}) {
     </tbody></table></div>
     <div class="toolbar" style="margin-top:12px"><span class="grow"><b>${pick.size}</b> selected</span>
       <button class="btn" id="yPreview" ${pick.size ? "" : "disabled"}>Preview</button>
-      <button class="btn primary" id="yApply" ${pick.size && S.ytRows.rows ? "" : "disabled"} title="Preview first">Publish ${pick.size}</button></div>
-    <p class="hint" style="margin:8px 0 0">Preview shows exactly what each Short gets and when — nothing is sent until you press Publish.</p></div>` : ""}`;
+      <button class="btn primary" id="yApply" ${pick.size ? "" : "disabled"}>${S.ytRows.rows ? `Publish ${(S.ytRows.rows || []).filter(x => x.action !== "skip").length}` : `Preview &amp; publish ${pick.size}`}</button></div>
+    <p class="hint" style="margin:8px 0 0">${S.ytRows.rows ? "Check the <b>Will do</b> column, then press Publish (twice) — nothing is sent before that." : "Publish first shows you what each Short gets and when (the <b>Will do</b> column) — nothing is sent until you confirm."}</p></div>` : ""}`;
   const body = () => { const vis = ($("[name=yvis]:checked") || {}).value || "plan", settings = {};
     $$("[data-yset]").forEach(el => settings[el.dataset.yset] = el.type === "checkbox" ? el.checked : el.value);
     return { path: S.current, indexes: [...pick], visibility: ["plan", "every"].includes(vis) ? "schedule" : vis, mode: vis === "every" ? "every" : "plan",
@@ -1308,10 +1308,10 @@ async function viewPublish(refresh, opt = {}) {
   $$("[data-pall]").forEach(el => el.onclick = () => { S.ySched[+el.dataset.pall].days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]; saveTimes(); });
   $$("[data-pdel]").forEach(el => el.onclick = () => { S.ySched.splice(+el.dataset.pdel, 1); saveTimes(); });
   $("#yAddTime").onclick = () => { S.ySched.push({ time: "16:00", days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }); saveTimes(); };
-  $$("[name=yvis], #yEvery, #yStart, #yFrom, [data-yset]").forEach(el => el.onchange = () => { S.ytRows.rows = null; $("#yApply").disabled = true; });
+  $$("[name=yvis], #yEvery, #yStart, #yFrom, [data-yset]").forEach(el => el.onchange = () => { S.ytRows.rows = null; const a = $("#yApply"); a.textContent = `Preview & publish ${pick.size}`; delete a.dataset.armed; });
   // ticking a box only changes the count and the buttons - no redraw
   const pickChanged = () => { S.ytRows.rows = null; $$("#view td:last-child").forEach(td => { if (td.closest("tbody")) td.innerHTML = ""; });
-    $("#view .toolbar .grow").innerHTML = `<b>${pick.size}</b> selected`; $("#yPreview").disabled = !pick.size; const a = $("#yApply"); a.disabled = true; a.textContent = `Publish ${pick.size}`; delete a.dataset.armed; };
+    $("#view .toolbar .grow").innerHTML = `<b>${pick.size}</b> selected`; $("#yPreview").disabled = !pick.size; const a = $("#yApply"); a.disabled = !pick.size; a.textContent = `Preview & publish ${pick.size}`; delete a.dataset.armed; };
   $$("[data-ypick]").forEach(cb => cb.onchange = () => { cb.checked ? pick.add(+cb.dataset.ypick) : pick.delete(+cb.dataset.ypick); pickChanged(); });
   $("#yAll").onclick = () => { Y.shorts.filter(x => x.written && x.rendered && ["draft", "not_uploaded", "private", "unlisted"].includes(x.youtube)).forEach(x => pick.add(x.i));
     $$("[data-ypick]").forEach(cb => cb.checked = pick.has(+cb.dataset.ypick)); pickChanged(); };
@@ -1321,7 +1321,9 @@ async function viewPublish(refresh, opt = {}) {
       const r = await api("/api/post/yt-preview", bb); S.ytRows.rows = r.rows; S.ytRows.body = bb;
       const n = r.rows.filter(x => x.action !== "skip").length; toast(`${n} Short${n === 1 ? "" : "s"} ready — check the "Will do" column, then Publish`, true); viewPublish(false, { cached: true }); }
     catch (err) { toast(err.message); b.disabled = false; b.textContent = "Preview"; } };
-  $("#yApply").onclick = async e => { const b = e.target; const n = (S.ytRows.rows || []).filter(x => x.action !== "skip").length;
+  $("#yApply").onclick = async e => { const b = e.target;
+    if (!S.ytRows.rows) return $("#yPreview").click();          // not previewed yet: preview first, then confirm
+    const n = (S.ytRows.rows || []).filter(x => x.action !== "skip").length;
     if (!n) return toast("Nothing to publish in the selection.");
     if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = `Click again — publishes ${n} to YouTube`; return; }
     try { await api("/api/post/yt-apply", S.ytRows.body); S.ytRows.rows = null; S.ytPick = null; S.busy = true; openLog(true); poll(0); }
