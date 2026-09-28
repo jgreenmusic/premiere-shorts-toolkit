@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -437,7 +437,8 @@ def cmd_post(args):
             proc = subprocess.Popen(posting.write_cmd(video, tr if nseg else None, pc.get("subject", ""),
                                                       notes_by_short.get(s["name"], ""), plats, fresh=args.fresh,
                                                       background=pc.get("notes", ""), siblings=sib, angle=angle,
-                                                      avoid=pc.get("avoid", ""), clean=bool(pc.get("clean"))),
+                                                      avoid=pc.get("avoid", ""), clean=bool(pc.get("clean")),
+                                                      quick=pc.get("detail", "quick") != "full", base_tags=pc.get("base_tags", "")),
                                     cwd=posting.home(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                     encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             errs = []

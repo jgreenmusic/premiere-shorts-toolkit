@@ -137,7 +137,7 @@ def plain(posts):
 
 
 def write_cmd(video, transcript, subject="", notes="", platform_ids=None, fresh=False, background="", siblings=None, angle=None,
-              avoid="", clean=False):
+              avoid="", clean=False, quick=True, base_tags=""):
     """The command that writes posts for one Short (slow: runs the local AI model).
     notes = about THIS Short; background = the channel (same for every Short);
     siblings = a JSON file of the other Shorts' posts so this one doesn't repeat them."""
@@ -152,6 +152,10 @@ def write_cmd(video, transcript, subject="", notes="", platform_ids=None, fresh=
         a += ["--avoid", avoid]
     if clean:
         a.append("--clean")
+    if quick:
+        a.append("--quick")
+    if base_tags:
+        a += ["--base-tags", base_tags]
     if transcript:
         a += ["--transcript", transcript]
     if subject:

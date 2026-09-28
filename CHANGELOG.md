@@ -2,6 +2,24 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.15.0 - 2026-09-27
+
+**Writing posts: ~7 s a Short instead of ~95 s, YouTube tags filled to the 500-character max.**
+
+Problem: "why does it take hours to write simple stuff and make tags". Measured ~95 s a Short
+(~50 min for 32). Two causes:
+- The AI model was RELOADED 2+ times per Short: frame reading asked for an 8K context, the summary
+  and writing for 16K, and Ollama reloads the whole 7.6 GB model when that changes. Now one size.
+- ~10 model calls per Short (4 frames, a summary, 4 platforms, rewrites).
+
+- New **Quick** mode (default, step 7 "How much to write"): ONE model call per Short gives a
+  title, one line, 4 hashtags and ~35 tags; TikTok/Instagram/Facebook get the one-liner, hooks and
+  cover text get the title as placeholders. Sibling / never-mention / keep-it-clean checks still
+  apply. **Detailed** (the old way) is still there.
+- YouTube tags are topped up to the 500-character limit: the AI's tags first, then **Base tags**
+  (new field) and automatic ones from the Subject ("chained together funny moments", "...gameplay").
+- Measured on Pt 2 Short 02: 7.1 s, 31 tags, 500/500 characters.
+
 ## 0.14.0 - 2026-09-27
 
 **Every Short's post is different - and about that Short.**

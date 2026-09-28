@@ -50,7 +50,10 @@ DEFAULTS = {
         "auto": False,            # after a render: write posts + schedule into the posting plan
         "short_notes": {},
         "avoid": "",              # comma list: names/words that must never appear in a post (e.g. friends' real names)
-        "clean": False,           # no swearing in post text        # {short name: "what happens in this one"} - the best help for visual gags
+        "clean": False,           # no swearing in post text
+        "detail": "quick",        # quick = one AI call a Short (title, one line, hashtags, tags to the max, ~10 s);
+                                  # full = frames + summary + a write per platform (~95 s a Short)
+        "base_tags": "",          # comma list: tags that top every YouTube Short's tags up to the 500-char limit        # {short name: "what happens in this one"} - the best help for visual gags
     },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
                                   # made in the app; null = back to the original

@@ -1149,7 +1149,9 @@ async function viewPost() {
       <label class="field">Channel background <span class="hint">true for every Short (who's in it, schedule) — used sparingly, never as the opener</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:10px 16px;margin-top:10px;align-items:end">
       <label class="field">Never mention <span class="hint">names/words kept out of every post, even quotes — e.g. friends' real names</span><input class="text" id="pAvoid" value="${esc(C.avoid || "")}" placeholder="e.g. Zach, Chris"></label>
-      <label class="row" style="gap:6px;font-size:14px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label></div>
+      <label class="row" style="gap:6px;font-size:14px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label>
+      <label class="field">Base tags <span class="hint">top up every Short's YouTube tags to the 500-character max (the game name + variants are added automatically)</span><input class="text" id="pBase" value="${esc(C.base_tags || "")}" placeholder="e.g. poosic, co op horror, funny fails"></label>
+      <label class="field">How much to write<select class="text" id="pDetail"><option value="quick" ${(C.detail || "quick") === "quick" ? "selected" : ""}>Quick — title, one line, hashtags, max tags (~10 s a Short)</option><option value="full" ${C.detail === "full" ? "selected" : ""}>Detailed — looks at frames, writes each platform (~95 s a Short)</option></select></label></div>
     <div class="row" style="margin-top:10px;gap:6px">${plats.map(pl => `<button class="btn sm ${on.includes(pl.id) ? "primary" : ""}" data-pplat="${pl.id}">${esc(pl.name)}</button>`).join("")}</div>
     <details style="margin-top:10px"><summary class="hint">Upload settings (made for kids, AI label, TikTok privacy, category…) — used for every Short</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
@@ -1173,6 +1175,8 @@ async function viewPost() {
   $("#pNotes").onchange = e => pc({ notes: e.target.value.trim() });
   $("#pAvoid").onchange = e => pc({ avoid: e.target.value.split(",").map(x => x.trim()).filter(Boolean).join(", ") });
   $("#pClean").onchange = e => pc({ clean: e.target.checked });
+  $("#pBase").onchange = e => pc({ base_tags: e.target.value.split(",").map(x => x.trim()).filter(Boolean).join(", ") });
+  $("#pDetail").onchange = e => pc({ detail: e.target.value });
   $("#pAuto").onchange = e => pc({ auto: e.target.checked }).then(() => toast(e.target.checked ? "Autopilot on: renders get posts + a place in the posting plan" : "Autopilot off", true));
   $$("[data-pplat]").forEach(b => b.onclick = () => { const id = b.dataset.pplat; pc({ platforms: on.includes(id) ? on.filter(x => x !== id) : [...on, id] }); });
   $("#pSetSave").onclick = () => { const set = JSON.parse(JSON.stringify(C.settings || {}));
