@@ -261,7 +261,7 @@ def yt_view(path, refresh=False):
     if acc.get("connected"):
         if refresh or "list" not in UPLOADS:
             try:
-                UPLOADS.update(list=E["studio"].list_uploads(100), when=time.time())
+                UPLOADS.update(list=E["studio"].list_uploads(5000), when=time.time())   # ALL uploads: at 100 an older draft fell off the end and would have been uploaded twice
             except Exception as e:
                 out["error"] = "Couldn't read your channel: %s" % e
         uploads = UPLOADS.get("list")

@@ -2,6 +2,21 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.16.4 - 2026-09-27
+
+**Step 8 can't upload a Short twice, and doesn't lose tags.**
+
+Found while scheduling the 21 V0.4 drafts after the 32 Pt 2 Shorts:
+- Step 8 read only the newest 100 uploads. With 117 on the channel, the "Best 12" draft fell off
+  the end and the preview planned to UPLOAD it again (a duplicate). Now it reads all of them.
+- Even then, YouTube's uploads list was stale right after the 32 bulk uploads: it listed 2 videos
+  twice and was missing that draft. The channel is now read from the uploads list AND a search of
+  your own videos, de-duplicated - the draft was found and filled, 0 uploads.
+- 1 of 21 updates came back with all 27 tags silently dropped; the same request again kept them.
+  Publishing now checks the answer and resends once when tags vanish (Post Studio 0.4.4).
+- Result: 21 drafts filled + scheduled daily at 12:00 PM, Oct 30 - Nov 19, right after the Pt 2
+  run (Sep 28 - Oct 29); checked on YouTube: title, description, tags and time on all 21.
+
 ## 0.16.3 - 2026-09-27
 
 **Publish is never a mystery grey button.** Julian: "why is the publish button greyed out? I just
