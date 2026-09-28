@@ -48,6 +48,9 @@ DEFAULTS = {
         "platforms": ["youtube_shorts", "tiktok", "instagram_reels", "facebook"],
         "settings": {},           # {platform: {upload setting: value}} e.g. made for kids, TikTok privacy
         "auto": False,            # after a render: write posts + schedule into the posting plan
+        "short_notes": {},
+        "avoid": "",              # comma list: names/words that must never appear in a post (e.g. friends' real names)
+        "clean": False,           # no swearing in post text        # {short name: "what happens in this one"} - the best help for visual gags
     },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
                                   # made in the app; null = back to the original

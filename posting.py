@@ -111,17 +111,47 @@ def transcript_file(project_path, start, end):
     """The Short's captions (with your caption edits), times from the Short's own start."""
     import pipeline
     caps = pipeline.caption_list(project_path, start, end)["captions"]
-    segs = [[round(max(0.0, c["start"] - start), 2), round(min(end, c["end"]) - start, 2), c["text"]]
-            for c in caps if not c["hidden"] and c["text"].strip()]
+    segs = []
+    for c in caps:
+        if c["hidden"] or not c["text"].strip():
+            continue
+        a, b, t = round(max(0.0, c["start"] - start), 2), round(min(end, c["end"]) - start, 2), c["text"].strip()
+        # Shorts captions are 1-3 word chunks; joined back into sentences so quotes come out whole
+        # (otherwise the AI quoted "Well," "at least it" "starts us right" as separate lines)
+        if segs and a - segs[-1][1] <= 0.8 and not segs[-1][2].endswith((".", "?", "!")) and len(segs[-1][2].split()) < 25:
+            segs[-1][1], segs[-1][2] = b, segs[-1][2] + " " + t
+        else:
+            segs.append([a, b, t])
     fd, path = tempfile.mkstemp(prefix="short-transcript-", suffix=".json")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(segs, f, ensure_ascii=False)
     return path, len(segs)
 
 
-def write_cmd(video, transcript, subject="", notes="", platform_ids=None, fresh=False):
-    """The command that writes posts for one Short (slow: runs the local AI model)."""
-    a = ["from-short", video, "--platforms", ",".join(platform_ids or PLATFORMS), "--json"]
+ANGLES = ["quote", "reaction", "question", "deadpan", "tease", "story", "hot_take"]
+
+
+def plain(posts):
+    """{platform: {field: {value, warnings}}} -> {platform: {field: value}} (what siblings look like)."""
+    return {pid: {k: v.get("value") if isinstance(v, dict) else v for k, v in (f or {}).items()} for pid, f in (posts or {}).items()}
+
+
+def write_cmd(video, transcript, subject="", notes="", platform_ids=None, fresh=False, background="", siblings=None, angle=None,
+              avoid="", clean=False):
+    """The command that writes posts for one Short (slow: runs the local AI model).
+    notes = about THIS Short; background = the channel (same for every Short);
+    siblings = a JSON file of the other Shorts' posts so this one doesn't repeat them."""
+    a = ["from-short", video, "--platforms", ",".join(platform_ids or PLATFORMS), "--json", "--no-screen-text"]
+    if background:
+        a += ["--background", background]
+    if siblings:
+        a += ["--siblings", siblings]
+    if angle:
+        a += ["--angle", angle]
+    if avoid:
+        a += ["--avoid", avoid]
+    if clean:
+        a.append("--clean")
     if transcript:
         a += ["--transcript", transcript]
     if subject:

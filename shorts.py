@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.13.1"
+__version__ = "0.14.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -413,13 +413,31 @@ def cmd_post(args):
     if not todo:
         sys.exit("No rendered Shorts to post - render them in step 6 first.")
     project = os.path.abspath(args.project)
+    import tempfile
+    # what the other Shorts already say, so this one reads differently. Shorts being rewritten
+    # (--fresh) don't count until they're written again in this run.
+    written = {}
+    redo = {os.path.normcase(os.path.normpath(v)) for _, _, v in todo} if args.fresh else set()
+    rendered = [os.path.join(out, safe_name(x["name"]) + ".mp4") for x in ctx.cfg["shorts"]]
+    for r in posting.show([v for v in rendered if os.path.exists(v)]):
+        k = os.path.normcase(os.path.normpath(r["file"]))
+        if r.get("posts") and k not in redo:
+            written[k] = posting.plain(r["posts"])
+    notes_by_short = pc.get("short_notes") or {}
     for n, (i, s, video) in enumerate(todo, 1):
         print("[%d/%d] %s" % (n, len(todo), s["name"]))
         tr, nseg = posting.transcript_file(args.project, float(s["start"]), float(s["end"]))
+        me = os.path.normcase(os.path.normpath(video))
+        fd, sib = tempfile.mkstemp(prefix="short-siblings-", suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump([p for k, p in written.items() if k != me], f, ensure_ascii=False)
+        angle = posting.ANGLES[i % len(posting.ANGLES)]
         try:
-            print("  %d caption lines as the transcript; writing %s" % (nseg, ", ".join(plats)))
-            proc = subprocess.Popen(posting.write_cmd(video, tr if nseg else None, pc.get("subject", ""), pc.get("notes", ""),
-                                                      plats, fresh=args.fresh),
+            print("  %d caption lines as the transcript; angle: %s; writing %s" % (nseg, angle, ", ".join(plats)))
+            proc = subprocess.Popen(posting.write_cmd(video, tr if nseg else None, pc.get("subject", ""),
+                                                      notes_by_short.get(s["name"], ""), plats, fresh=args.fresh,
+                                                      background=pc.get("notes", ""), siblings=sib, angle=angle,
+                                                      avoid=pc.get("avoid", ""), clean=bool(pc.get("clean"))),
                                     cwd=posting.home(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                     encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             errs = []
@@ -437,7 +455,9 @@ def cmd_post(args):
             res = json.loads(out_ or "{}")
         finally:
             os.remove(tr)
+            os.remove(sib)
         posts = res.get("posts") or {}
+        written[me] = posting.plain({pid: (p or {}).get("fields") for pid, p in posts.items()})
         for pid in plats:
             f = (posts.get(pid) or {}).get("fields") or {}
             if "title" in f:

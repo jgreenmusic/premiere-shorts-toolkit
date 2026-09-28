@@ -2,6 +2,35 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.14.0 - 2026-09-27
+
+**Every Short's post is different - and about that Short.**
+
+Problem (first real run, Pt 2): posts read alike. "The struggle is real in Chained Together" was the
+title of two Shorts; most TikTok/Facebook posts opened with "Me and two friends..."; posts described
+scenery ("industrial settings", "first-person or third-person?") instead of the moment; one title was
+"WE WENT THROUGH", read off the Short's own burned-in captions; quotes came out as caption chunks
+("Well," "at least it" "starts us right"); a spoken real name ("Zach") and swearing got quoted; and
+editing captions never re-wrote a Short that already had posts.
+
+- Each Short is written knowing what the other Shorts in the project already say: their first lines
+  and hashtags are passed in, and a title/opening that still comes out too close (same first three
+  words, or mostly the same wording) is rewritten automatically, up to twice.
+- A different angle per Short, in rotation: quote, reaction, question, deadpan, tease, story, hot take.
+- Built around the Short's own lines and sounds (e.g. laughter), not the scenery.
+- "Notes" is now **Channel background**: true for every Short, never the opener, at most one field.
+- New **What happens in this one** note per Short (side panel) - the fix for visual gags the frames miss.
+- Text read off the frames is ignored for Shorts (it's their own captions).
+- Caption chunks are joined into sentences before the AI sees them, so quotes come out whole.
+- **Never mention** (names/words kept out of every post, even quotes) and **Keep it clean** (no
+  swearing, stretched spellings included). A post that breaks either is rewritten.
+- A Short whose captions changed since its posts were written is looked at again and rewritten
+  automatically. **Write all again** redoes every Short from scratch.
+
+Tested on Pt 2 Shorts 01-05 with the 12B: five different angles, no repeated openings, one too-close
+title caught and rewritten ("That fall hit different"); Short 01 with Never mention = Zach + clean:
+every post that quoted the swearing was rewritten, no "Zach".
+
 ## 0.13.1 - 2026-09-27
 
 **"Write posts" did nothing you could see.**

@@ -1126,6 +1126,8 @@ async function viewPost() {
   const side = !cur ? `<div class="card"><p class="hint">Render some Shorts first (step 6) — posts are written from the finished videos.</p></div>`
     : `<div class="card"><div class="card-head"><div class="grow"><h3>${esc(cur.name)}</h3><p>${cur.subject ? "About: " + esc(cur.subject) + " · " : ""}edit anything, then schedule.</p></div></div>
       <video controls playsinline src="${media(cur.video)}#t=0.01" style="width:100%;max-height:340px;background:#000;border-radius:10px"></video>
+      <label class="field" style="margin-top:10px">What happens in this one <span class="hint">the AI only sees 4 frames — tell it the gag (then Write this one again)</span>
+        <textarea class="text" id="pShortNote" rows="2" placeholder="e.g. Rojo drags us all off the train right at the end">${esc((C.short_notes || {})[cur.name] || "")}</textarea></label>
       ${on.map(pid => { const pl = plats.find(x => x.id === pid), post = cur.posts[pid];
         if (!pl) return "";
         if (!post) return `<div style="margin-top:14px"><b>${esc(pl.name)}</b><p class="hint">Not written yet — press <b>Write posts</b>.</p></div>`;
@@ -1144,7 +1146,10 @@ async function viewPost() {
     <button class="btn" id="openPS">Accounts, posting plan &amp; queue →</button></div>
     <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px">
       <label class="field">Subject <span class="hint">the game/topic, named exactly</span><input class="text" id="pSubject" value="${esc(C.subject)}" placeholder="e.g. Chained Together"></label>
-      <label class="field">Notes the AI can trust <span class="hint">who's in it, your channel, schedule…</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
+      <label class="field">Channel background <span class="hint">true for every Short (who's in it, schedule) — used sparingly, never as the opener</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:10px 16px;margin-top:10px;align-items:end">
+      <label class="field">Never mention <span class="hint">names/words kept out of every post, even quotes — e.g. friends' real names</span><input class="text" id="pAvoid" value="${esc(C.avoid || "")}" placeholder="e.g. Zach, Chris"></label>
+      <label class="row" style="gap:6px;font-size:14px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label></div>
     <div class="row" style="margin-top:10px;gap:6px">${plats.map(pl => `<button class="btn sm ${on.includes(pl.id) ? "primary" : ""}" data-pplat="${pl.id}">${esc(pl.name)}</button>`).join("")}</div>
     <details style="margin-top:10px"><summary class="hint">Upload settings (made for kids, AI label, TikTok privacy, category…) — used for every Short</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
@@ -1155,7 +1160,8 @@ async function viewPost() {
     <div class="toolbar" style="margin-top:12px">
       <button class="btn primary" id="pWrite" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write posts for ${rendered.length} rendered Short${rendered.length === 1 ? "" : "s"}</button>
       <button class="btn" id="pWriteSched" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write + schedule all into the posting plan</button>
-      <span class="hint">Written ones are reused — only new Shorts get written. Needs Ollama running (the local AI).</span></div></div>
+      <button class="btn" id="pRedoAll" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"} title="Write every Short again from scratch, each different from the others">Write all again</button>
+      <span class="hint">Written ones are reused unless their captions changed. Each Short gets a different angle and never repeats another's opening.</span></div></div>
   <div class="split player-split" style="grid-template-columns:minmax(0,1fr) 420px">
     <div class="card"><div class="scroll" style="max-height:640px"><table><thead><tr><th>Short</th><th>Posts</th></tr></thead><tbody>
       ${P.shorts.map(x => `<tr class="${x.i === S.postSel ? "sel" : ""}" data-psel="${x.i}" style="cursor:${x.rendered ? "pointer" : "default"}${x.rendered ? "" : ";opacity:.55"}"><td><b>${esc(x.name)}</b><div class="hint">${x.seconds}s</div></td><td>${postCell(x)}</td></tr>`).join("")}
@@ -1165,6 +1171,8 @@ async function viewPost() {
   $("#openPS").onclick = () => api("/api/post/studio", {}).then(() => toast("Opening Post Studio > Publish", true)).catch(e => toast(e.message));
   $("#pSubject").onchange = e => pc({ subject: e.target.value.trim() });
   $("#pNotes").onchange = e => pc({ notes: e.target.value.trim() });
+  $("#pAvoid").onchange = e => pc({ avoid: e.target.value.split(",").map(x => x.trim()).filter(Boolean).join(", ") });
+  $("#pClean").onchange = e => pc({ clean: e.target.checked });
   $("#pAuto").onchange = e => pc({ auto: e.target.checked }).then(() => toast(e.target.checked ? "Autopilot on: renders get posts + a place in the posting plan" : "Autopilot off", true));
   $$("[data-pplat]").forEach(b => b.onclick = () => { const id = b.dataset.pplat; pc({ platforms: on.includes(id) ? on.filter(x => x !== id) : [...on, id] }); });
   $("#pSetSave").onclick = () => { const set = JSON.parse(JSON.stringify(C.settings || {}));
@@ -1174,8 +1182,11 @@ async function viewPost() {
     try { const r = await api("/api/post/ai", {}); toast(r.ok ? "The AI is running - write away" : r.message, r.ok); } catch (err) { toast(err.message); } viewPost(); };
   $("#pWrite").onclick = () => run("post", { platforms: on });
   $("#pWriteSched").onclick = () => run("post", { platforms: on, schedule: "next" });
+  $("#pRedoAll").onclick = e => { if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = "Click again — rewrites all " + rendered.length; return; } run("post", { platforms: on, fresh: true }); };
   $$("[data-psel]").forEach(tr => tr.onclick = () => { if (P.shorts[+tr.dataset.psel].rendered) { S.postSel = +tr.dataset.psel; viewPost(); } });
   if (!cur) return;
+  if ($("#pShortNote")) $("#pShortNote").onchange = e => { const sn = { ...(C.short_notes || {}) }; if (e.target.value.trim()) sn[cur.name] = e.target.value.trim(); else delete sn[cur.name];
+    saveCfg({ post: { ...C, short_notes: sn } }, false).then(() => { C.short_notes = sn; toast("Saved — press Write this one again to use it", true); }).catch(err => toast(err.message)); };
   if ($("#pRewrite")) $("#pRewrite").onclick = () => run("post", { platforms: on, indexes: [cur.i], fresh: true });
   $$("[data-pwhen]").forEach(sel => sel.onchange = () => { const at = $(`[data-pat="${sel.dataset.pwhen}"]`); at.style.display = sel.value === "at" ? "" : "none";
     if (!at.value) { const d = new Date(Date.now() + 3600e3); at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); } });
