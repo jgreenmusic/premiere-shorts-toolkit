@@ -2,6 +2,16 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.16.5 - 2026-09-27
+
+**Captions read as "LucidaConsole Yea" instead of "Yea".**
+
+Premiere now saves an extra `AnimationType` style string in front of the font name in every caption
+(`[AnimationType, LucidaConsole, text]` instead of `[LucidaConsole, text]`). The reader treated the
+first string as the font, so it removed `AnimationType` and left the font name glued to every caption.
+It now takes the text as the LAST string of each block and strips every style string before it.
+Checked on every project in Desktop\Projects: 29,554 captions, both layouts, no font name left in any.
+
 ## 0.16.4 - 2026-09-27
 
 **Step 8 can't upload a Short twice, and doesn't lose tags.**

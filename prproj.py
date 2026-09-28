@@ -149,12 +149,14 @@ class Project:
                             captions.append(self._caption(iid))
         audio.sort(key=lambda a: (a.start, a.track))
         captions.sort(key=lambda c: c.start)
-        # The font name is the first string of every styled block; learn it from
-        # the blocks that have text too, then strip it everywhere.
-        fonts = {b[0] for c in captions for b in c._strings if len(b) > 1}
+        # A styled block is style strings then the text, text LAST: [font, text]
+        # or, since Premiere added caption animation, [AnimationType, font, text].
+        # Learn the style strings from multi-string blocks, strip them everywhere.
+        style = {s for c in captions for b in c._strings if len(b) > 1 for s in b[:-1]}
         for i, c in enumerate(captions):
             c.index = i
-            c.text = " ".join(s for b in c._strings for s in b if s not in fonts).strip()
+            c.text = " ".join(b[-1] if len(b) > 1 else b[0] for b in c._strings
+                              if b and (len(b) > 1 or b[0] not in style)).strip()
             del c._strings
         video.sort(key=lambda v: (v.start, v.track))
         return Sequence(name, audio, captions, cap_frame, video, self._markers(seq))
