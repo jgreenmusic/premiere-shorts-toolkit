@@ -2,6 +2,21 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.16.1 - 2026-09-27
+
+**Posting times: any way you write them, on the days you choose.**
+
+Problem: "it's not accepting my specified posting times" - the box only took 24-hour "16:00";
+"4:00 PM" or "4pm" was silently dropped (nothing saved, no message). Also asked for: "post on a
+custom set of days at custom times".
+- Step 8 has a **posting schedule** editor: rows of a time (a time picker) + the days it posts on
+  (Mon..Sun buttons, "every day", remove, "+ Add a time"). E.g. 4:00 PM Mon-Fri + 12:00 PM Sat-Sun.
+- Times are read however they're written: 16:00, 4pm, 4:00 PM, 4:30p, noon. Anything unreadable
+  gets a message saying so instead of vanishing.
+- Stored as "16:00 mon tue wed thu fri" (plain "16:00" = every day, so old plans still work);
+  the queue's "next free time" follows the days too (Post Studio 0.4.3).
+- Tested: weekdays 4 PM + weekends noon from Oct 2 -> Fri 4 PM, Sat noon, Sun noon, Mon 4 PM...
+
 ## 0.16.0 - 2026-09-27
 
 **One program: Post Studio is built in. New step 8 · Publish puts the Shorts on YouTube.**

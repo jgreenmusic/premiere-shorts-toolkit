@@ -1226,9 +1226,16 @@ async function viewPublish(refresh) {
   ${Y.account.connected ? `
   <div class="card"><div class="card-head"><div class="grow"><h3>When</h3><p>YouTube releases scheduled Shorts itself — the PC can be off. Times already taken on your channel are skipped.</p></div></div>
     <div style="display:grid;gap:10px">
-      <label class="row" style="gap:8px"><input type="radio" name="yvis" value="plan" ${set.visibility === "schedule" && set.mode === "plan" ? "checked" : ""}> My posting times:
-        <input class="text" id="yTimes" value="${esc(Y.plan.join(", "))}" placeholder="e.g. 16:00  or  12:00, 18:00" style="width:200px"> <span class="hint">every day</span>
-        <span class="hint">from</span><input class="text" type="date" id="yFrom" value="${esc((set.start || startVal).slice(0, 10))}" style="width:auto"></label>
+      <div><label class="row" style="gap:8px"><input type="radio" name="yvis" value="plan" ${set.visibility === "schedule" && set.mode === "plan" ? "checked" : ""}> My posting schedule
+          <span class="hint">${Y.plan_label ? esc(Y.plan_label) : "— none yet, add a time below"}</span>
+          <span class="hint">starting</span><input class="text" type="date" id="yFrom" value="${esc((set.start || startVal).slice(0, 10))}" style="width:auto"></label>
+        <div id="yPlan" style="display:grid;gap:6px;margin:8px 0 0 26px">
+          ${(S.ySched || (S.ySched = (Y.plan_rows || []).map(r => ({ ...r })))).map((r, k) => `<div class="row" style="gap:6px">
+            <input class="text" type="time" data-ptime="${k}" value="${esc(r.time)}" style="width:auto">
+            ${["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map(d => `<button class="btn sm ${r.days.includes(d) ? "primary" : ""}" data-pday="${k}|${d}">${d[0].toUpperCase() + d.slice(1, 3)}</button>`).join("")}
+            <button class="btn sm ghost" data-pall="${k}">every day</button><button class="btn sm ghost" data-pdel="${k}" title="Remove">✕</button></div>`).join("")}
+          <div class="row" style="gap:6px"><button class="btn sm" id="yAddTime">+ Add a time</button><span class="hint">each row: a time, and the days it posts on</span></div>
+        </div></div>
       <label class="row" style="gap:8px"><input type="radio" name="yvis" value="every" ${set.visibility === "schedule" && set.mode === "every" ? "checked" : ""}> One every
         <input class="text" type="number" id="yEvery" min="1" value="${esc(set.every || 24)}" style="width:70px"> hours, starting <input class="text" type="datetime-local" id="yStart" value="${esc(startVal)}" style="width:auto"></label>
       <label class="row" style="gap:8px"><input type="radio" name="yvis" value="public" ${set.visibility === "public" ? "checked" : ""}> Public right away</label>
@@ -1262,16 +1269,24 @@ async function viewPublish(refresh) {
     api("/api/post/yt-connect", { forget: true }).then(() => { S.busy = true; openLog(true); poll(0); toast("Sign in and pick the channel", true); }).catch(err => toast(err.message)); };
   if ($("#yRefresh")) $("#yRefresh").onclick = () => { S.ytRows.rows = null; viewPublish(true); };
   if (!Y.account.connected) return;
-  const saveTimes = async () => { const t = $("#yTimes").value.split(/[,\s]+/).filter(Boolean);
-    if (t.some(x => !/^([01]?\d|2[0-3]):[0-5]\d$/.test(x))) return toast("Write times like 16:00, or 12:00, 18:00");
-    const r = await api("/api/post/yt-times", { times: t }); Y.plan = r.plan; toast(t.length ? "Posting times saved: " + r.plan.join(", ") : "Posting times cleared", true); };
-  $("#yTimes").onchange = saveTimes;
+  const saveTimes = async () => {
+    const rows = S.ySched.filter(r => r.time);
+    try { const r = await api("/api/post/yt-times", { times: rows });
+      Y.plan = r.plan; Y.plan_label = r.label; S.ytRows.rows = null;
+      toast(r.plan.length ? "Posting schedule saved: " + r.label : "Posting schedule cleared", true); viewPublish(); }
+    catch (e) { toast(e.message); } };
+  $$("[data-ptime]").forEach(el => el.onchange = () => { S.ySched[+el.dataset.ptime].time = el.value; saveTimes(); });
+  $$("[data-pday]").forEach(el => el.onclick = () => { const [k, d] = el.dataset.pday.split("|"), r = S.ySched[+k];
+    r.days = r.days.includes(d) ? r.days.filter(x => x !== d) : [...r.days, d]; if (!r.days.length) return toast("Keep at least one day ticked (or remove the time with ✕)"), r.days.push(d); saveTimes(); });
+  $$("[data-pall]").forEach(el => el.onclick = () => { S.ySched[+el.dataset.pall].days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]; saveTimes(); });
+  $$("[data-pdel]").forEach(el => el.onclick = () => { S.ySched.splice(+el.dataset.pdel, 1); saveTimes(); });
+  $("#yAddTime").onclick = () => { S.ySched.push({ time: "16:00", days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }); saveTimes(); };
   $$("[name=yvis], #yEvery, #yStart, #yFrom, [data-yset]").forEach(el => el.onchange = () => { S.ytRows.rows = null; $("#yApply").disabled = true; });
   $$("[data-ypick]").forEach(cb => cb.onchange = () => { cb.checked ? pick.add(+cb.dataset.ypick) : pick.delete(+cb.dataset.ypick); S.ytRows.rows = null; viewPublish(); });
   $("#yAll").onclick = () => { Y.shorts.filter(x => x.written && x.rendered && ["draft", "not_uploaded", "private", "unlisted"].includes(x.youtube)).forEach(x => pick.add(x.i)); S.ytRows.rows = null; viewPublish(); };
   $("#yNone").onclick = () => { pick.clear(); S.ytRows.rows = null; viewPublish(); };
   $("#yPreview").onclick = async e => { const b = e.target; b.disabled = true; b.textContent = "Working it out…";
-    try { const bb = body(); if (bb.mode === "plan" && bb.visibility === "schedule" && !Y.plan.length) { await saveTimes(); if (!Y.plan.length) throw new Error("Add your posting times first (e.g. 16:00), or pick 'One every N hours'."); }
+    try { const bb = body(); if (bb.mode === "plan" && bb.visibility === "schedule" && !Y.plan.length) throw new Error("Add a posting time first (+ Add a time), or pick 'One every N hours'.");
       const r = await api("/api/post/yt-preview", bb); S.ytRows.rows = r.rows; S.ytRows.body = bb;
       const n = r.rows.filter(x => x.action !== "skip").length; toast(`${n} Short${n === 1 ? "" : "s"} ready — check the "Will do" column, then Publish`, true); viewPublish(); }
     catch (err) { toast(err.message); b.disabled = false; b.textContent = "Preview"; } };

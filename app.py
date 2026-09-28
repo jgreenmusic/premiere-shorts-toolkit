@@ -251,6 +251,9 @@ def yt_view(path, refresh=False):
     acc = pub.accounts_status(check=False).get("youtube", {})
     out.update(account=dict(connected=bool(acc.get("connected")), who=acc.get("who")),
                plan=pub.settings()["plan"].get("youtube_shorts") or [], task=pub.task_status(),
+               plan_label=pub.plan_label(pub.settings()["plan"].get("youtube_shorts") or []),
+               plan_rows=[dict(time="%02d:%02d" % (h, m), days=[pub.DAYS[d] for d in sorted(ds)])
+                          for h, m, ds in pub.plan_entries(pub.settings()["plan"].get("youtube_shorts") or [])],
                upload=[u for u in E["generate"].platforms(E["store"].ROOT)["youtube_shorts"].get("upload", [])
                        if u["key"] not in ("privacy", "notify", "thumbnail")])
     cfg, shorts = _project_shorts(path)
@@ -739,12 +742,25 @@ class Handler(BaseHTTPRequestHandler):
                     video = os.path.join(base_of(b["path"]) + "_shorts", safe_name(sh["name"]) + ".mp4")
                     return self.send_json(posting.set_field(video, b["platform"], b["field"], b["value"]))
                 if u.path == "/api/post/yt-times" and not self.remote:
-                    times = [t for t in b.get("times", []) if re.match(r"^([01]?\d|2[0-3]):[0-5]\d$", t)]
+                    # [{"time": "4pm", "days": ["mon", ...]}] (or plain "16:00" strings = every day)
                     pub = posting.engine()["publish"]
+                    out, bad = [], []
+                    for e in b.get("times", []):
+                        t = e.get("time") if isinstance(e, dict) else str(e)
+                        days = [d for d in (e.get("days") or []) if d in pub.DAYS] if isinstance(e, dict) else []
+                        hm = pub.parse_time(t or "")
+                        if not hm:
+                            bad.append(str(t))
+                        elif isinstance(e, dict) and not days:
+                            bad.append("%s (no days ticked)" % t)
+                        else:
+                            out.append(hm + ("" if len(days) in (0, 7) else " " + " ".join(days)))
+                    if bad:
+                        return self.send_json({"error": "Couldn't read: %s. Use times like 4:00 PM or 16:00." % ", ".join(bad)}, 400)
                     plan = dict(pub.settings()["plan"])
-                    plan["youtube_shorts"] = [t.zfill(5) for t in times]
+                    plan["youtube_shorts"] = out
                     pub.save_settings({"plan": plan})
-                    return self.send_json({"plan": plan["youtube_shorts"]})
+                    return self.send_json({"plan": out, "label": pub.plan_label(out)})
                 if u.path == "/api/post/yt-auto" and not self.remote:
                     return self.send_json(yt_task(bool(b.get("on"))))
                 if u.path == "/api/post/yt-preview":

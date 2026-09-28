@@ -82,19 +82,12 @@ def slots(n, taken, mode, start=None, every_hours=24, plan_times=None):
     out = []
     if mode == "plan":
         if not plan_times:
-            raise ValueError("No posting times yet - add them in step 8 (e.g. 15:00).")
-        day = dt.datetime.now().astimezone().date() if not start else pub.parse_when(start).astimezone().date()
-        for d in range(0, 400):
-            dd = day + dt.timedelta(days=d)
-            for hm in sorted(plan_times):
-                h, m = map(int, hm.split(":"))
-                w = dt.datetime(dd.year, dd.month, dd.day, h, m).astimezone().astimezone(dt.timezone.utc)
-                iso = pub.iso(w)
-                if w > soon and iso not in taken and iso not in out and (not start or w >= pub.parse_when(start)):
-                    out.append(iso)
-                    if len(out) == n:
-                        return out
-        return out
+            raise ValueError("No posting times yet - add them in step 8 (e.g. 4:00 PM, Mon-Fri).")
+        first = pub.parse_when(start) if start else dt.datetime.now(dt.timezone.utc)
+        got = pub.plan_slots(plan_times, first, n, taken, soon_minutes=30)
+        if len(got) < n:
+            raise ValueError("Your posting times only give %d slot(s) in the next year." % len(got))
+        return [pub.iso(x) for x in got]
     if mode == "every":
         if not start:
             raise ValueError("Pick the first date and time.")
