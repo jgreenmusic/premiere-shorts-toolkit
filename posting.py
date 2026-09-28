@@ -64,6 +64,34 @@ def status():
         return dict(ok=False, home=home(), error=str(e))
 
 
+OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+BRAIN = os.path.join(os.path.expanduser("~"), "ALBERT", "bin", "brain.cmd")      # Albert's model switch (has a RAM guard)
+
+
+def ai_status():
+    """Is the local AI (Ollama) up? Plain HTTP - never starts or loads anything."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(OLLAMA + "/api/ps", timeout=2) as r:
+            loaded = [m["name"] for m in json.load(r).get("models", [])]
+        return dict(up=True, loaded=loaded, can_start=os.path.isfile(BRAIN))
+    except OSError:
+        return dict(up=False, loaded=[], can_start=os.path.isfile(BRAIN))
+
+
+def start_ai():
+    """`brain ada` - loads the 12B model, refusing (exit 2) if RAM won't fit or a stream/game is live."""
+    if not os.path.isfile(BRAIN):
+        return dict(ok=False, message="Start Ollama yourself, then try again.")
+    p = subprocess.run(["cmd", "/c", BRAIN, "ada"], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=600, creationflags=NOWIN)
+    lines = [x.strip() for x in (p.stdout + p.stderr).splitlines() if x.strip()]
+    msg = " ".join(lines[-4:])[:600]
+    if p.returncode == 2:
+        msg = "Not started - the RAM guard refused (something is streaming or a game server is up). " + msg
+    return dict(ok=p.returncode == 0, code=p.returncode, message=msg)
+
+
 def platforms():
     return [p for p in run(["platforms", "--json"]) if p["id"] in PLATFORMS]
 

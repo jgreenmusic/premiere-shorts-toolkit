@@ -204,7 +204,8 @@ def post_view(path):
     outdir = base_of(path) + "_captions"
     cfg = config.load(outdir)
     st = posting.status()
-    out = dict(status=st, config=cfg.get("post") or config.DEFAULTS["post"], shorts=[], queue=[], platforms=[])
+    out = dict(status=st, config=cfg.get("post") or config.DEFAULTS["post"], shorts=[], queue=[], platforms=[],
+               ai=posting.ai_status())
     if not st["ok"]:
         return out
     try:
@@ -643,6 +644,8 @@ class Handler(BaseHTTPRequestHandler):
                     save_settings(st)
                     PLATFORM_CACHE.clear()
                     return self.send_json(posting.status())
+                if u.path == "/api/post/ai" and not self.remote:
+                    return self.send_json(posting.start_ai())
                 if u.path == "/api/post/studio" and not self.remote:
                     open_post_studio()
                     return self.send_json({"ok": True})

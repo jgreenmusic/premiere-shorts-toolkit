@@ -2,6 +2,25 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.13.1 - 2026-09-27
+
+**"Write posts" did nothing you could see.**
+
+Problem: pressed Write posts on Pt 2 - nothing applied and the log stayed empty.
+- The local AI (Ollama) wasn't running. Each Short failed at the AI step and the job quietly went
+  on to the next one, all 32 of them.
+- The log was blank because the installed app's output was held in a buffer, so none of those
+  failures showed.
+
+Fixed:
+- Step 7 says up front when the AI isn't running, with a **Start the AI** button (`brain ada` -
+  its RAM guard refuses while the Omniplaylist is streaming or a game server is up, and says so).
+  Write buttons are disabled until it's running.
+- `post` checks the AI first and stops in seconds with that message; an AI error on one Short
+  stops the whole run instead of repeating on every Short.
+- Post output reaches the log line by line.
+- Post Studio marks a Short "failed" instead of leaving it "analyzing" forever.
+
 ## 0.13.0 - 2026-09-27
 
 **Step 7 · Post: titles, descriptions, tags, hashtags and upload settings per platform, then

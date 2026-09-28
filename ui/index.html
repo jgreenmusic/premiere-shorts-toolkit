@@ -1150,9 +1150,11 @@ async function viewPost() {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
       <div class="row" style="margin-top:10px"><button class="btn sm primary" id="pSetSave">Save upload settings</button></div></details>
     <label class="row" style="margin-top:12px;gap:8px;font-size:14px"><input type="checkbox" id="pAuto" ${C.auto ? "checked" : ""}> Autopilot: after each render, write the posts and schedule them into the posting plan</label>
+    ${P.ai.up ? "" : `<div class="result" style="margin-top:12px;border-color:var(--warn)"><b>The local AI isn't running</b> — posts are written by it, so start it first.
+      ${P.ai.can_start ? `<div class="row" style="margin-top:8px"><button class="btn primary" id="pAiStart">Start the AI</button><span class="hint">loads the 12B model (~7 GB); refused while the Omniplaylist is streaming or a game server is up</span></div>` : `<span class="hint">Start Ollama, then come back.</span>`}</div>`}
     <div class="toolbar" style="margin-top:12px">
-      <button class="btn primary" id="pWrite" ${dis()} ${rendered.length ? "" : "disabled"}>Write posts for ${rendered.length} rendered Short${rendered.length === 1 ? "" : "s"}</button>
-      <button class="btn" id="pWriteSched" ${dis()} ${rendered.length ? "" : "disabled"}>Write + schedule all into the posting plan</button>
+      <button class="btn primary" id="pWrite" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write posts for ${rendered.length} rendered Short${rendered.length === 1 ? "" : "s"}</button>
+      <button class="btn" id="pWriteSched" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write + schedule all into the posting plan</button>
       <span class="hint">Written ones are reused — only new Shorts get written. Needs Ollama running (the local AI).</span></div></div>
   <div class="split player-split" style="grid-template-columns:minmax(0,1fr) 420px">
     <div class="card"><div class="scroll" style="max-height:640px"><table><thead><tr><th>Short</th><th>Posts</th></tr></thead><tbody>
@@ -1168,6 +1170,8 @@ async function viewPost() {
   $("#pSetSave").onclick = () => { const set = JSON.parse(JSON.stringify(C.settings || {}));
     $$("[data-pset]").forEach(el => { const [pid, k] = el.dataset.pset.split("|"); (set[pid] ||= {})[k] = el.type === "checkbox" ? el.checked : el.value === "" && el.tagName === "SELECT" ? null : el.value; });
     pc({ settings: set }).then(() => toast("Upload settings saved", true)); };
+  if ($("#pAiStart")) $("#pAiStart").onclick = async e => { const b = e.target; b.disabled = true; b.textContent = "Starting… (up to a minute)";
+    try { const r = await api("/api/post/ai", {}); toast(r.ok ? "The AI is running - write away" : r.message, r.ok); } catch (err) { toast(err.message); } viewPost(); };
   $("#pWrite").onclick = () => run("post", { platforms: on });
   $("#pWriteSched").onclick = () => run("post", { platforms: on, schedule: "next" });
   $$("[data-psel]").forEach(tr => tr.onclick = () => { if (P.shorts[+tr.dataset.psel].rendered) { S.postSel = +tr.dataset.psel; viewPost(); } });

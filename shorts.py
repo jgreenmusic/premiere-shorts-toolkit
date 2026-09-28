@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.13.0"
+__version__ = "0.13.1"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -389,9 +389,14 @@ def cmd_post(args):
     import posting
     for stream in (sys.stdout, sys.stderr):              # post text has emoji; a Windows console would crash on them
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            # line_buffering: the installed app reads this through a pipe - without it the log stayed blank
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
         except AttributeError:
             pass
+    ai = posting.ai_status()
+    if not ai["up"]:
+        sys.exit("The local AI (Ollama) isn't running, so no posts can be written.\n"
+                 "Press 'Start the AI' in step 7, or run  brain ada  in a terminal, then try again.")
     ctx = load_ctx(args, need_words=False)
     pc = ctx.cfg.get("post") or {}
     plats = args.platforms.split(",") if args.platforms else pc.get("platforms") or posting.PLATFORMS
@@ -417,13 +422,19 @@ def cmd_post(args):
                                                       plats, fresh=args.fresh),
                                     cwd=posting.home(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                     encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            errs = []
             for line in proc.stderr:                       # Post Studio's progress
                 print("  " + line.rstrip())
-            res = json.loads(proc.stdout.read() or "{}")
+                errs.append(line)
+            out_ = proc.stdout.read()
             proc.wait()
             if proc.returncode:
-                print("  !! Post Studio failed on this one")
+                why = next((l.strip() for l in reversed(errs) if "Error" in l or "error" in l), "see the lines above")
+                if "Ollama" in why or "memory" in why.lower() or "isn't installed" in why:
+                    sys.exit("\nStopped: %s" % why)       # the same will happen to every Short - don't grind through them
+                print("  !! Post Studio failed on this one: %s" % why)
                 continue
+            res = json.loads(out_ or "{}")
         finally:
             os.remove(tr)
         posts = res.get("posts") or {}
