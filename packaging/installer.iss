@@ -3,7 +3,7 @@
 ; their <project>_captions / _shorts folders and settings are never touched.
 
 #define AppName "Shorts Toolkit"
-#define AppVersion "0.15.3"
+#define AppVersion "0.16.0"
 
 [Setup]
 AppId={{6E7A1C52-3B8D-4F1E-9C2A-5D4B8E0F7A31}

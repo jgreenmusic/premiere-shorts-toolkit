@@ -15,6 +15,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -226,6 +227,90 @@ def post_view(path):
     return out
 
 
+# -- step 8: publish to YouTube ---------------------------------------------------------
+UPLOADS = {}                      # the channel's uploads, fetched on demand (they only change when you act)
+
+
+def _project_shorts(path):
+    import config
+    from shorts import safe_name
+    cfg = config.load(base_of(path) + "_captions")
+    sdir = base_of(path) + "_shorts"
+    return cfg, [(i, x, os.path.join(sdir, safe_name(x["name"]) + ".mp4")) for i, x in enumerate(cfg["shorts"])]
+
+
+def yt_view(path, refresh=False):
+    import posting
+    import youtube_step
+    st = posting.status()
+    out = dict(engine=st, account=None, plan=[], task={}, shorts=[], upload=[], fetched=None, error=None)
+    if not st["ok"]:
+        return out
+    E = posting.engine()
+    pub = E["publish"]
+    acc = pub.accounts_status(check=False).get("youtube", {})
+    out.update(account=dict(connected=bool(acc.get("connected")), who=acc.get("who")),
+               plan=pub.settings()["plan"].get("youtube_shorts") or [], task=pub.task_status(),
+               upload=[u for u in E["generate"].platforms(E["store"].ROOT)["youtube_shorts"].get("upload", [])
+                       if u["key"] not in ("privacy", "notify", "thumbnail")])
+    cfg, shorts = _project_shorts(path)
+    uploads = None
+    if acc.get("connected"):
+        if refresh or "list" not in UPLOADS:
+            try:
+                UPLOADS.update(list=E["studio"].list_uploads(100), when=time.time())
+            except Exception as e:
+                out["error"] = "Couldn't read your channel: %s" % e
+        uploads = UPLOADS.get("list")
+        out["fetched"] = UPLOADS.get("when")
+    out["shorts"] = youtube_step.state(path, shorts, None, uploads)
+    out["settings"] = (cfg.get("post") or {}).get("yt") or {}
+    return out
+
+
+def yt_rows(b):
+    """The Shorts chosen on the page -> youtube_step.plan rows (nothing is sent)."""
+    import posting
+    import youtube_step
+    cfg, shorts = _project_shorts(b["path"])
+    uploads = UPLOADS.get("list") or []
+    want = set(int(i) for i in b.get("indexes") or [])
+    items = [r for r in youtube_step.state(b["path"], shorts, None, uploads) if not want or r["i"] in want]
+    return youtube_step.plan(b["path"], items, uploads, b.get("mode", "plan"), b.get("start"), b.get("every", 24),
+                             b.get("visibility", "schedule"), b.get("settings") or {}, bool(b.get("redo")))
+
+
+def yt_task(on):
+    import posting
+    pub = posting.engine()["publish"]
+    if not on:
+        return pub.task_remove()
+    if FROZEN:
+        return pub.task_install(exe=os.path.join(APPDIR, "shorts-cli.exe"), args="publish-due", workdir=APPDIR)
+    pyw = PY.replace("python.exe", "pythonw.exe")
+    return pub.task_install(exe=pyw, args='"%s" publish-due' % os.path.join(HERE, "shorts.py"), workdir=HERE)
+
+
+def autopilot_publish(path, indexes):
+    """After autopilot wrote the posts: publish those Shorts with step 8's saved settings."""
+    import config
+    y = ((config.load(base_of(path) + "_captions").get("post") or {}).get("yt")) or {}
+    try:
+        yt_view(path, refresh=True)                  # fresh channel state, so nothing is uploaded twice
+        b = dict(path=path, indexes=indexes or [], mode=y.get("mode") or "plan", start=y.get("start"), every=y.get("every") or 24,
+                 visibility=y.get("visibility") or "schedule", settings=y.get("settings") or {})
+        rows = yt_rows(b)
+    except Exception as e:                           # e.g. no posting times yet - say so in the log, don't guess
+        with LOCK:
+            JOB["lines"].append("Autopilot didn't publish: %s (set it up in step 8)." % e)
+        return
+    fd, pf = tempfile.mkstemp(prefix="yt-plan-", suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(dict(rows=rows, settings=b["settings"], visibility=b["visibility"]), f)
+    UPLOADS.clear()
+    run_job("Publishing to YouTube (autopilot)", command("publish", dict(path=path, plan_file=pf)))
+
+
 def open_post_studio():
     """Open Post Studio's Publish page (starting it if it isn't running)."""
     import posting
@@ -324,6 +409,10 @@ def command(action, o):
         if o.get("schedule"):
             c += ["--schedule", str(o["schedule"])]
         return c + (["--fresh"] if o.get("fresh") else [])
+    if action == "publish":
+        return ["publish", p, "--plan", o["plan_file"]]
+    if action == "yt-connect":
+        return ["yt-connect"] + (["--forget"] if o.get("forget") else [])
     if action == "burn":
         return ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
     raise ValueError("unknown action %s" % action)
@@ -550,6 +639,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(project_info(q["path"]))
             if u.path == "/api/post":
                 return self.send_json(post_view(q["path"]))
+            if u.path == "/api/yt":
+                return self.send_json(yt_view(q["path"], q.get("refresh") == "1"))
             if u.path == "/api/markers":
                 return self.send_json(marker_segments(q["path"]))
             if u.path == "/api/timeline":
@@ -647,6 +738,38 @@ class Handler(BaseHTTPRequestHandler):
                     sh = config.load(base_of(b["path"]) + "_captions")["shorts"][int(b["index"])]
                     video = os.path.join(base_of(b["path"]) + "_shorts", safe_name(sh["name"]) + ".mp4")
                     return self.send_json(posting.set_field(video, b["platform"], b["field"], b["value"]))
+                if u.path == "/api/post/yt-times" and not self.remote:
+                    times = [t for t in b.get("times", []) if re.match(r"^([01]?\d|2[0-3]):[0-5]\d$", t)]
+                    pub = posting.engine()["publish"]
+                    plan = dict(pub.settings()["plan"])
+                    plan["youtube_shorts"] = [t.zfill(5) for t in times]
+                    pub.save_settings({"plan": plan})
+                    return self.send_json({"plan": plan["youtube_shorts"]})
+                if u.path == "/api/post/yt-auto" and not self.remote:
+                    return self.send_json(yt_task(bool(b.get("on"))))
+                if u.path == "/api/post/yt-preview":
+                    if not self.known_project(b["path"]):
+                        return self.send_json({"error": "Unknown project."}, 403)
+                    import config
+                    config.update(base_of(b["path"]) + "_captions", {"post": {"yt": {k: b.get(k) for k in
+                                  ("mode", "start", "every", "visibility", "settings")}}})
+                    return self.send_json({"rows": yt_rows(b)})
+                if u.path == "/api/post/yt-apply":
+                    if not self.known_project(b["path"]):
+                        return self.send_json({"error": "Unknown project."}, 403)
+                    rows = yt_rows(b)
+                    fd, pf = tempfile.mkstemp(prefix="yt-plan-", suffix=".json")
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        json.dump(dict(rows=rows, settings=b.get("settings") or {}, visibility=b.get("visibility", "schedule")), f)
+                    UPLOADS.clear()                      # the channel is about to change
+                    n = sum(1 for r in rows if r["action"] in ("fill", "upload"))
+                    jid = run_job("Publishing %d Short%s to YouTube" % (n, "" if n == 1 else "s"),
+                                  command("publish", dict(path=b["path"], plan_file=pf)))
+                    return self.send_json({"id": jid, "count": n} if jid else {"error": "Something is already running."}, 200 if jid else 409)
+                if u.path == "/api/post/yt-connect" and not self.remote:
+                    UPLOADS.clear()
+                    jid = run_job("Connecting YouTube", command("yt-connect", dict(path="", forget=bool(b.get("forget")))))
+                    return self.send_json({"id": jid} if jid else {"error": "Something is already running."}, 200 if jid else 409)
                 if u.path == "/api/post/home" and not self.remote:
                     st = load_settings()
                     st["post_studio"] = os.path.normpath(b["home"].strip().strip('"'))
@@ -667,8 +790,9 @@ class Handler(BaseHTTPRequestHandler):
                         idx = b.get("indexes") or ([b["index"]] if b.get("index") is not None else None)
 
                         def after(code, p=b["path"], idx=idx):
-                            if code == 0:          # autopilot: write the posts and queue them into the posting plan
-                                run_job("Writing + scheduling posts", command("post", dict(path=p, indexes=idx, schedule="next")))
+                            if code == 0:          # autopilot: write the posts, then publish them like step 8 would
+                                run_job("Writing posts (autopilot)", command("post", dict(path=p, indexes=idx)),
+                                        lambda c: c == 0 and autopilot_publish(p, idx))
                 jid = run_job(b.get("title", b["action"]), command(b["action"], b), after)
                 return self.send_json({"id": jid} if jid else {"error": "Something is already running."},
                                       200 if jid else 409)

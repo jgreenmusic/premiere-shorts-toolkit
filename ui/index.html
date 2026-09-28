@@ -260,7 +260,7 @@ setTheme(store.get("theme", matchMedia("(prefers-color-scheme: light)").matches 
 $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
 
 let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "markers"), sel: 0, markers: null, showSugg: false, showLSugg: false };
-if (["markers", "shorts", "screams", "look", "captions", "render", "post", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
+if (["markers", "shorts", "screams", "look", "captions", "render", "post", "publish", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
 
 async function loadState() {
   const st = await api("/api/state");
@@ -337,9 +337,9 @@ async function saveCfg(patch, rerender = true) {
 
 // ---------------------------------------------------------------- views
 // in the order you work: markers -> fix captions (optional) -> pick Shorts -> screams & laughs -> look -> render
-const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["render", "6 · Render"], ["post", "7 · Post"], ["premiere", "Or: finish in Premiere"]];
+const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["render", "6 · Render"], ["post", "7 · Posts"], ["publish", "8 · Publish"], ["premiere", "Or: finish in Premiere"]];
 const NEXT = { markers: ["captions", "Next: captions"], captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
-  look: ["render", "Next: render"], render: ["post", "Next: post them"] };
+  look: ["render", "Next: render"], render: ["post", "Next: write the posts"], post: ["publish", "Next: publish to YouTube"] };
 
 function render() {
   const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
@@ -365,7 +365,7 @@ function render() {
   $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
   if ((S.tab === "shorts" || S.tab === "markers") && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
-  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, post: viewPost, premiere: viewPremiere })[S.tab]();
+  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, post: viewPost, publish: viewPublish, premiere: viewPremiere })[S.tab]();
   if (next) {
     $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${next[1]} →</button></div>`);
     $("#nextStep").onclick = () => { S.tab = next[0]; store.set("tab", S.tab); render(); $("main").scrollTop = 0; };
@@ -1135,30 +1135,11 @@ async function viewPost() {
         return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px" data-pcard="${pid}">
           <div class="row"><b style="flex:1">${esc(pl.name)}</b>${js.map(j => `<span class="badge ${(JOB_LBL[j.status] || [])[1] || ""}">${(JOB_LBL[j.status] || [j.status])[0]}${j.when ? " · " + new Date(j.when).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</span>`).join(" ")}</div>
           ${pl.fields.filter(f => post[f.key] && f.type !== "lines").map(f => fieldBox(pid, f, post[f.key].value, post[f.key].warnings)).join("")}
-          <p class="hint" style="margin:4px 0 0">Edits save as soon as you click out of a box (green flash).</p>
-          <div class="row" style="margin-top:8px;gap:6px">
-            <select class="text" data-pwhen="${pid}" style="width:auto"><option value="next">next free time (posting plan)</option><option value="at">at a time…</option><option value="now">as soon as possible</option><option value="draft">save as draft</option></select>
-            <input class="text" type="datetime-local" data-pat="${pid}" style="width:auto;display:none">
-            <button class="btn sm primary" data-psched="${pid}">Schedule</button></div></div>`; }).join("")}
+          <p class="hint" style="margin:4px 0 0">Edits save as soon as you click out of a box (green flash).</p></div>`; }).join("")}
       <div class="row" style="margin-top:14px"><button class="btn sm" id="pRewrite" ${dis()}>Write this one again</button></div></div>`;
-  const R7 = P.ready || { platforms: {}, task: {} }, NICE = { youtube_shorts: "YouTube Shorts", tiktok: "TikTok", instagram_reels: "Instagram Reels", facebook: "Facebook" };
-  const readyRows = on.map(pid => { const r = R7.platforms[pid]; if (!r) return "";
-    const ok = r.account && r.plan.length;
-    return `<tr><td><b>${NICE[pid] || pid}</b></td><td>${r.account ? `<span class="badge ok">connected</span>` : `<span class="badge bad">not connected</span>`}</td>
-      <td>${r.plan.length ? `<span class="badge ok">${esc(r.plan.join(", "))} daily</span>` : `<span class="badge bad">no times set</span>`}</td>
-      <td class="hint">${ok ? (r.native ? "uploads early; the platform releases it on time" : "posts at the time — PC must be on") : ""}</td></tr>`; }).join("");
-  const allReady = on.every(pid => (R7.platforms[pid] || {}).account && (R7.platforms[pid] || {}).plan.length);
   $("#view").innerHTML = `
-  <div class="card"><div class="card-head"><div class="grow"><h3>Ready to post?</h3>
-    <p>Scheduling needs, per platform: the account connected and posting times set. ${R7.task.on ? "" : "Then turn on <b>Automatic posting</b> so scheduled posts actually go out."}</p></div>
-    ${allReady && R7.task.on ? `<span class="badge ok">all set</span>` : `<span class="badge bad">not yet</span>`}</div>
-    <table><thead><tr><th>Platform</th><th>Account</th><th>Posting times</th><th></th></tr></thead><tbody>${readyRows}</tbody></table>
-    <div class="row" style="margin-top:10px"><span class="hint grow">Automatic posting (checks every 5 min): ${R7.task.on ? `<span class="badge ok">on</span>` : `<span class="badge bad">off</span>`}</span>
-      <button class="btn primary" id="openPS2">Set this up in Post Studio →</button></div>
-    <p class="hint" style="margin:8px 0 0">Already uploaded some Shorts as drafts in YouTube Studio? Fill those in with Post Studio's <b>YouTube drafts</b> screen instead — scheduling here uploads new copies.</p></div>
-  <div class="card"><div class="card-head"><div class="grow"><h3>Post your Shorts</h3>
-    <p>Post Studio writes a title, description, tags and hashtags for each platform from what's said in the Short, then uploads on schedule. Posts only name what's in <b>Subject</b>.</p></div>
-    <button class="btn" id="openPS">Accounts, posting plan &amp; queue →</button></div>
+  <div class="card"><div class="card-head"><div class="grow"><h3>Write the posts</h3>
+    <p>A title, description, tags and hashtags for each Short, written from what's said in it. Posts only name what's in <b>Subject</b>. Edit anything, then <b>8 · Publish</b> puts them on YouTube.</p></div></div>
     <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px">
       <label class="field">Subject <span class="hint">the game/topic, named exactly</span><input class="text" id="pSubject" value="${esc(C.subject)}" placeholder="e.g. Chained Together"></label>
       <label class="field">Channel background <span class="hint">true for every Short (who's in it, schedule) — used sparingly, never as the opener</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
@@ -1172,12 +1153,11 @@ async function viewPost() {
     <details style="margin-top:10px"><summary class="hint">Upload settings (made for kids, AI label, TikTok privacy, category…) — used for every Short</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
       <div class="row" style="margin-top:10px"><button class="btn sm primary" id="pSetSave">Save upload settings</button></div></details>
-    <label class="row" style="margin-top:12px;gap:8px;font-size:14px"><input type="checkbox" id="pAuto" ${C.auto ? "checked" : ""}> Autopilot: after each render, write the posts and schedule them into the posting plan</label>
+    <label class="row" style="margin-top:12px;gap:8px;font-size:14px"><input type="checkbox" id="pAuto" ${C.auto ? "checked" : ""}> Autopilot: after each render, write the posts and publish them to YouTube (step 8's settings, your posting times)</label>
     ${P.ai.up ? "" : `<div class="result" style="margin-top:12px;border-color:var(--warn)"><b>The local AI isn't running</b> — posts are written by it, so start it first.
       ${P.ai.can_start ? `<div class="row" style="margin-top:8px"><button class="btn primary" id="pAiStart">Start the AI</button><span class="hint">loads the 12B model (~7 GB); refused while the Omniplaylist is streaming or a game server is up</span></div>` : `<span class="hint">Start Ollama, then come back.</span>`}</div>`}
     <div class="toolbar" style="margin-top:12px">
       <button class="btn primary" id="pWrite" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"}>Write posts for ${rendered.length} rendered Short${rendered.length === 1 ? "" : "s"}</button>
-      <button class="btn" id="pWriteSched" ${dis()} ${rendered.length && P.ai.up && on.every(pid => ((R7.platforms[pid] || {}).plan || []).length) ? "" : "disabled"} title="${on.every(pid => ((R7.platforms[pid] || {}).plan || []).length) ? "" : "Set posting times first (Ready to post? above)"}">Write + schedule all into the posting plan</button>
       <button class="btn" id="pRedoAll" ${dis()} ${rendered.length && P.ai.up ? "" : "disabled"} title="Write every Short again from scratch, each different from the others">Write all again</button>
       <span class="hint">Written ones are reused unless their captions changed. Each Short gets a different angle and never repeats another's opening.</span></div></div>
   <div class="split player-split" style="grid-template-columns:minmax(0,1fr) 420px">
@@ -1186,8 +1166,6 @@ async function viewPost() {
     </tbody></table></div></div>
     <div>${side}</div></div>`;
   const pc = patch => saveCfg({ post: { ...C, ...patch } }, false).then(() => viewPost()).catch(e => toast(e.message));
-  $("#openPS2").onclick = () => api("/api/post/studio", {}).then(() => toast("Opening Post Studio > Publish", true)).catch(e => toast(e.message));
-  $("#openPS").onclick = () => api("/api/post/studio", {}).then(() => toast("Opening Post Studio > Publish", true)).catch(e => toast(e.message));
   $("#pSubject").onchange = e => pc({ subject: e.target.value.trim() });
   $("#pNotes").onchange = e => pc({ notes: e.target.value.trim() });
   $("#pAvoid").onchange = e => pc({ avoid: e.target.value.split(",").map(x => x.trim()).filter(Boolean).join(", ") });
@@ -1203,7 +1181,6 @@ async function viewPost() {
   if ($("#pAiStart")) $("#pAiStart").onclick = async e => { const b = e.target; b.disabled = true; b.textContent = "Starting… (up to a minute)";
     try { const r = await api("/api/post/ai", {}); toast(r.ok ? "The AI is running - write away" : r.message, r.ok); } catch (err) { toast(err.message); } viewPost(); };
   $("#pWrite").onclick = () => run("post", { platforms: on });
-  $("#pWriteSched").onclick = () => run("post", { platforms: on, schedule: "next" });
   $("#pRedoAll").onclick = e => { if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = "Click again — rewrites all " + rendered.length; return; } run("post", { platforms: on, fresh: true }); };
   $$("[data-psel]").forEach(tr => tr.onclick = () => { if (P.shorts[+tr.dataset.psel].rendered) { S.postSel = +tr.dataset.psel; viewPost(); } });
   if (!cur) return;
@@ -1217,17 +1194,92 @@ async function viewPost() {
       cur.posts[pid][k] = { value: r.value, warnings: r.warnings }; el.style.outline = "1px solid var(--ok)"; setTimeout(() => el.style.outline = "", 1200); }
     catch (e) { toast("Not saved: " + e.message); el.style.outline = "1px solid var(--bad)"; }
   });
-  $$("[data-pwhen]").forEach(sel => sel.onchange = () => { const at = $(`[data-pat="${sel.dataset.pwhen}"]`); at.style.display = sel.value === "at" ? "" : "none";
-    if (!at.value) { const d = new Date(Date.now() + 3600e3); at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); } });
-  $$("[data-psched]").forEach(b => b.onclick = async () => {
-    const pid = b.dataset.psched, fields = {};
-    Object.entries(cur.posts[pid]).forEach(([k, v]) => fields[k] = v.value);             // keeps fields not shown (e.g. hook lines)
-    $$(`[data-pf^="${pid}|"]`).forEach(el => { const [, k, type] = el.dataset.pf.split("|"); fields[k] = parseVal(type, el.value); });
-    const w = $(`[data-pwhen="${pid}"]`).value, when = w === "next" ? "next" : w === "at" ? $(`[data-pat="${pid}"]`).value : null;
-    try { const j = await api("/api/post/schedule", { path: S.current, index: cur.i, platform: pid, fields, settings: (C.settings || {})[pid] || {}, when, schedule: w !== "draft" });
-      toast(`${PLAT_SHORT[pid]}: ${j.status === "draft" ? "saved as a draft" : "scheduled " + (j.when ? new Date(j.when).toLocaleString() : "for as soon as possible")}`, true); viewPost(); }
-    catch (e) { toast(e.message.replace(/^.*Error: /, "")); }
-  });
+}
+// ---- Publish (step 8): every Short, where it is on YouTube, and one button that does the right thing
+const YT_LBL = { draft: ["draft on YouTube", "warn"], scheduled: ["scheduled", "ok"], public: ["public", "ok"], private: ["private on YouTube", ""],
+  unlisted: ["unlisted", ""], queued: ["uploading…", "warn"], not_uploaded: ["not on YouTube yet", ""], unknown: ["—", ""] };
+const fmtWhen = w => w ? new Date(w).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+async function viewPublish(refresh) {
+  $("#view").innerHTML = `<div class="card"><p class="hint">${refresh ? "Reading your channel…" : "Loading…"}</p></div>`;
+  let Y; try { Y = await api("/api/yt?path=" + encodeURIComponent(S.current) + (refresh ? "&refresh=1" : "")); } catch (e) { $("#view").innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; return; }
+  if (S.tab !== "publish") return;
+  S.yt = Y; S.ytRows = S.ytRows && S.ytRows.path === S.current ? S.ytRows : { path: S.current, rows: null };
+  if (!Y.engine.ok) { $("#view").innerHTML = `<div class="card"><h3>The posting engine isn't available</h3><p class="warn">${esc(Y.engine.error || "")}</p></div>`; return; }
+  const set = { mode: "plan", every: 24, visibility: "schedule", settings: {}, ...(Y.settings || {}) };
+  if (!Y.plan.length && set.mode === "plan") set.mode = "every";
+  const d0 = new Date(); d0.setDate(d0.getDate() + 1); d0.setHours(16, 0, 0, 0);
+  const startVal = set.start || new Date(d0 - d0.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const pick = S.ytPick || (S.ytPick = new Set(Y.shorts.filter(x => x.written && ["draft", "not_uploaded", "private", "unlisted"].includes(x.youtube)).map(x => x.i)));
+  const counts = Y.shorts.reduce((a, x) => (a[x.youtube] = (a[x.youtube] || 0) + 1, a), {});
+  const planned = {}; (S.ytRows.rows || []).forEach(r => planned[r.i] = r);
+  const upForm = Y.upload.map(u => { const v = (set.settings || {})[u.key] ?? u.default, k = u.key;
+    if (u.type === "bool") return `<label class="row" style="gap:6px;font-size:13.5px"><input type="checkbox" data-yset="${k}" ${v ? "checked" : ""}> ${esc(u.label)}</label>`;
+    if (u.type === "choice") return `<label class="field">${esc(u.label)}<select class="text" data-yset="${k}">${u.options.map(([a, b]) => `<option value="${esc(a)}" ${a === v ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`;
+    return `<label class="field">${esc(u.label)}<input class="text" data-yset="${k}" value="${esc(v ?? "")}"></label>`; }).join("");
+  $("#view").innerHTML = `
+  <div class="card"><div class="card-head"><div class="grow"><h3>YouTube</h3>
+    <p>${Y.account.connected ? `Connected to <b>${esc(Y.account.who || "your channel")}</b>.` : "Not connected yet — sign in once and the app takes it from there."}
+      ${Y.fetched ? `<span class="hint">Channel read ${ago(Y.fetched)}.</span>` : ""}</p></div>
+    ${Y.account.connected ? `<button class="btn" id="yRefresh">↻ Refresh from YouTube</button><button class="btn ghost" id="ySwitch">Switch channel</button>` : `<button class="btn primary" id="yConnect">Connect YouTube</button>`}</div>
+    ${Y.error ? `<p class="warn">${esc(Y.error)}</p>` : ""}
+    ${Y.account.connected ? `<div class="row" style="gap:6px">${Object.entries(counts).map(([k, n]) => `<span class="badge ${(YT_LBL[k] || [])[1] || ""}">${n} ${(YT_LBL[k] || [k])[0]}</span>`).join("")}</div>` : `<p class="hint">Sign-in opens in your browser: pick the Google account that owns the channel, then the channel itself. "Google hasn't verified this app" is expected — it's your own app — click Continue.</p>`}</div>
+  ${Y.account.connected ? `
+  <div class="card"><div class="card-head"><div class="grow"><h3>When</h3><p>YouTube releases scheduled Shorts itself — the PC can be off. Times already taken on your channel are skipped.</p></div></div>
+    <div style="display:grid;gap:10px">
+      <label class="row" style="gap:8px"><input type="radio" name="yvis" value="plan" ${set.visibility === "schedule" && set.mode === "plan" ? "checked" : ""}> My posting times:
+        <input class="text" id="yTimes" value="${esc(Y.plan.join(", "))}" placeholder="e.g. 16:00  or  12:00, 18:00" style="width:200px"> <span class="hint">every day</span>
+        <span class="hint">from</span><input class="text" type="date" id="yFrom" value="${esc((set.start || startVal).slice(0, 10))}" style="width:auto"></label>
+      <label class="row" style="gap:8px"><input type="radio" name="yvis" value="every" ${set.visibility === "schedule" && set.mode === "every" ? "checked" : ""}> One every
+        <input class="text" type="number" id="yEvery" min="1" value="${esc(set.every || 24)}" style="width:70px"> hours, starting <input class="text" type="datetime-local" id="yStart" value="${esc(startVal)}" style="width:auto"></label>
+      <label class="row" style="gap:8px"><input type="radio" name="yvis" value="public" ${set.visibility === "public" ? "checked" : ""}> Public right away</label>
+      <label class="row" style="gap:8px"><input type="radio" name="yvis" value="keep" ${set.visibility === "keep" ? "checked" : ""}> Only fill in the text (keep visibility as it is)</label>
+    </div>
+    <details style="margin-top:10px"><summary class="hint">Settings for every Short (category, made for kids, AI label, language…)</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:8px">${upForm}</div></details></div>
+  <div class="card"><div class="card-head"><div class="grow"><h3>Your Shorts</h3>
+    <p>Already on YouTube (a draft you uploaded in Studio) → the app <b>fills it in and schedules it</b>. Not on YouTube → it <b>uploads and schedules it</b>. Scheduled or public ones are left alone.</p></div>
+    <button class="btn sm ghost" id="yAll">Select all ready</button><button class="btn sm ghost" id="yNone">Select none</button></div>
+    <div class="scroll" style="max-height:560px"><table><thead><tr><th></th><th>Short</th><th>Title (step 7)</th><th>On YouTube</th><th>Will do</th></tr></thead><tbody>
+      ${Y.shorts.map(x => { const L = YT_LBL[x.youtube] || [x.youtube, ""], r = planned[x.i];
+        const will = !r ? "" : r.action === "skip" ? `<span class="hint">${esc(r.why)}</span>` : `<b>${r.action === "fill" ? "fill in" : "upload"}</b>${r.when ? " · " + fmtWhen(r.when) : ""}${(r.problems || []).length ? `<div class="warn">⚠ ${r.problems.map(esc).join(" · ")}</div>` : ""}`;
+        const canPick = x.rendered && x.written;
+        return `<tr><td><input type="checkbox" data-ypick="${x.i}" ${pick.has(x.i) ? "checked" : ""} ${canPick ? "" : "disabled"}></td>
+          <td><b>${esc(x.name)}</b>${x.rendered ? "" : `<div class="hint">not rendered</div>`}</td>
+          <td>${x.written ? esc(x.title) : `<span class="hint">not written — step 7</span>`}</td>
+          <td><span class="badge ${L[1]}">${L[0]}</span>${x.publish_at ? `<div class="hint">${fmtWhen(x.publish_at)}</div>` : ""}${x.url ? ` <a href="${esc(x.url)}" target="_blank" rel="noopener" class="hint">open</a>` : ""}</td>
+          <td>${will}</td></tr>`; }).join("")}
+    </tbody></table></div>
+    <div class="toolbar" style="margin-top:12px"><span class="grow"><b>${pick.size}</b> selected</span>
+      <button class="btn" id="yPreview" ${pick.size ? "" : "disabled"}>Preview</button>
+      <button class="btn primary" id="yApply" ${pick.size && S.ytRows.rows ? "" : "disabled"} title="Preview first">Publish ${pick.size}</button></div>
+    <p class="hint" style="margin:8px 0 0">Preview shows exactly what each Short gets and when — nothing is sent until you press Publish.</p></div>` : ""}`;
+  const body = () => { const vis = ($("[name=yvis]:checked") || {}).value || "plan", settings = {};
+    $$("[data-yset]").forEach(el => settings[el.dataset.yset] = el.type === "checkbox" ? el.checked : el.value);
+    return { path: S.current, indexes: [...pick], visibility: ["plan", "every"].includes(vis) ? "schedule" : vis, mode: vis === "every" ? "every" : "plan",
+      start: vis === "every" ? $("#yStart").value : ($("#yFrom").value ? $("#yFrom").value + "T00:00" : null), every: +$("#yEvery").value || 24, settings }; };
+  if ($("#yConnect")) $("#yConnect").onclick = () => api("/api/post/yt-connect", {}).then(() => { S.busy = true; openLog(true); poll(0); toast("Finish the sign-in in your browser", true); }).catch(e => toast(e.message));
+  if ($("#ySwitch")) $("#ySwitch").onclick = e => { if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = "Click again to sign in as another channel"; return; }
+    api("/api/post/yt-connect", { forget: true }).then(() => { S.busy = true; openLog(true); poll(0); toast("Sign in and pick the channel", true); }).catch(err => toast(err.message)); };
+  if ($("#yRefresh")) $("#yRefresh").onclick = () => { S.ytRows.rows = null; viewPublish(true); };
+  if (!Y.account.connected) return;
+  const saveTimes = async () => { const t = $("#yTimes").value.split(/[,\s]+/).filter(Boolean);
+    if (t.some(x => !/^([01]?\d|2[0-3]):[0-5]\d$/.test(x))) return toast("Write times like 16:00, or 12:00, 18:00");
+    const r = await api("/api/post/yt-times", { times: t }); Y.plan = r.plan; toast(t.length ? "Posting times saved: " + r.plan.join(", ") : "Posting times cleared", true); };
+  $("#yTimes").onchange = saveTimes;
+  $$("[name=yvis], #yEvery, #yStart, #yFrom, [data-yset]").forEach(el => el.onchange = () => { S.ytRows.rows = null; $("#yApply").disabled = true; });
+  $$("[data-ypick]").forEach(cb => cb.onchange = () => { cb.checked ? pick.add(+cb.dataset.ypick) : pick.delete(+cb.dataset.ypick); S.ytRows.rows = null; viewPublish(); });
+  $("#yAll").onclick = () => { Y.shorts.filter(x => x.written && x.rendered && ["draft", "not_uploaded", "private", "unlisted"].includes(x.youtube)).forEach(x => pick.add(x.i)); S.ytRows.rows = null; viewPublish(); };
+  $("#yNone").onclick = () => { pick.clear(); S.ytRows.rows = null; viewPublish(); };
+  $("#yPreview").onclick = async e => { const b = e.target; b.disabled = true; b.textContent = "Working it out…";
+    try { const bb = body(); if (bb.mode === "plan" && bb.visibility === "schedule" && !Y.plan.length) { await saveTimes(); if (!Y.plan.length) throw new Error("Add your posting times first (e.g. 16:00), or pick 'One every N hours'."); }
+      const r = await api("/api/post/yt-preview", bb); S.ytRows.rows = r.rows; S.ytRows.body = bb;
+      const n = r.rows.filter(x => x.action !== "skip").length; toast(`${n} Short${n === 1 ? "" : "s"} ready — check the "Will do" column, then Publish`, true); viewPublish(); }
+    catch (err) { toast(err.message); b.disabled = false; b.textContent = "Preview"; } };
+  $("#yApply").onclick = async e => { const b = e.target; const n = (S.ytRows.rows || []).filter(x => x.action !== "skip").length;
+    if (!n) return toast("Nothing to publish in the selection.");
+    if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = `Click again — publishes ${n} to YouTube`; return; }
+    try { await api("/api/post/yt-apply", S.ytRows.body); S.ytRows.rows = null; S.ytPick = null; S.busy = true; openLog(true); poll(0); }
+    catch (err) { toast(err.message); } };
 }
 function syncRenderButtons() {
   const busy = S.busy && /^Rendering/.test(S.jobTitle || "");

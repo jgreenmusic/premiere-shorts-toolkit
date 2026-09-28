@@ -1,25 +1,22 @@
-"""Step 7 - posting: hands finished Shorts to Post Studio, which writes the titles,
-descriptions, tags and hashtags per platform and does the uploading/scheduling.
+"""Steps 7 and 8 - posting: writing each Short's title/description/tags/hashtags, and getting
+them onto YouTube (filling drafts already uploaded in Studio, or uploading + scheduling).
 
-Post Studio is a separate app (github.com/jgreenmusic/post-studio). This module only runs
-its command line, so either app can change inside without breaking the other:
-
-    poststudio.py from-short <video> --subject .. --transcript t.json --json   write posts
-    poststudio.py show <videos...>                                              what's written
-    poststudio.py queue-add <video> <platform> --fields .. --settings .. --when .. --schedule
-    poststudio.py queue --json                                                  the queue
-
-Where Post Studio lives: "post_studio" in ~/.shorts-toolkit.json (default ~/post-studio).
+The engine is Post Studio's code (github.com/jgreenmusic/post-studio), used IN-PROCESS: the
+installed app bundles it, and from source it's imported from its folder ("post_studio" in
+~/.shorts-toolkit.json, default ~/post-studio). One program, one data folder
+(%LOCALAPPDATA%\\PostStudio: written posts, logins, the queue, the posting plan).
 """
 import json
 import os
 import subprocess
+import sys
 import tempfile
 
 SETTINGS = os.path.join(os.path.expanduser("~"), ".shorts-toolkit.json")
 DEFAULT = os.path.join(os.path.expanduser("~"), "post-studio")
 PLATFORMS = ["youtube_shorts", "tiktok", "instagram_reels", "facebook"]
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+FROZEN = getattr(sys, "frozen", False)
 
 
 class PostStudioMissing(Exception):
@@ -35,32 +32,33 @@ def home():
     return p or DEFAULT
 
 
-def python():
-    h = home()
-    exe = os.path.join(h, ".venv", "Scripts", "python.exe")
-    if not (os.path.isfile(exe) and os.path.isfile(os.path.join(h, "poststudio.py"))):
-        raise PostStudioMissing("Post Studio isn't at %s - set its folder in step 7 (it does the writing and posting)." % h)
-    return exe
+_ENGINE = {}
 
 
-def _cmd(args):
-    return [python(), "-X", "utf8", os.path.join(home(), "poststudio.py")] + args
-
-
-def run(args, timeout=120):
-    """Quick Post Studio commands; returns parsed JSON."""
-    p = subprocess.run(_cmd(args), capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=home(),
-                       timeout=timeout, creationflags=NOWIN, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
-    if p.returncode:
-        raise RuntimeError((p.stderr or p.stdout).strip().splitlines()[-1] if (p.stderr or p.stdout).strip() else "Post Studio failed")
-    return json.loads(p.stdout)
+def engine():
+    """The Post Studio modules: {poststudio, publish, store, generate, studio}."""
+    if _ENGINE:
+        return _ENGINE
+    if not FROZEN:
+        h = home()
+        if not os.path.isfile(os.path.join(h, "poststudio.py")):
+            raise PostStudioMissing("Post Studio's engine isn't at %s - set its folder in step 7." % h)
+        if h not in sys.path:
+            sys.path.append(h)             # appended: the toolkit's own modules (app, config...) win any name clash
+    import generate
+    import poststudio
+    import publish
+    import store
+    from publish import studio
+    _ENGINE.update(poststudio=poststudio, publish=publish, store=store, generate=generate, studio=studio)
+    return _ENGINE
 
 
 def status():
     try:
-        python()
-        return dict(ok=True, home=home())
-    except PostStudioMissing as e:
+        engine()
+        return dict(ok=True, home="built in" if FROZEN else home())
+    except (PostStudioMissing, ImportError) as e:
         return dict(ok=False, home=home(), error=str(e))
 
 
@@ -80,7 +78,7 @@ def ai_status():
 
 
 def start_ai():
-    """`brain ada` - loads the 12B model, refusing (exit 2) if RAM won't fit or a stream/game is live."""
+    """`brain ada` - loads the 12B model; exit 2 = the RAM guard refused."""
     if not os.path.isfile(BRAIN):
         return dict(ok=False, message="Start Ollama yourself, then try again.")
     p = subprocess.run(["cmd", "/c", BRAIN, "ada"], capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -88,12 +86,23 @@ def start_ai():
     lines = [x.strip() for x in (p.stdout + p.stderr).splitlines() if x.strip()]
     msg = " ".join(lines[-4:])[:600]
     if p.returncode == 2:
-        msg = "Not started - the RAM guard refused (something is streaming or a game server is up). " + msg
+        msg = "Not started - the RAM guard refused (not enough free RAM). " + msg
     return dict(ok=p.returncode == 0, code=p.returncode, message=msg)
 
 
+# -- what's written ----------------------------------------------------------------------
 def readiness():
-    return run(["readiness"])
+    E = engine()
+    publish = E["publish"]
+    acc = publish.accounts_status(check=False)
+    st = publish.settings()
+    out = {}
+    for pid in publish.DIRECT:
+        be = publish.backend_for(pid)
+        a = acc.get(be.NAME, {})
+        out[pid] = dict(account=bool(a.get("connected")), who=a.get("who"), account_name=be.TITLE, route=publish.route(pid),
+                        plan=st["plan"].get(pid) or [], native=be.NATIVE_SCHEDULE)
+    return dict(platforms=out, task=publish.task_status())
 
 
 def missing(ready, plats):
@@ -105,22 +114,29 @@ def missing(ready, plats):
             continue
         name = {"youtube_shorts": "YouTube Shorts", "tiktok": "TikTok", "instagram_reels": "Instagram Reels", "facebook": "Facebook"}.get(pid, pid)
         if not r["plan"]:
-            out.append("%s: no posting times set (Post Studio > Publish > Posting plan)" % name)
+            out.append("%s: no posting times set (step 8 > Posting times)" % name)
         if not r["account"]:
-            out.append("%s: %s isn't connected (Post Studio > Publish > Accounts)" % (name, r["account_name"]))
+            out.append("%s: %s isn't connected (step 8)" % (name, r["account_name"]))
     return out
 
 
 def platforms():
-    return [p for p in run(["platforms", "--json"]) if p["id"] in PLATFORMS]
+    E = engine()
+    out = []
+    for k, p in E["generate"].platforms(E["store"].ROOT).items():
+        if k in PLATFORMS:
+            out.append(dict(id=k, name=p["name"], upload=p.get("upload") or [], postable=k in E["publish"].DIRECT,
+                            fields=[{x: f.get(x) for x in ("key", "label", "type", "max")} for f in p["fields"]]))
+    return out
 
 
 def show(files):
-    return run(["show"] + list(files)) if files else []
+    E = engine()
+    return [E["poststudio"].show(f) for f in files]
 
 
 def queue(project=None):
-    js = run(["queue", "--json"])
+    js = engine()["publish"].jobs()
     if project:
         js = [j for j in js if (j.get("source") or {}).get("project") == project]
     return js
@@ -136,7 +152,6 @@ def transcript_file(project_path, start, end):
             continue
         a, b, t = round(max(0.0, c["start"] - start), 2), round(min(end, c["end"]) - start, 2), c["text"].strip()
         # Shorts captions are 1-3 word chunks; joined back into sentences so quotes come out whole
-        # (otherwise the AI quoted "Well," "at least it" "starts us right" as separate lines)
         if segs and a - segs[-1][1] <= 0.8 and not segs[-1][2].endswith((".", "?", "!")) and len(segs[-1][2].split()) < 25:
             segs[-1][1], segs[-1][2] = b, segs[-1][2] + " " + t
         else:
@@ -155,51 +170,28 @@ def plain(posts):
     return {pid: {k: v.get("value") if isinstance(v, dict) else v for k, v in (f or {}).items()} for pid, f in (posts or {}).items()}
 
 
-def write_cmd(video, transcript, subject="", notes="", platform_ids=None, fresh=False, background="", siblings=None, angle=None,
-              avoid="", clean=False, quick=True, base_tags="", examples=""):
-    """The command that writes posts for one Short (slow: runs the local AI model).
-    notes = about THIS Short; background = the channel (same for every Short);
-    siblings = a JSON file of the other Shorts' posts so this one doesn't repeat them."""
-    a = ["from-short", video, "--platforms", ",".join(platform_ids or PLATFORMS), "--json", "--no-screen-text"]
-    if background:
-        a += ["--background", background]
-    if siblings:
-        a += ["--siblings", siblings]
-    if angle:
-        a += ["--angle", angle]
-    if avoid:
-        a += ["--avoid", avoid]
-    if clean:
-        a.append("--clean")
-    if quick:
-        a.append("--quick")
-    if base_tags:
-        a += ["--base-tags", base_tags]
-    if examples and examples.strip():
-        a += ["--examples", examples.strip()]
-    if transcript:
-        a += ["--transcript", transcript]
-    if subject:
-        a += ["--subject", subject]
-    if notes:
-        a += ["--notes", notes]
-    if fresh:
-        a.append("--fresh")
-    return _cmd(a)
+def write(video, transcript, subject="", notes="", platform_ids=None, fresh=False, background="", siblings=None, angle=None,
+          avoid="", clean=False, quick=True, base_tags="", examples="", log=print):
+    """Write the posts for one Short (the slow part: the local AI model)."""
+    ps = engine()["poststudio"]
+    split = lambda s: [w.strip() for w in str(s or "").split(",") if w.strip()]
+    return ps.from_short(video, platform_ids or PLATFORMS, subject, notes, transcript, None, fresh, log=log, background=background,
+                         siblings=siblings, angle=angle, screen_text=False, avoid=split(avoid), clean=clean, quick=quick,
+                         base_tags=split(base_tags), examples=[e.strip() for e in str(examples or "").splitlines() if e.strip()])
 
 
 def set_field(video, platform, key, value):
-    return run(["set-field", video, platform, key, json.dumps(value, ensure_ascii=False)])
+    try:
+        return engine()["poststudio"].set_field(video, platform, key, value)
+    except SystemExit as e:
+        raise ValueError(str(e))
 
 
 def add(video, platform, fields, settings=None, when=None, source=None, schedule=True):
-    a = ["queue-add", video, platform, "--fields", json.dumps(fields, ensure_ascii=False), "--json"]
-    if settings:
-        a += ["--settings", json.dumps(settings, ensure_ascii=False)]
-    if when:
-        a += ["--when", when]
-    if source:
-        a += ["--source", json.dumps(source, ensure_ascii=False)]
-    if schedule:
-        a.append("--schedule")
-    return run(a)
+    publish = engine()["publish"]
+    if when == "next":
+        when = publish.next_slot(platform)
+        if not when:
+            raise ValueError("No posting times for %s yet (step 8)." % platform)
+    job = publish.add(video, platform, fields, settings, when, source)
+    return publish.edit(job["id"], status="scheduled") if schedule else job

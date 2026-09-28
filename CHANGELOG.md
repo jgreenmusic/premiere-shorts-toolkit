@@ -2,6 +2,35 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.16.0 - 2026-09-27
+
+**One program: Post Studio is built in. New step 8 · Publish puts the Shorts on YouTube.**
+
+Asked for: "both post studio and studio toolkit should be in one program and it should keep the
+same logical chain of operations for posting to youtube optimally so I can spend more time playing
+and recording content."
+
+- Post Studio's engine (writing posts, YouTube publishing) now runs INSIDE the toolkit and is
+  bundled in the installer. No second app, no Post Studio window, one data folder.
+- The chain: 1 Markers > 2 Captions > 3 Shorts > 4 Screams & laughs > 5 Look > 6 Render >
+  **7 Posts** (write + edit) > **8 Publish**.
+- **8 Publish**: YouTube connection (Connect / Switch channel), every Short with where it is on the
+  channel (draft on YouTube / scheduled + when / public / not on YouTube yet), and one button:
+  - already on YouTube (a draft uploaded in Studio, matched by file name) -> fill it in + schedule
+  - not on YouTube -> upload + schedule
+  - scheduled / public -> left alone, so nothing is ever uploaded twice.
+  When: your posting times (e.g. 16:00 daily, from a date) or one every N hours from a start time,
+  or public now, or text only. Times already taken on the channel are skipped. YouTube releases
+  scheduled Shorts itself - the PC can be off. **Preview** shows what each Short gets and when;
+  **Publish** (two clicks) does it, with the log.
+- Step 7 is only writing/editing now (its scheduling bits and the "Ready to post?" panel moved
+  into step 8). **Autopilot** = render -> write the posts -> publish with step 8's settings.
+- Found on the way: Post Studio had been connected to the wrong channel (Julian Green); the
+  Shorts live on **poosic** (a different Google account, now a test user of the app). Step 8 shows
+  which channel is connected and has Switch channel.
+- Checked against the real channel (read-only): 21 drafts, 4 scheduled, 2 public - matches
+  YouTube Studio; preview planned 21 fills, Oct 2-22 at 4 PM, and skipped the 6 already out.
+
 ## 0.15.3 - 2026-09-27
 
 **"Write + schedule all" no longer pretends it worked.**

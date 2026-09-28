@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.15.3"
+__version__ = "0.16.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -385,8 +385,8 @@ def cmd_shorts(args):
 def cmd_post(args):
     """Step 7: Post Studio writes each rendered Short's title/description/tags/hashtags
     for every platform, and (with --schedule) queues them into your posting plan."""
-    import subprocess
     import posting
+    _utf8_out()
     for stream in (sys.stdout, sys.stderr):              # post text has emoji; a Windows console would crash on them
         try:
             # line_buffering: the installed app reads this through a pipe - without it the log stayed blank
@@ -419,7 +419,6 @@ def cmd_post(args):
     if not todo:
         sys.exit("No rendered Shorts to post - render them in step 6 first.")
     project = os.path.abspath(args.project)
-    import tempfile
     # what the other Shorts already say, so this one reads differently. Shorts being rewritten
     # (--fresh) don't count until they're written again in this run.
     written = {}
@@ -434,36 +433,24 @@ def cmd_post(args):
         print("[%d/%d] %s" % (n, len(todo), s["name"]))
         tr, nseg = posting.transcript_file(args.project, float(s["start"]), float(s["end"]))
         me = os.path.normcase(os.path.normpath(video))
-        fd, sib = tempfile.mkstemp(prefix="short-siblings-", suffix=".json")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump([p for k, p in written.items() if k != me], f, ensure_ascii=False)
         angle = posting.ANGLES[i % len(posting.ANGLES)]
         try:
             print("  %d caption lines as the transcript; angle: %s; writing %s" % (nseg, angle, ", ".join(plats)))
-            proc = subprocess.Popen(posting.write_cmd(video, tr if nseg else None, pc.get("subject", ""),
-                                                      notes_by_short.get(s["name"], ""), plats, fresh=args.fresh,
-                                                      background=pc.get("notes", ""), siblings=sib, angle=angle,
-                                                      avoid=pc.get("avoid", ""), clean=bool(pc.get("clean")),
-                                                      quick=pc.get("detail", "quick") != "full", base_tags=pc.get("base_tags", ""),
-                                                      examples=pc.get("examples", "")),
-                                    cwd=posting.home(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                    encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            errs = []
-            for line in proc.stderr:                       # Post Studio's progress
-                print("  " + line.rstrip())
-                errs.append(line)
-            out_ = proc.stdout.read()
-            proc.wait()
-            if proc.returncode:
-                why = next((l.strip() for l in reversed(errs) if "Error" in l or "error" in l), "see the lines above")
+            try:
+                res = posting.write(video, tr if nseg else None, pc.get("subject", ""), notes_by_short.get(s["name"], ""), plats,
+                                    fresh=args.fresh, background=pc.get("notes", ""),
+                                    siblings=[p for k, p in written.items() if k != me], angle=angle,
+                                    avoid=pc.get("avoid", ""), clean=bool(pc.get("clean")),
+                                    quick=pc.get("detail", "quick") != "full", base_tags=pc.get("base_tags", ""),
+                                    examples=pc.get("examples", ""), log=lambda m: print("  " + str(m)))
+            except Exception as e:
+                why = str(e)
                 if "Ollama" in why or "memory" in why.lower() or "isn't installed" in why:
                     sys.exit("\nStopped: %s" % why)       # the same will happen to every Short - don't grind through them
-                print("  !! Post Studio failed on this one: %s" % why)
+                print("  !! couldn't write this one: %s" % why)
                 continue
-            res = json.loads(out_ or "{}")
         finally:
             os.remove(tr)
-            os.remove(sib)
         posts = res.get("posts") or {}
         written[me] = posting.plain({pid: (p or {}).get("fields") for pid, p in posts.items()})
         for pid in plats:
@@ -486,6 +473,51 @@ def cmd_post(args):
                 except Exception as e:
                     print("  !! couldn't schedule %s: %s" % (pid, e))
     print("\nDone.%s" % (" Check them in step 7 or Post Studio > Publish." if args.schedule else " Review them in step 7, then schedule."))
+
+
+def _utf8_out():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+        except AttributeError:
+            pass
+
+
+def cmd_publish(args):
+    """Step 8: fill in the Shorts already on YouTube and upload the rest, scheduled - from a
+    plan the app made (youtube_step.plan) and you approved."""
+    import posting
+    import youtube_step
+    _utf8_out()
+    with open(args.plan, encoding="utf-8") as f:
+        p = json.load(f)
+    posting.engine()
+    done, failed = youtube_step.apply(args.project, p["rows"], p.get("settings"), p.get("visibility", "schedule"))
+    if failed and not done:
+        sys.exit(1)
+
+
+def cmd_yt_connect(args):
+    """Log in to YouTube (opens the Google sign-in in your browser)."""
+    import posting
+    _utf8_out()
+    yt = posting.engine()["publish"].BACKENDS["youtube"]
+    if args.forget:
+        from publish import accounts
+        accounts.forget("youtube")
+        print("Logged out of the previous channel.")
+    print("Finish the sign-in in the browser tab that opened - pick the channel your Shorts go to.")
+    st = yt.connect(args.client_id, args.client_secret)
+    if not st.get("connected"):
+        sys.exit("Not connected: %s" % st.get("error", "unknown"))
+    print("Connected: %s" % st.get("who"))
+
+
+def cmd_publish_due(args):
+    """Post whatever is due in the queue (the every-5-minutes Windows task runs this)."""
+    import posting
+    pub = posting.engine()["publish"]
+    pub.run_due(log=lambda m: pub.log_line("  " + m))
 
 
 def cmd_style(args):
@@ -829,6 +861,18 @@ def main():
     po.add_argument("--schedule", help="also queue them: next (posting plan), now, or a time like 2026-10-01T15:00")
     po.add_argument("--fresh", action="store_true", help="write again even if Post Studio already has posts")
     po.set_defaults(func=cmd_post)
+
+    pb = sub.add_parser("publish", help="step 8: fill YouTube drafts / upload + schedule, from an approved plan")
+    pb.add_argument("project")
+    pb.add_argument("--plan", required=True, help="JSON made by the app (youtube_step.plan)")
+    pb.set_defaults(func=cmd_publish)
+    yc = sub.add_parser("yt-connect", help="log in to YouTube")
+    yc.add_argument("--forget", action="store_true", help="log out of the current channel first")
+    yc.add_argument("--client-id")
+    yc.add_argument("--client-secret")
+    yc.set_defaults(func=cmd_yt_connect)
+    pd = sub.add_parser("publish-due", help="post whatever is due in the queue")
+    pd.set_defaults(func=cmd_publish_due)
 
     y = sub.add_parser("style", help="preview the burned-in look, or burn it onto a Premiere export")
     common(y)
