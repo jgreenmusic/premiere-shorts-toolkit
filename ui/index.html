@@ -110,6 +110,8 @@ td.spell { font-weight: 800; letter-spacing: .02em; max-width: 260px; overflow: 
 .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 .badge.warn { background: rgba(227,160,43,.15); color: var(--warn); }
 .badge.ok { background: rgba(63,185,80,.14); color: var(--ok); }
+.badge.bad { background: rgba(229,83,75,.15); color: var(--bad, #e5534b); }
+.warn { color: var(--warn); font-size: 12.5px; }
 .scroll { max-height: 460px; overflow-y: auto; }
 
 /* switch */
@@ -236,7 +238,7 @@ canvas#ov, canvas#dt { touch-action: none; }
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const api = async (url, body) => {
-  const r = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  const r = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json", "X-Shorts-Toolkit": "1" }, body: JSON.stringify(body) } : {});
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
@@ -258,7 +260,7 @@ setTheme(store.get("theme", matchMedia("(prefers-color-scheme: light)").matches 
 $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
 
 let S = { projects: [], current: null, info: null, busy: false, scripts: [], tab: store.get("tab", "markers"), sel: 0, markers: null, showSugg: false, showLSugg: false };
-if (["markers", "shorts", "screams", "look", "captions", "render", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
+if (["markers", "shorts", "screams", "look", "captions", "render", "post", "premiere"].includes(location.hash.slice(1))) S.tab = location.hash.slice(1);
 
 async function loadState() {
   const st = await api("/api/state");
@@ -335,9 +337,9 @@ async function saveCfg(patch, rerender = true) {
 
 // ---------------------------------------------------------------- views
 // in the order you work: markers -> fix captions (optional) -> pick Shorts -> screams & laughs -> look -> render
-const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["render", "6 · Render"], ["premiere", "Or: finish in Premiere"]];
+const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["render", "6 · Render"], ["post", "7 · Post"], ["premiere", "Or: finish in Premiere"]];
 const NEXT = { markers: ["captions", "Next: captions"], captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
-  look: ["render", "Next: render"] };
+  look: ["render", "Next: render"], render: ["post", "Next: post them"] };
 
 function render() {
   const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
@@ -363,7 +365,7 @@ function render() {
   $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
   if ((S.tab === "shorts" || S.tab === "markers") && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
-  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, premiere: viewPremiere })[S.tab]();
+  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, post: viewPost, premiere: viewPremiere })[S.tab]();
   if (next) {
     $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${next[1]} →</button></div>`);
     $("#nextStep").onclick = () => { S.tab = next[0]; store.set("tab", S.tab); render(); $("main").scrollTop = 0; };
@@ -1082,6 +1084,107 @@ function viewRender() {
   $$("[data-rsel]").forEach(tr => tr.onclick = e => { if (e.target.closest("button")) return; S.renderSel = +tr.dataset.rsel; render(); });
   syncRenderButtons();
 }
+// ---- Post (step 7): Post Studio writes each Short's title/description/tags/hashtags per platform,
+// then schedules them. Accounts, the posting plan and automatic posting live in Post Studio > Publish.
+const PLAT_SHORT = { youtube_shorts: "YouTube Shorts", tiktok: "TikTok", instagram_reels: "Instagram Reels", facebook: "Facebook" };
+const JOB_LBL = { draft: ["draft", ""], scheduled: ["scheduled", "warn"], retry: ["retrying", "warn"], posting: ["posting…", "warn"], posted: ["posted", "ok"],
+  scheduled_on_platform: ["uploaded, releases on time", "ok"], waiting_platform: ["processing", "warn"], failed: ["failed", "bad"] };
+const fmtVal = (type, v) => type === "hashtags" ? (v || []).map(x => "#" + x).join(" ") : type === "tags" ? (v || []).join(", ") : Array.isArray(v) ? v.join("\n") : (v ?? "");
+const parseVal = (type, t) => type === "hashtags" ? t.split(/[\s,]+/).map(x => x.replace(/^#/, "")).filter(Boolean) : type === "tags" ? t.split(",").map(x => x.trim()).filter(Boolean)
+  : type === "lines" ? t.split("\n").map(x => x.trim()).filter(Boolean) : t;
+async function viewPost() {
+  $("#view").innerHTML = `<div class="card"><p class="hint">Asking Post Studio…</p></div>`;
+  let P; try { P = await api("/api/post?path=" + encodeURIComponent(S.current)); } catch (e) { $("#view").innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; return; }
+  if (S.tab !== "post") return;
+  S.post = P;
+  const C = P.config, st = P.status;
+  if (!st.ok) {
+    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>Post Studio is needed for this step</h3>
+      <p>It's the separate app that writes the titles, descriptions, tags and hashtags, and does the uploading and scheduling.</p></div></div>
+      <p class="warn">${esc(st.error || "")}</p>
+      <label class="field">Post Studio folder<input class="text" id="psHome" value="${esc(st.home)}"></label>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="psSave">Use this folder</button></div></div>`;
+    $("#psSave").onclick = async () => { try { await api("/api/post/home", { home: $("#psHome").value }); viewPost(); } catch (e) { toast(e.message); } };
+    return;
+  }
+  const plats = P.platforms, on = C.platforms || [], rendered = P.shorts.filter(x => x.rendered);
+  const byShort = {}; P.queue.forEach(j => { (byShort[j.source?.short] ||= []).push(j); });
+  if (S.postSel == null || !P.shorts[S.postSel]?.rendered) S.postSel = rendered[0]?.i ?? null;
+  const cur = S.postSel != null ? P.shorts[S.postSel] : null;
+  const uploadForm = (pl) => (pl.upload || []).map(u => { const v = ((C.settings || {})[pl.id] || {})[u.key] ?? u.default, key = `${pl.id}|${u.key}`;
+    if (u.type === "bool") return `<label class="row" style="gap:6px;font-size:13.5px"><input type="checkbox" data-pset="${key}" ${v ? "checked" : ""}> ${esc(u.label)}</label>`;
+    if (u.type === "choice") return `<label class="field">${esc(u.label)}<select class="text" data-pset="${key}">${v == null ? `<option value="">— choose —</option>` : ""}${u.options.map(([k, l]) => `<option value="${esc(k)}" ${k === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>${u.help ? `<span class="hint">${esc(u.help)}</span>` : ""}</label>`;
+    if (u.type === "file") return "";
+    return `<label class="field">${esc(u.label)}<input class="text" data-pset="${key}" value="${esc(v ?? "")}"></label>`; }).join("");
+  const postCell = x => { const n = on.filter(pid => x.posts[pid]).length, js = byShort[x.name] || [];
+    return `${!x.rendered ? `<span class="badge">not rendered</span>` : n ? `<span class="badge ok">written ${n}/${on.length}</span>` : `<span class="badge">not written</span>`}
+      ${js.map(j => { const [l, c] = JOB_LBL[j.status] || [j.status, ""]; return `<span class="badge ${c}" title="${esc(j.error || j.when || "")}">${esc(PLAT_SHORT[j.platform] || j.platform)}: ${l}</span>`; }).join(" ")}`; };
+  const fieldBox = (pid, f, v, w) => { const big = f.type !== "text" || (f.max || 0) > 120;
+    return `<label class="field" style="margin-top:8px">${esc(f.label)}${f.max ? ` <span class="hint">${(typeof v === "string" ? v.length : "")}${typeof v === "string" ? " / " + f.max : ""}</span>` : ""}
+      ${big ? `<textarea class="text" rows="${f.type === "text" ? 3 : 2}" data-pf="${pid}|${f.key}|${f.type}">${esc(fmtVal(f.type, v))}</textarea>` : `<input class="text" data-pf="${pid}|${f.key}|${f.type}" value="${esc(fmtVal(f.type, v))}">`}
+      ${(w || []).length ? `<span class="warn">⚠ ${w.map(esc).join(" · ")}</span>` : ""}</label>`; };
+  const side = !cur ? `<div class="card"><p class="hint">Render some Shorts first (step 6) — posts are written from the finished videos.</p></div>`
+    : `<div class="card"><div class="card-head"><div class="grow"><h3>${esc(cur.name)}</h3><p>${cur.subject ? "About: " + esc(cur.subject) + " · " : ""}edit anything, then schedule.</p></div></div>
+      <video controls playsinline src="${media(cur.video)}#t=0.01" style="width:100%;max-height:340px;background:#000;border-radius:10px"></video>
+      ${on.map(pid => { const pl = plats.find(x => x.id === pid), post = cur.posts[pid];
+        if (!pl) return "";
+        if (!post) return `<div style="margin-top:14px"><b>${esc(pl.name)}</b><p class="hint">Not written yet — press <b>Write posts</b>.</p></div>`;
+        const js = (byShort[cur.name] || []).filter(j => j.platform === pid);
+        return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px" data-pcard="${pid}">
+          <div class="row"><b style="flex:1">${esc(pl.name)}</b>${js.map(j => `<span class="badge ${(JOB_LBL[j.status] || [])[1] || ""}">${(JOB_LBL[j.status] || [j.status])[0]}${j.when ? " · " + new Date(j.when).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</span>`).join(" ")}</div>
+          ${pl.fields.filter(f => post[f.key] && f.type !== "lines").map(f => fieldBox(pid, f, post[f.key].value, post[f.key].warnings)).join("")}
+          <div class="row" style="margin-top:8px;gap:6px">
+            <select class="text" data-pwhen="${pid}" style="width:auto"><option value="next">next free time (posting plan)</option><option value="at">at a time…</option><option value="now">as soon as possible</option><option value="draft">save as draft</option></select>
+            <input class="text" type="datetime-local" data-pat="${pid}" style="width:auto;display:none">
+            <button class="btn sm primary" data-psched="${pid}">Schedule</button></div></div>`; }).join("")}
+      <div class="row" style="margin-top:14px"><button class="btn sm" id="pRewrite" ${dis()}>Write this one again</button></div></div>`;
+  $("#view").innerHTML = `
+  <div class="card"><div class="card-head"><div class="grow"><h3>Post your Shorts</h3>
+    <p>Post Studio writes a title, description, tags and hashtags for each platform from what's said in the Short, then uploads on schedule. Posts only name what's in <b>Subject</b>.</p></div>
+    <button class="btn" id="openPS">Accounts, posting plan &amp; queue →</button></div>
+    <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px">
+      <label class="field">Subject <span class="hint">the game/topic, named exactly</span><input class="text" id="pSubject" value="${esc(C.subject)}" placeholder="e.g. Chained Together"></label>
+      <label class="field">Notes the AI can trust <span class="hint">who's in it, your channel, schedule…</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
+    <div class="row" style="margin-top:10px;gap:6px">${plats.map(pl => `<button class="btn sm ${on.includes(pl.id) ? "primary" : ""}" data-pplat="${pl.id}">${esc(pl.name)}</button>`).join("")}</div>
+    <details style="margin-top:10px"><summary class="hint">Upload settings (made for kids, AI label, TikTok privacy, category…) — used for every Short</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
+      <div class="row" style="margin-top:10px"><button class="btn sm primary" id="pSetSave">Save upload settings</button></div></details>
+    <label class="row" style="margin-top:12px;gap:8px;font-size:14px"><input type="checkbox" id="pAuto" ${C.auto ? "checked" : ""}> Autopilot: after each render, write the posts and schedule them into the posting plan</label>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="btn primary" id="pWrite" ${dis()} ${rendered.length ? "" : "disabled"}>Write posts for ${rendered.length} rendered Short${rendered.length === 1 ? "" : "s"}</button>
+      <button class="btn" id="pWriteSched" ${dis()} ${rendered.length ? "" : "disabled"}>Write + schedule all into the posting plan</button>
+      <span class="hint">Written ones are reused — only new Shorts get written. Needs Ollama running (the local AI).</span></div></div>
+  <div class="split player-split" style="grid-template-columns:minmax(0,1fr) 420px">
+    <div class="card"><div class="scroll" style="max-height:640px"><table><thead><tr><th>Short</th><th>Posts</th></tr></thead><tbody>
+      ${P.shorts.map(x => `<tr class="${x.i === S.postSel ? "sel" : ""}" data-psel="${x.i}" style="cursor:${x.rendered ? "pointer" : "default"}${x.rendered ? "" : ";opacity:.55"}"><td><b>${esc(x.name)}</b><div class="hint">${x.seconds}s</div></td><td>${postCell(x)}</td></tr>`).join("")}
+    </tbody></table></div></div>
+    <div>${side}</div></div>`;
+  const pc = patch => saveCfg({ post: { ...C, ...patch } }, false).then(() => viewPost()).catch(e => toast(e.message));
+  $("#openPS").onclick = () => api("/api/post/studio", {}).then(() => toast("Opening Post Studio > Publish", true)).catch(e => toast(e.message));
+  $("#pSubject").onchange = e => pc({ subject: e.target.value.trim() });
+  $("#pNotes").onchange = e => pc({ notes: e.target.value.trim() });
+  $("#pAuto").onchange = e => pc({ auto: e.target.checked }).then(() => toast(e.target.checked ? "Autopilot on: renders get posts + a place in the posting plan" : "Autopilot off", true));
+  $$("[data-pplat]").forEach(b => b.onclick = () => { const id = b.dataset.pplat; pc({ platforms: on.includes(id) ? on.filter(x => x !== id) : [...on, id] }); });
+  $("#pSetSave").onclick = () => { const set = JSON.parse(JSON.stringify(C.settings || {}));
+    $$("[data-pset]").forEach(el => { const [pid, k] = el.dataset.pset.split("|"); (set[pid] ||= {})[k] = el.type === "checkbox" ? el.checked : el.value === "" && el.tagName === "SELECT" ? null : el.value; });
+    pc({ settings: set }).then(() => toast("Upload settings saved", true)); };
+  $("#pWrite").onclick = () => run("post", { platforms: on });
+  $("#pWriteSched").onclick = () => run("post", { platforms: on, schedule: "next" });
+  $$("[data-psel]").forEach(tr => tr.onclick = () => { if (P.shorts[+tr.dataset.psel].rendered) { S.postSel = +tr.dataset.psel; viewPost(); } });
+  if (!cur) return;
+  if ($("#pRewrite")) $("#pRewrite").onclick = () => run("post", { platforms: on, indexes: [cur.i], fresh: true });
+  $$("[data-pwhen]").forEach(sel => sel.onchange = () => { const at = $(`[data-pat="${sel.dataset.pwhen}"]`); at.style.display = sel.value === "at" ? "" : "none";
+    if (!at.value) { const d = new Date(Date.now() + 3600e3); at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); } });
+  $$("[data-psched]").forEach(b => b.onclick = async () => {
+    const pid = b.dataset.psched, fields = {};
+    Object.entries(cur.posts[pid]).forEach(([k, v]) => fields[k] = v.value);             // keeps fields not shown (e.g. hook lines)
+    $$(`[data-pf^="${pid}|"]`).forEach(el => { const [, k, type] = el.dataset.pf.split("|"); fields[k] = parseVal(type, el.value); });
+    const w = $(`[data-pwhen="${pid}"]`).value, when = w === "next" ? "next" : w === "at" ? $(`[data-pat="${pid}"]`).value : null;
+    try { const j = await api("/api/post/schedule", { path: S.current, index: cur.i, platform: pid, fields, settings: (C.settings || {})[pid] || {}, when, schedule: w !== "draft" });
+      toast(`${PLAT_SHORT[pid]}: ${j.status === "draft" ? "saved as a draft" : "scheduled " + (j.when ? new Date(j.when).toLocaleString() : "for as soon as possible")}`, true); viewPost(); }
+    catch (e) { toast(e.message.replace(/^.*Error: /, "")); }
+  });
+}
 function syncRenderButtons() {
   const busy = S.busy && /^Rendering/.test(S.jobTitle || "");
   const show = (id, on) => { const el = $("#" + id); if (el) el.style.display = on ? "" : "none"; };
@@ -1438,7 +1541,7 @@ function wireCommon() {
 
 // ---------------------------------------------------------------- jobs
 const TITLES = { markers: "Finding the best moments", timeline: "Analysing the video", check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
-  preview: "Rendering preview", make: "Rendering", burn: "Burning captions onto video" };
+  preview: "Rendering preview", make: "Rendering", burn: "Burning captions onto video", post: "Writing posts" };
 async function run(action, data = {}) {
   if (S.busy) return;
   const body = { action, title: TITLES[action], path: S.current };
@@ -1451,6 +1554,7 @@ async function run(action, data = {}) {
     else if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.renderSel = body.index; }
     else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
+  if (action === "post") { Object.assign(body, data); if (data.schedule) body.title = "Writing + scheduling posts"; }
   if (action === "burn") { body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; if (!body.video) return toast("Pick the video you exported from Premiere first."); }
   try { await api("/api/run", body); } catch (e) { return toast(e.message); }
   S.busy = true; render(); openLog(true); poll(0);

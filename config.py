@@ -42,6 +42,13 @@ DEFAULTS = {
     "markers": [],                # step 1: suggested range markers placed by the toolkit
                                   # [{"name", "start", "end", "score", "why"}]
     "dismissed": [],              # [[start, end]] suggestions you removed - never suggested again
+    "post": {                     # step 7 - posting through Post Studio
+        "subject": "",            # what it is, named exactly (e.g. the game) - posts only name what's here
+        "notes": "",              # context the AI can trust (who's in it, channel, schedule...)
+        "platforms": ["youtube_shorts", "tiktok", "instagram_reels", "facebook"],
+        "settings": {},           # {platform: {upload setting: value}} e.g. made for kids, TikTok privacy
+        "auto": False,            # after a render: write posts + schedule into the posting plan
+    },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
                                   # made in the app; null = back to the original
 }

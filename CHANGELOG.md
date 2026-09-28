@@ -2,6 +2,34 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.13.0 - 2026-09-27
+
+**Step 7 · Post: titles, descriptions, tags, hashtags and upload settings per platform, then
+scheduled posting.**
+
+Asked for: apply the right description, title, hashtags, tags and upload settings for YouTube and
+other platforms, then post to all of them, scheduled and automated.
+
+- New tab **7 · Post** (after Render). Post Studio (separate app, `~/post-studio`) does the writing
+  and posting; the toolkit runs its command line, so neither app depends on the other's insides.
+- **Write posts** for every rendered Short - YouTube Shorts, TikTok, Instagram Reels, Facebook.
+  The Short's own captions (with your caption edits) are the transcript, so Whisper doesn't run
+  again. Already-written Shorts are reused; **Write this one again** redoes one.
+- **Subject** + **Notes** per project: posts only name what's there (e.g. the game).
+- Upload settings per platform, saved per project: made for kids, AI/synthetic label, category,
+  TikTok privacy, comments/Duet/Stitch, paid partnership, share to grid...
+- Per Short: every field editable, then **Schedule** - next free time in the posting plan, a
+  chosen time, as soon as possible, or save as draft. Queue status shows on each Short.
+- **Write + schedule all into the posting plan** in one go, and **Autopilot**: after each render,
+  write the posts and queue them automatically.
+- **Accounts, posting plan & queue →** opens Post Studio's Publish page.
+- CLI: `shorts.py post <project> [--indexes] [--platforms] [--schedule next|now|TIME] [--fresh]`.
+
+Tested on Pt 2, Short 01 (with the small 3B model, because the Omniplaylist was streaming - the
+12B is the real one): captions -> 24 transcript lines -> posts for 4 platforms -> 3 scheduled,
+TikTok correctly held back until a privacy choice is made. Posting itself is untested against
+real accounts (none connected yet).
+
 ## 0.12.1 - 2026-09-27
 
 **Whisper's repetition loops are left out of the captions.**

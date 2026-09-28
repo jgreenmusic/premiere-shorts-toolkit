@@ -32,7 +32,7 @@ for pkg in ("faster_whisper", "ctranslate2", "onnxruntime", "av", "tokenizers", 
     binaries += b
     hidden += h
 hidden += ["app", "shorts", "captions", "prproj", "pipeline", "config", "screams", "laughs", "sounds",
-           "style", "render", "timeline", "runtime", "remote", "clr"]
+           "style", "render", "timeline", "runtime", "remote", "posting", "clr"]
 excludes = ["torch", "torchaudio", "torchlibrosa", "librosa", "matplotlib", "panns_inference", "numba",
             "llvmlite", "scipy", "onnx", "tkinter", "IPython", "pytest", "pandas", "sympy"]
 

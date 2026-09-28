@@ -15,6 +15,7 @@ The original .prproj is never modified.
 """
 import argparse
 import csv
+import json
 import os
 import re
 import sys
@@ -23,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.12.1"
+__version__ = "0.13.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -381,6 +382,73 @@ def cmd_shorts(args):
         print("  %2d  %-32s %s - %s  (%.0fs)" % (i, s["name"], cap.fmt(s["start"]), cap.fmt(s["end"]), s["end"] - s["start"]))
 
 
+def cmd_post(args):
+    """Step 7: Post Studio writes each rendered Short's title/description/tags/hashtags
+    for every platform, and (with --schedule) queues them into your posting plan."""
+    import subprocess
+    import posting
+    for stream in (sys.stdout, sys.stderr):              # post text has emoji; a Windows console would crash on them
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except AttributeError:
+            pass
+    ctx = load_ctx(args, need_words=False)
+    pc = ctx.cfg.get("post") or {}
+    plats = args.platforms.split(",") if args.platforms else pc.get("platforms") or posting.PLATFORMS
+    items = list(enumerate(ctx.cfg["shorts"]))
+    if args.indexes:
+        want = {int(i) for i in args.indexes.split(",") if i.strip()}
+        items = [(i, s) for i, s in items if i in want]
+    out = shorts_dir(ctx)
+    todo = [(i, s, os.path.join(out, safe_name(s["name"]) + ".mp4")) for i, s in items]
+    missing = [s["name"] for i, s, v in todo if not os.path.exists(v)]
+    todo = [t for t in todo if os.path.exists(t[2])]
+    if missing:
+        print("Not rendered yet (skipped): " + ", ".join(missing))
+    if not todo:
+        sys.exit("No rendered Shorts to post - render them in step 6 first.")
+    project = os.path.abspath(args.project)
+    for n, (i, s, video) in enumerate(todo, 1):
+        print("[%d/%d] %s" % (n, len(todo), s["name"]))
+        tr, nseg = posting.transcript_file(args.project, float(s["start"]), float(s["end"]))
+        try:
+            print("  %d caption lines as the transcript; writing %s" % (nseg, ", ".join(plats)))
+            proc = subprocess.Popen(posting.write_cmd(video, tr if nseg else None, pc.get("subject", ""), pc.get("notes", ""),
+                                                      plats, fresh=args.fresh),
+                                    cwd=posting.home(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                    encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            for line in proc.stderr:                       # Post Studio's progress
+                print("  " + line.rstrip())
+            res = json.loads(proc.stdout.read() or "{}")
+            proc.wait()
+            if proc.returncode:
+                print("  !! Post Studio failed on this one")
+                continue
+        finally:
+            os.remove(tr)
+        posts = res.get("posts") or {}
+        for pid in plats:
+            f = (posts.get(pid) or {}).get("fields") or {}
+            if "title" in f:
+                print("  %-16s %s" % (pid, f["title"]["value"]))
+            elif f:
+                k = next(iter(f))
+                print("  %-16s %s" % (pid, str(f[k]["value"])[:90].replace("\n", " ")))
+        if args.schedule:
+            for pid in plats:
+                f = (posts.get(pid) or {}).get("fields")
+                if not f:
+                    continue
+                try:
+                    j = posting.add(video, pid, {k: v["value"] for k, v in f.items()}, (pc.get("settings") or {}).get(pid),
+                                    when=args.schedule if args.schedule != "now" else None,
+                                    source=dict(app="shorts-toolkit", project=project, short=s["name"]))
+                    print("  scheduled %-16s %s" % (pid, j.get("when") or "as soon as possible"))
+                except Exception as e:
+                    print("  !! couldn't schedule %s: %s" % (pid, e))
+    print("\nDone.%s" % (" Check them in step 7 or Post Studio > Publish." if args.schedule else " Review them in step 7, then schedule."))
+
+
 def cmd_style(args):
     """Preview the burned-in look, or burn it onto a Premiere export."""
     import render
@@ -714,6 +782,14 @@ def main():
     sp = sub.add_parser("speech", help="words for Premiere captions (used by the app's Premiere bridge)")
     common(sp)
     sp.set_defaults(func=cmd_speech)
+
+    po = sub.add_parser("post", help="step 7: write titles/descriptions/tags per platform (Post Studio), optionally schedule")
+    common(po, words=False)
+    po.add_argument("--indexes", help="only these Shorts, e.g. 0,3,5 (default: every rendered one)")
+    po.add_argument("--platforms", help="comma list (default: the project's choice, else YouTube Shorts, TikTok, Instagram, Facebook)")
+    po.add_argument("--schedule", help="also queue them: next (posting plan), now, or a time like 2026-10-01T15:00")
+    po.add_argument("--fresh", action="store_true", help="write again even if Post Studio already has posts")
+    po.set_defaults(func=cmd_post)
 
     y = sub.add_parser("style", help="preview the burned-in look, or burn it onto a Premiere export")
     common(y)

@@ -193,6 +193,50 @@ def results(outdir, shorts_dir, cfg):
     return r
 
 
+# -- step 7: posting (through Post Studio) -------------------------------------------
+PLATFORM_CACHE = {}
+
+
+def post_view(path):
+    import config
+    import posting
+    from shorts import safe_name
+    outdir = base_of(path) + "_captions"
+    cfg = config.load(outdir)
+    st = posting.status()
+    out = dict(status=st, config=cfg.get("post") or config.DEFAULTS["post"], shorts=[], queue=[], platforms=[])
+    if not st["ok"]:
+        return out
+    try:
+        if "list" not in PLATFORM_CACHE:
+            PLATFORM_CACHE["list"] = posting.platforms()
+        out["platforms"] = PLATFORM_CACHE["list"]
+        sdir = base_of(path) + "_shorts"
+        vids = [os.path.join(sdir, safe_name(x["name"]) + ".mp4") for x in cfg["shorts"]]
+        have = {os.path.normcase(os.path.normpath(r["file"])): r for r in posting.show([v for v in vids if os.path.exists(v)])}
+        for i, (x, v) in enumerate(zip(cfg["shorts"], vids)):
+            r = have.get(os.path.normcase(os.path.normpath(v))) or {}
+            out["shorts"].append(dict(i=i, name=x["name"], video=v, rendered=os.path.exists(v), seconds=round(x["end"] - x["start"], 1),
+                                      posts=r.get("posts") or {}, subject=r.get("subject", "")))
+        out["queue"] = posting.queue(os.path.abspath(path))
+    except Exception as e:                        # Post Studio broken: say so, keep the rest of the app working
+        out["status"] = dict(st, ok=False, error="Post Studio answered with an error: %s" % e)
+    return out
+
+
+def open_post_studio():
+    """Open Post Studio's Publish page (starting it if it isn't running)."""
+    import posting
+    import urllib.request
+    try:
+        urllib.request.urlopen("http://127.0.0.1:8770/api/state", timeout=1)
+        webbrowser.open("http://127.0.0.1:8770/?view=publish")
+    except OSError:
+        pyw = posting.python().replace("python.exe", "pythonw.exe")
+        subprocess.Popen([pyw, os.path.join(posting.home(), "app.py")], cwd=posting.home(),
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
 # -- jobs ------------------------------------------------------------------------------
 JOB = {"id": 0, "lines": [], "done": True, "code": None, "title": "", "started": 0, "stopped": False, "paused": False}
 PROC = [None]                     # the running job's process, so it can be stopped
@@ -269,6 +313,15 @@ def command(action, o):
                 "--max", str(o.get("max", 45))]
     if action == "speech":
         return ["speech", p]
+    if action == "post":
+        c = ["post", p]
+        if o.get("indexes"):
+            c += ["--indexes", ",".join(str(int(i)) for i in o["indexes"])]
+        if o.get("platforms"):
+            c += ["--platforms", ",".join(o["platforms"])]
+        if o.get("schedule"):
+            c += ["--schedule", str(o["schedule"])]
+        return c + (["--fresh"] if o.get("fresh") else [])
     if action == "burn":
         return ["style", p, "--video", o["video"], "--start", str(o.get("start") or "0")]
     raise ValueError("unknown action %s" % action)
@@ -493,6 +546,8 @@ class Handler(BaseHTTPRequestHandler):
                                                           glob.glob(os.path.join(RES, "premiere", "*.jsx")))))
             if u.path == "/api/info":
                 return self.send_json(project_info(q["path"]))
+            if u.path == "/api/post":
+                return self.send_json(post_view(q["path"]))
             if u.path == "/api/markers":
                 return self.send_json(marker_segments(q["path"]))
             if u.path == "/api/timeline":
@@ -566,8 +621,43 @@ class Handler(BaseHTTPRequestHandler):
                 if b.get("revoke"):
                     remote.revoke(b["revoke"])
                 return self.send_json(remote.info())
+            if u.path.startswith("/api/post/"):
+                # these can put things on the internet: only from the app's own page
+                if self.headers.get("X-Shorts-Toolkit") != "1" or self.headers.get("Host", "").split(":")[0] not in ("127.0.0.1", "localhost") and not self.remote:
+                    return self.send_json({"error": "forbidden"}, 403)
+                import posting
+                if u.path == "/api/post/schedule":
+                    if not self.known_project(b["path"]):
+                        return self.send_json({"error": "Unknown project."}, 403)
+                    import config
+                    from shorts import safe_name
+                    sh = config.load(base_of(b["path"]) + "_captions")["shorts"][int(b["index"])]
+                    video = os.path.join(base_of(b["path"]) + "_shorts", safe_name(sh["name"]) + ".mp4")
+                    j = posting.add(video, b["platform"], b["fields"], b.get("settings"), b.get("when"),
+                                    dict(app="shorts-toolkit", project=os.path.abspath(b["path"]), short=sh["name"]),
+                                    schedule=bool(b.get("schedule")))
+                    return self.send_json(j)
+                if u.path == "/api/post/home" and not self.remote:
+                    st = load_settings()
+                    st["post_studio"] = os.path.normpath(b["home"].strip().strip('"'))
+                    save_settings(st)
+                    PLATFORM_CACHE.clear()
+                    return self.send_json(posting.status())
+                if u.path == "/api/post/studio" and not self.remote:
+                    open_post_studio()
+                    return self.send_json({"ok": True})
+                return self.send_json({"error": "not found"}, 404)
             if u.path == "/api/run":
-                jid = run_job(b.get("title", b["action"]), command(b["action"], b))
+                after = None
+                if b["action"] == "make":
+                    import config
+                    if (config.load(base_of(b["path"]) + "_captions").get("post") or {}).get("auto"):
+                        idx = b.get("indexes") or ([b["index"]] if b.get("index") is not None else None)
+
+                        def after(code, p=b["path"], idx=idx):
+                            if code == 0:          # autopilot: write the posts and queue them into the posting plan
+                                run_job("Writing + scheduling posts", command("post", dict(path=p, indexes=idx, schedule="next")))
+                jid = run_job(b.get("title", b["action"]), command(b["action"], b), after)
                 return self.send_json({"id": jid} if jid else {"error": "Something is already running."},
                                       200 if jid else 409)
             if u.path == "/api/browse":
