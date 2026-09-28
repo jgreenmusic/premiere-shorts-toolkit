@@ -1135,6 +1135,7 @@ async function viewPost() {
         return `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px" data-pcard="${pid}">
           <div class="row"><b style="flex:1">${esc(pl.name)}</b>${js.map(j => `<span class="badge ${(JOB_LBL[j.status] || [])[1] || ""}">${(JOB_LBL[j.status] || [j.status])[0]}${j.when ? " · " + new Date(j.when).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</span>`).join(" ")}</div>
           ${pl.fields.filter(f => post[f.key] && f.type !== "lines").map(f => fieldBox(pid, f, post[f.key].value, post[f.key].warnings)).join("")}
+          <p class="hint" style="margin:4px 0 0">Edits save as soon as you click out of a box (green flash).</p>
           <div class="row" style="margin-top:8px;gap:6px">
             <select class="text" data-pwhen="${pid}" style="width:auto"><option value="next">next free time (posting plan)</option><option value="at">at a time…</option><option value="now">as soon as possible</option><option value="draft">save as draft</option></select>
             <input class="text" type="datetime-local" data-pat="${pid}" style="width:auto;display:none">
@@ -1192,6 +1193,13 @@ async function viewPost() {
   if ($("#pShortNote")) $("#pShortNote").onchange = e => { const sn = { ...(C.short_notes || {}) }; if (e.target.value.trim()) sn[cur.name] = e.target.value.trim(); else delete sn[cur.name];
     saveCfg({ post: { ...C, short_notes: sn } }, false).then(() => { C.short_notes = sn; toast("Saved — press Write this one again to use it", true); }).catch(err => toast(err.message)); };
   if ($("#pRewrite")) $("#pRewrite").onclick = () => run("post", { platforms: on, indexes: [cur.i], fresh: true });
+  // every edit is saved the moment you leave the box (it used to live only on screen until Schedule)
+  $$("[data-pf]").forEach(el => el.onchange = async () => {
+    const [pid, k, type] = el.dataset.pf.split("|"), value = parseVal(type, el.value);
+    try { const r = await api("/api/post/field", { path: S.current, index: cur.i, platform: pid, field: k, value });
+      cur.posts[pid][k] = { value: r.value, warnings: r.warnings }; el.style.outline = "1px solid var(--ok)"; setTimeout(() => el.style.outline = "", 1200); }
+    catch (e) { toast("Not saved: " + e.message); el.style.outline = "1px solid var(--bad)"; }
+  });
   $$("[data-pwhen]").forEach(sel => sel.onchange = () => { const at = $(`[data-pat="${sel.dataset.pwhen}"]`); at.style.display = sel.value === "at" ? "" : "none";
     if (!at.value) { const d = new Date(Date.now() + 3600e3); at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); } });
   $$("[data-psched]").forEach(b => b.onclick = async () => {

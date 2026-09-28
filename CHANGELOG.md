@@ -2,6 +2,19 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.15.1 - 2026-09-27
+
+**Step 7 edits are saved the moment you make them.**
+
+Problem: Julian edited the posts for his Shorts in step 7, then asked how to make them postable -
+and none of it had been saved. Step 7 only sent text when Schedule was pressed (which went to the
+queue, not back to the written posts), and clicking another Short reloaded the saved text, so
+every edit on a Short he'd clicked away from was lost. There was no way to recover them.
+
+- Every box in step 7 saves when you click out of it (green flash; red + message if it didn't).
+  Edits go into Post Studio's written posts (`poststudio.py set-field`), so the queue, Schedule
+  and the YouTube drafts screen all use them.
+
 ## 0.15.0 - 2026-09-27
 
 **Writing posts: ~7 s a Short instead of ~95 s, YouTube tags filled to the 500-character max.**

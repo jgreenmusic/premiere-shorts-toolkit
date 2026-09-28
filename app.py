@@ -638,6 +638,14 @@ class Handler(BaseHTTPRequestHandler):
                                     dict(app="shorts-toolkit", project=os.path.abspath(b["path"]), short=sh["name"]),
                                     schedule=bool(b.get("schedule")))
                     return self.send_json(j)
+                if u.path == "/api/post/field":
+                    if not self.known_project(b["path"]):
+                        return self.send_json({"error": "Unknown project."}, 403)
+                    import config
+                    from shorts import safe_name
+                    sh = config.load(base_of(b["path"]) + "_captions")["shorts"][int(b["index"])]
+                    video = os.path.join(base_of(b["path"]) + "_shorts", safe_name(sh["name"]) + ".mp4")
+                    return self.send_json(posting.set_field(video, b["platform"], b["field"], b["value"]))
                 if u.path == "/api/post/home" and not self.remote:
                     st = load_settings()
                     st["post_studio"] = os.path.normpath(b["home"].strip().strip('"'))

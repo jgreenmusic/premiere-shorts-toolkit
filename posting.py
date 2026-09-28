@@ -167,6 +167,10 @@ def write_cmd(video, transcript, subject="", notes="", platform_ids=None, fresh=
     return _cmd(a)
 
 
+def set_field(video, platform, key, value):
+    return run(["set-field", video, platform, key, json.dumps(value, ensure_ascii=False)])
+
+
 def add(video, platform, fields, settings=None, when=None, source=None, schedule=True):
     a = ["queue-add", video, platform, "--fields", json.dumps(fields, ensure_ascii=False), "--json"]
     if settings:
