@@ -20,7 +20,7 @@ import threading
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FROZEN = getattr(sys, "frozen", False)                 # running as the installed app
@@ -34,6 +34,45 @@ DEFAULT_DIRS = [os.path.join(os.path.expanduser("~"), "Desktop", "Projects")]
 
 sys.path.insert(0, HERE)
 from shorts import __version__  # noqa: E402
+
+# -- errors, kept for "Copy log" so a friend can send you exactly what went wrong ----
+ERRORS = []
+ERROR_LOG = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "ShortsToolkit", "errors.log")
+
+
+def note_error(where):
+    """Remember the exception being handled (full traceback) and append it to errors.log."""
+    import traceback
+    entry = "%s  %s\n%s" % (time.strftime("%Y-%m-%d %H:%M:%S"), where, traceback.format_exc().rstrip())
+    ERRORS.append(entry)
+    del ERRORS[:-30]
+    try:
+        os.makedirs(os.path.dirname(ERROR_LOG), exist_ok=True)
+        with open(ERROR_LOG, "a", encoding="utf-8") as f:
+            f.write(entry + "\n\n")
+    except OSError:
+        pass
+
+
+def diagnostics():
+    """Plain text for the Copy log button: versions, the last job's full output, recent errors.
+    The home folder is written as ~ so the user's Windows name isn't in what they paste."""
+    import platform
+    with LOCK:
+        job = dict(JOB, lines=list(JOB["lines"]))
+    out = ["Shorts Toolkit %s (%s)" % (__version__, "installed" if FROZEN else "from source"),
+           "Windows %s  |  Python %s  |  %s" % (platform.version(), platform.python_version(), platform.machine()),
+           "App folder: %s" % APPDIR,
+           "Copied: %s" % time.strftime("%Y-%m-%d %H:%M:%S"), ""]
+    if job.get("title") or len(job["lines"]) > 0:
+        state = "running" if not job["done"] else "exit code %s" % job.get("code")
+        out += ["== Last job: %s (%s) ==" % (job.get("title") or "?", state)] + job["lines"][-400:] + [""]
+    out += ["== Recent app errors (%d) ==" % len(ERRORS)] + (ERRORS[-10:] or ["none"])
+    text = "\n".join(str(x) for x in out)
+    home = os.path.expanduser("~")
+    for form in (home, home.replace("\\", "\\\\"), home.replace("\\", "/")):
+        text = re.sub(re.escape(form), "~", text, flags=re.I)
+    return text
 
 
 # -- settings (remembered folders) ------------------------------------------------
@@ -633,6 +672,8 @@ class Handler(BaseHTTPRequestHandler):
                 import bridge
                 import premiere_install
                 return self.send_json(dict(bridge.status(), installed=premiere_install.installed()))
+            if u.path == "/api/diag":
+                return self.send_json({"text": diagnostics()})
             if u.path == "/api/state":
                 return self.send_json(dict(version=__version__, projects=list_projects(), remote=self.remote,
                                            dirs=load_settings().get("dirs", DEFAULT_DIRS),
@@ -682,6 +723,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"error": "not allowed"}, 403)
                 return self.send_file(p)
         except (Exception, SystemExit) as e:  # show errors in the UI instead of a dead page
+            note_error("GET " + unquote(self.path))
             return self.send_json({"error": str(e)}, 500)
         self.send_json({"error": "not found"}, 404)
 
@@ -892,6 +934,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/ping":
                 return self.send_json({"ok": True})
         except (Exception, SystemExit) as e:
+            note_error("POST " + u.path)
             return self.send_json({"error": str(e)}, 500)
         self.send_json({"error": "not found"}, 404)
 

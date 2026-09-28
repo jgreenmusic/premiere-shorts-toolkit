@@ -2,6 +2,21 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.17.1 - 2026-09-28
+
+**📋 Copy log, so a friend's problem can be sent back and fixed.**
+
+A friend's install failed on "Open clip" and there was no way to share the error: the desktop window
+blocked text selection (pywebview's `text_select` is off by default), and errors from opening a
+project only appeared as a pop-up that vanished after 5 seconds and never reached the log.
+
+- The log text can now be selected and copied.
+- **📋 Copy log** button on the log bar copies everything needed to troubleshoot: toolkit version,
+  Windows version, the last job's full output, the last 10 app errors with full tracebacks, and the
+  error pop-ups seen this session. Your home folder is written as `~`, so your Windows user name
+  isn't in what you paste. If the clipboard is blocked, the text opens in the log for Ctrl+A, Ctrl+C.
+- App errors are also saved to `%LOCALAPPDATA%\ShortsToolkit\errors.log`, so they survive closing the app.
+
 ## 0.17.0 - 2026-09-28
 
 **Censor mode (off unless you turn it on), tighter Short suggestions, a channel report.**

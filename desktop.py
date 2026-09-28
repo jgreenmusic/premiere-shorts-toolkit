@@ -39,7 +39,8 @@ def main():
     remote.autostart(app.Handler)                       # phone/tablet access, if you switched it on
 
     window = webview.create_window("Shorts Toolkit", "http://127.0.0.1:%d/" % port,
-                                   width=1480, height=940, min_size=(960, 640), background_color="#0E1014")
+                                   width=1480, height=940, min_size=(960, 640), background_color="#0E1014",
+                                   text_select=True)     # pywebview blocks selecting text by default - the log must be copyable
 
     def dialog(kind):
         FD = getattr(webview, "FileDialog", None)

@@ -163,7 +163,7 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-s
 @keyframes pulse { 50% { opacity: .35; } }
 .log-head .status { font-weight: 600; font-size: 14px; }
 .log-head .last { color: var(--muted); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: "Cascadia Code", Consolas, monospace; }
-.log pre { margin: 0; max-height: 34vh; overflow: auto; padding: 0 20px 16px; font: 12.5px/1.55 "Cascadia Code", Consolas, monospace; color: var(--muted); white-space: pre-wrap; }
+.log pre { margin: 0; max-height: 34vh; overflow: auto; padding: 0 20px 16px; font: 12.5px/1.55 "Cascadia Code", Consolas, monospace; color: var(--muted); white-space: pre-wrap; user-select: text; -webkit-user-select: text; cursor: text; }
 .log.closed pre { display: none; }
 .toast { position: fixed; top: 70px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bad); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); max-width: 360px; font-size: 14px; display: none; z-index: 5; }
 .toast.good { border-left-color: var(--ok); }
@@ -229,7 +229,7 @@ canvas#ov, canvas#dt { touch-action: none; }
 </div>
 <div class="log closed" id="log">
   <div class="log-head" id="logHead"><span class="dot" id="dot"></span><span class="status" id="status">Ready</span>
-    <span class="last" id="last"></span><button class="btn sm" id="pauseJob" style="display:none">❚❚ Pause</button><button class="btn sm danger" id="stopJob" style="display:none">■ Stop</button><span class="hint" id="toggleHint">Show log ▴</span></div>
+    <span class="last" id="last"></span><button class="btn sm" id="pauseJob" style="display:none">❚❚ Pause</button><button class="btn sm danger" id="stopJob" style="display:none">■ Stop</button><button class="btn sm" id="copyLog" title="Copy the log, recent errors and version info - paste it to whoever is helping you">📋 Copy log</button><span class="hint" id="toggleHint">Show log ▴</span></div>
   <pre id="logText"></pre>
 </div>
 <div class="toast" id="toast"></div>
@@ -252,7 +252,8 @@ const short = (s, n = 34) => s.length <= n ? s : s.slice(0, 14) + "…" + s.slic
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 // 0.17.0 moved the default Short length from 20-45 s to 15-30 s; untouched old defaults follow it
 const oldLen = o => (o && o.min == 20 && o.max == 45 ? { ...o, min: 15, max: 30 } : o);
-function toast(msg, good) { const t = $("#toast"); t.textContent = msg; t.className = "toast" + (good ? " good" : ""); t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
+const UI_ERRORS = [];   // error pop-ups vanish after 5 s - keep them for Copy log
+function toast(msg, good) { if (!good) { UI_ERRORS.push(new Date().toLocaleTimeString() + "  " + msg); UI_ERRORS.splice(0, UI_ERRORS.length - 30); } const t = $("#toast"); t.textContent = msg; t.className = "toast" + (good ? " good" : ""); t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
 const media = p => "/media?path=" + encodeURIComponent(p);
 const slug = n => n.replace(/[<>:"/\\|?*]+/g, "-").trim() || "short";
 
@@ -1762,8 +1763,23 @@ async function poll(from) {
 }
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }
 function openLog(open) { $("#log").classList.toggle("closed", !open); $("#toggleHint").textContent = open ? "Hide log ▾" : "Show log ▴"; }
-$("#logHead").onclick = e => { if (e.target.closest("#stopJob,#pauseJob")) return; openLog($("#log").classList.contains("closed")); };
+$("#logHead").onclick = e => { if (e.target.closest("#stopJob,#pauseJob,#copyLog")) return; openLog($("#log").classList.contains("closed")); };
 $("#pauseJob").onclick = async () => { $("#pauseJob").disabled = true; try { const r = await api("/api/pause", { pause: !S.paused }); S.paused = r.paused; $("#pauseJob").textContent = r.paused ? "▶ Resume" : "❚❚ Pause"; syncRenderButtons(); } catch (e) { toast(e.message); } $("#pauseJob").disabled = false; };
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  const ta = document.createElement("textarea");       // fallback for when the clipboard API is blocked
+  ta.value = text; ta.style.cssText = "position:fixed;left:-9999px;top:0"; document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+  ta.remove(); return ok;
+}
+$("#copyLog").onclick = async () => {
+  let text;
+  try { text = (await api("/api/diag")).text; }
+  catch (e) { text = "(the toolkit didn't answer: " + e.message + ")\n\n== Log on screen ==\n" + $("#logText").textContent; }
+  text += "\n\n== Error pop-ups (" + UI_ERRORS.length + ") ==\n" + (UI_ERRORS.join("\n") || "none");
+  if (await copyText(text)) toast("Log copied - paste it into Discord or a message.", true);
+  else { openLog(true); $("#logText").textContent = text; toast("Couldn't reach the clipboard - the full log is below; press Ctrl+A then Ctrl+C in it."); }
+};
 $("#stopJob").onclick = async () => { $("#stopJob").disabled = true; try { await api("/api/stop", {}); } catch (e) { toast(e.message); } $("#stopJob").disabled = false; };
 if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
 setInterval(() => api("/api/ping", {}).catch(() => setStatus("bad", "Toolkit closed — start it again")), 15000);
