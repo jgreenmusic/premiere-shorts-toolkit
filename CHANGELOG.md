@@ -2,6 +2,24 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.16.2 - 2026-09-27
+
+**Clicking around no longer "refreshes" the app.**
+
+Problem: "every time I do something like select and deselect things, move to time markers etc it
+will refresh the app." Selecting a Short in step 7, ticking a box in step 8, picking a Short in
+step 6, toggling screams/laughs - each redrew the whole page (steps 7/8 also re-downloaded
+everything with a "Loading..." flash), so it jumped back to the top and the video reloaded.
+- Every redraw now keeps the page's and the lists' scroll positions, and keeps a playing video
+  if it's the same file.
+- Steps 7 and 8 redraw from what's already loaded; they only ask the engine / YouTube again when
+  something really changed (opening the tab, Refresh from YouTube, after a job).
+- Ticking/unticking Shorts in step 8 (and Select all / none) doesn't redraw at all - only the
+  count and buttons change.
+- Switching tabs still starts at the top.
+- Tested in a browser: step 8 tick -> 0 server calls, scroll 700/200 kept; step 7 pick another
+  Short -> 0 calls, scroll kept, panel switched; step 6 pick -> scroll kept.
+
 ## 0.16.1 - 2026-09-27
 
 **Posting times: any way you write them, on the days you choose.**

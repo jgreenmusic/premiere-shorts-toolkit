@@ -341,7 +341,24 @@ const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shor
 const NEXT = { markers: ["captions", "Next: captions"], captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
   look: ["render", "Next: render"], render: ["post", "Next: write the posts"], post: ["publish", "Next: publish to YouTube"] };
 
-function render() {
+// A redraw used to jump to the top and reload the video on every click. snapshot() before,
+// restore() after: scroll positions come back and a video with the same file is kept as is.
+function snapshot() {
+  const m = $("main");
+  return { top: m ? m.scrollTop : 0, inner: $$("#view .scroll").map(e => e.scrollTop),
+    vids: $$("video[data-keep]").map(v => ({ v, src: v.getAttribute("src") })) };
+}
+function restore(sn) {
+  if (!sn) return;
+  $$("video[data-keep]").forEach(nv => { const o = sn.vids.find(x => x.src === nv.getAttribute("src") && !x.used); if (o) { o.used = true; nv.replaceWith(o.v); } });
+  $$("#view .scroll").forEach((e, i) => { if (sn.inner[i] != null) e.scrollTop = sn.inner[i]; });
+  const m = $("main"); if (m) m.scrollTop = sn.top;
+}
+function render(fresh) {                     // fresh = a different tab/project: start at the top
+  const snap = fresh ? null : snapshot(); S.snap = snap;
+  try { renderInner(); } finally { S.snap = null; restore(snap); }
+}
+function renderInner() {
   const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
   const next = I.clip && S.tab === "markers" ? ["shorts", "Next: pick your Shorts"] : NEXT[S.tab];   // a clip has no Premiere captions to fix
@@ -362,13 +379,13 @@ function render() {
   </div>
   <nav class="tabs">${TABS.map(([k, l]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-tab="${k}">${l}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("")}</nav>
   <div id="view"></div>`;
-  $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(); });
+  $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(true); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
   if ((S.tab === "shorts" || S.tab === "markers") && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
   ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, post: viewPost, publish: viewPublish, premiere: viewPremiere })[S.tab]();
   if (next) {
     $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${next[1]} →</button></div>`);
-    $("#nextStep").onclick = () => { S.tab = next[0]; store.set("tab", S.tab); render(); $("main").scrollTop = 0; };
+    $("#nextStep").onclick = () => { S.tab = next[0]; store.set("tab", S.tab); render(true); $("main").scrollTop = 0; };
   }
   wireCommon();
 }
@@ -1070,7 +1087,7 @@ function viewRender() {
       <div class="row" style="margin-top:10px"><button class="btn link" data-folder="${esc(I.shorts_dir)}">Open the Shorts folder</button></div>`
       : `<p class="hint">No Shorts yet — pick some in step 2.</p>`}
     </div>
-    <div class="player">${playing ? `<video controls playsinline src="${media(playing.path)}#t=0.01"></video>
+    <div class="player">${playing ? `<video data-keep controls playsinline src="${media(playing.path)}#t=0.01"></video>
       <div class="row" style="margin-top:8px"><b style="flex:1;font-size:14px">${esc(cur.name)}</b><button class="btn link" data-folder="${esc(playing.path)}">Show file</button></div>`
       : `<div class="video-empty">Rendered Shorts play here</div>`}</div>
   </div>`;
@@ -1092,9 +1109,13 @@ const JOB_LBL = { draft: ["draft", ""], scheduled: ["scheduled", "warn"], retry:
 const fmtVal = (type, v) => type === "hashtags" ? (v || []).map(x => "#" + x).join(" ") : type === "tags" ? (v || []).join(", ") : Array.isArray(v) ? v.join("\n") : (v ?? "");
 const parseVal = (type, t) => type === "hashtags" ? t.split(/[\s,]+/).map(x => x.replace(/^#/, "")).filter(Boolean) : type === "tags" ? t.split(",").map(x => x.trim()).filter(Boolean)
   : type === "lines" ? t.split("\n").map(x => x.trim()).filter(Boolean) : t;
-async function viewPost() {
-  $("#view").innerHTML = `<div class="card"><p class="hint">Asking Post Studio…</p></div>`;
-  let P; try { P = await api("/api/post?path=" + encodeURIComponent(S.current)); } catch (e) { $("#view").innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; return; }
+async function viewPost(opt = {}) {
+  const snap = S.snap || snapshot(); S.snap = null;
+  let P = opt.cached && S.post && S.post.path === S.current ? S.post : null;
+  if (!P) {
+    if (!S.post || S.post.path !== S.current) $("#view").innerHTML = `<div class="card"><p class="hint">Loading…</p></div>`;
+    try { P = await api("/api/post?path=" + encodeURIComponent(S.current)); P.path = S.current; } catch (e) { $("#view").innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; return; }
+  }
   if (S.tab !== "post") return;
   S.post = P;
   const C = P.config, st = P.status;
@@ -1125,7 +1146,7 @@ async function viewPost() {
       ${(w || []).length ? `<span class="warn">⚠ ${w.map(esc).join(" · ")}</span>` : ""}</label>`; };
   const side = !cur ? `<div class="card"><p class="hint">Render some Shorts first (step 6) — posts are written from the finished videos.</p></div>`
     : `<div class="card"><div class="card-head"><div class="grow"><h3>${esc(cur.name)}</h3><p>${cur.subject ? "About: " + esc(cur.subject) + " · " : ""}edit anything, then schedule.</p></div></div>
-      <video controls playsinline src="${media(cur.video)}#t=0.01" style="width:100%;max-height:340px;background:#000;border-radius:10px"></video>
+      <video data-keep controls playsinline src="${media(cur.video)}#t=0.01" style="width:100%;max-height:340px;background:#000;border-radius:10px"></video>
       <label class="field" style="margin-top:10px">What happens in this one <span class="hint">the AI only sees 4 frames — tell it the gag (then Write this one again)</span>
         <textarea class="text" id="pShortNote" rows="2" placeholder="e.g. Rojo drags us all off the train right at the end">${esc((C.short_notes || {})[cur.name] || "")}</textarea></label>
       ${on.map(pid => { const pl = plats.find(x => x.id === pid), post = cur.posts[pid];
@@ -1165,7 +1186,8 @@ async function viewPost() {
       ${P.shorts.map(x => `<tr class="${x.i === S.postSel ? "sel" : ""}" data-psel="${x.i}" style="cursor:${x.rendered ? "pointer" : "default"}${x.rendered ? "" : ";opacity:.55"}"><td><b>${esc(x.name)}</b><div class="hint">${x.seconds}s</div></td><td>${postCell(x)}</td></tr>`).join("")}
     </tbody></table></div></div>
     <div>${side}</div></div>`;
-  const pc = patch => saveCfg({ post: { ...C, ...patch } }, false).then(() => viewPost()).catch(e => toast(e.message));
+  restore(snap);
+  const pc = patch => saveCfg({ post: { ...C, ...patch } }, false).then(c => { P.config = (c.post || P.config); viewPost({ cached: true }); }).catch(e => toast(e.message));
   $("#pSubject").onchange = e => pc({ subject: e.target.value.trim() });
   $("#pNotes").onchange = e => pc({ notes: e.target.value.trim() });
   $("#pAvoid").onchange = e => pc({ avoid: e.target.value.split(",").map(x => x.trim()).filter(Boolean).join(", ") });
@@ -1182,7 +1204,7 @@ async function viewPost() {
     try { const r = await api("/api/post/ai", {}); toast(r.ok ? "The AI is running - write away" : r.message, r.ok); } catch (err) { toast(err.message); } viewPost(); };
   $("#pWrite").onclick = () => run("post", { platforms: on });
   $("#pRedoAll").onclick = e => { if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = "Click again — rewrites all " + rendered.length; return; } run("post", { platforms: on, fresh: true }); };
-  $$("[data-psel]").forEach(tr => tr.onclick = () => { if (P.shorts[+tr.dataset.psel].rendered) { S.postSel = +tr.dataset.psel; viewPost(); } });
+  $$("[data-psel]").forEach(tr => tr.onclick = () => { if (P.shorts[+tr.dataset.psel].rendered) { S.postSel = +tr.dataset.psel; viewPost({ cached: true }); } });
   if (!cur) return;
   if ($("#pShortNote")) $("#pShortNote").onchange = e => { const sn = { ...(C.short_notes || {}) }; if (e.target.value.trim()) sn[cur.name] = e.target.value.trim(); else delete sn[cur.name];
     saveCfg({ post: { ...C, short_notes: sn } }, false).then(() => { C.short_notes = sn; toast("Saved — press Write this one again to use it", true); }).catch(err => toast(err.message)); };
@@ -1199,9 +1221,13 @@ async function viewPost() {
 const YT_LBL = { draft: ["draft on YouTube", "warn"], scheduled: ["scheduled", "ok"], public: ["public", "ok"], private: ["private on YouTube", ""],
   unlisted: ["unlisted", ""], queued: ["uploading…", "warn"], not_uploaded: ["not on YouTube yet", ""], unknown: ["—", ""] };
 const fmtWhen = w => w ? new Date(w).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
-async function viewPublish(refresh) {
-  $("#view").innerHTML = `<div class="card"><p class="hint">${refresh ? "Reading your channel…" : "Loading…"}</p></div>`;
-  let Y; try { Y = await api("/api/yt?path=" + encodeURIComponent(S.current) + (refresh ? "&refresh=1" : "")); } catch (e) { $("#view").innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; return; }
+async function viewPublish(refresh, opt = {}) {
+  const snap = S.snap || snapshot(); S.snap = null;
+  let Y = opt.cached && S.yt && S.yt.path === S.current ? S.yt : null;
+  if (!Y) {
+    if (refresh || !S.yt || S.yt.path !== S.current) $("#view").innerHTML = `<div class="card"><p class="hint">${refresh ? "Reading your channel…" : "Loading…"}</p></div>`;
+    try { Y = await api("/api/yt?path=" + encodeURIComponent(S.current) + (refresh ? "&refresh=1" : "")); Y.path = S.current; } catch (e) { $("#view").innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; return; }
+  }
   if (S.tab !== "publish") return;
   S.yt = Y; S.ytRows = S.ytRows && S.ytRows.path === S.current ? S.ytRows : { path: S.current, rows: null };
   if (!Y.engine.ok) { $("#view").innerHTML = `<div class="card"><h3>The posting engine isn't available</h3><p class="warn">${esc(Y.engine.error || "")}</p></div>`; return; }
@@ -1264,6 +1290,7 @@ async function viewPublish(refresh) {
     $$("[data-yset]").forEach(el => settings[el.dataset.yset] = el.type === "checkbox" ? el.checked : el.value);
     return { path: S.current, indexes: [...pick], visibility: ["plan", "every"].includes(vis) ? "schedule" : vis, mode: vis === "every" ? "every" : "plan",
       start: vis === "every" ? $("#yStart").value : ($("#yFrom").value ? $("#yFrom").value + "T00:00" : null), every: +$("#yEvery").value || 24, settings }; };
+  restore(snap);
   if ($("#yConnect")) $("#yConnect").onclick = () => api("/api/post/yt-connect", {}).then(() => { S.busy = true; openLog(true); poll(0); toast("Finish the sign-in in your browser", true); }).catch(e => toast(e.message));
   if ($("#ySwitch")) $("#ySwitch").onclick = e => { if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = "Click again to sign in as another channel"; return; }
     api("/api/post/yt-connect", { forget: true }).then(() => { S.busy = true; openLog(true); poll(0); toast("Sign in and pick the channel", true); }).catch(err => toast(err.message)); };
@@ -1273,7 +1300,7 @@ async function viewPublish(refresh) {
     const rows = S.ySched.filter(r => r.time);
     try { const r = await api("/api/post/yt-times", { times: rows });
       Y.plan = r.plan; Y.plan_label = r.label; S.ytRows.rows = null;
-      toast(r.plan.length ? "Posting schedule saved: " + r.label : "Posting schedule cleared", true); viewPublish(); }
+      toast(r.plan.length ? "Posting schedule saved: " + r.label : "Posting schedule cleared", true); viewPublish(false, { cached: true }); }
     catch (e) { toast(e.message); } };
   $$("[data-ptime]").forEach(el => el.onchange = () => { S.ySched[+el.dataset.ptime].time = el.value; saveTimes(); });
   $$("[data-pday]").forEach(el => el.onclick = () => { const [k, d] = el.dataset.pday.split("|"), r = S.ySched[+k];
@@ -1282,13 +1309,17 @@ async function viewPublish(refresh) {
   $$("[data-pdel]").forEach(el => el.onclick = () => { S.ySched.splice(+el.dataset.pdel, 1); saveTimes(); });
   $("#yAddTime").onclick = () => { S.ySched.push({ time: "16:00", days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }); saveTimes(); };
   $$("[name=yvis], #yEvery, #yStart, #yFrom, [data-yset]").forEach(el => el.onchange = () => { S.ytRows.rows = null; $("#yApply").disabled = true; });
-  $$("[data-ypick]").forEach(cb => cb.onchange = () => { cb.checked ? pick.add(+cb.dataset.ypick) : pick.delete(+cb.dataset.ypick); S.ytRows.rows = null; viewPublish(); });
-  $("#yAll").onclick = () => { Y.shorts.filter(x => x.written && x.rendered && ["draft", "not_uploaded", "private", "unlisted"].includes(x.youtube)).forEach(x => pick.add(x.i)); S.ytRows.rows = null; viewPublish(); };
-  $("#yNone").onclick = () => { pick.clear(); S.ytRows.rows = null; viewPublish(); };
+  // ticking a box only changes the count and the buttons - no redraw
+  const pickChanged = () => { S.ytRows.rows = null; $$("#view td:last-child").forEach(td => { if (td.closest("tbody")) td.innerHTML = ""; });
+    $("#view .toolbar .grow").innerHTML = `<b>${pick.size}</b> selected`; $("#yPreview").disabled = !pick.size; const a = $("#yApply"); a.disabled = true; a.textContent = `Publish ${pick.size}`; delete a.dataset.armed; };
+  $$("[data-ypick]").forEach(cb => cb.onchange = () => { cb.checked ? pick.add(+cb.dataset.ypick) : pick.delete(+cb.dataset.ypick); pickChanged(); });
+  $("#yAll").onclick = () => { Y.shorts.filter(x => x.written && x.rendered && ["draft", "not_uploaded", "private", "unlisted"].includes(x.youtube)).forEach(x => pick.add(x.i));
+    $$("[data-ypick]").forEach(cb => cb.checked = pick.has(+cb.dataset.ypick)); pickChanged(); };
+  $("#yNone").onclick = () => { pick.clear(); $$("[data-ypick]").forEach(cb => cb.checked = false); pickChanged(); };
   $("#yPreview").onclick = async e => { const b = e.target; b.disabled = true; b.textContent = "Working it out…";
     try { const bb = body(); if (bb.mode === "plan" && bb.visibility === "schedule" && !Y.plan.length) throw new Error("Add a posting time first (+ Add a time), or pick 'One every N hours'.");
       const r = await api("/api/post/yt-preview", bb); S.ytRows.rows = r.rows; S.ytRows.body = bb;
-      const n = r.rows.filter(x => x.action !== "skip").length; toast(`${n} Short${n === 1 ? "" : "s"} ready — check the "Will do" column, then Publish`, true); viewPublish(); }
+      const n = r.rows.filter(x => x.action !== "skip").length; toast(`${n} Short${n === 1 ? "" : "s"} ready — check the "Will do" column, then Publish`, true); viewPublish(false, { cached: true }); }
     catch (err) { toast(err.message); b.disabled = false; b.textContent = "Preview"; } };
   $("#yApply").onclick = async e => { const b = e.target; const n = (S.ytRows.rows || []).filter(x => x.action !== "skip").length;
     if (!n) return toast("Nothing to publish in the selection.");
