@@ -1148,7 +1148,7 @@ async function viewPost(opt = {}) {
     : `<div class="card"><div class="card-head"><div class="grow"><h3>${esc(cur.name)}</h3><p>${cur.subject ? "About: " + esc(cur.subject) + " · " : ""}edit anything, then schedule.</p></div></div>
       <video data-keep controls playsinline src="${media(cur.video)}#t=0.01" style="width:100%;max-height:340px;background:#000;border-radius:10px"></video>
       <label class="field" style="margin-top:10px">What happens in this one <span class="hint">the AI only sees 4 frames — tell it the gag (then Write this one again)</span>
-        <textarea class="text" id="pShortNote" rows="2" placeholder="e.g. Rojo drags us all off the train right at the end">${esc((C.short_notes || {})[cur.name] || "")}</textarea></label>
+        <textarea class="text" id="pShortNote" rows="2" placeholder="e.g. my friend drags us all off the train right at the end">${esc((C.short_notes || {})[cur.name] || "")}</textarea></label>
       ${on.map(pid => { const pl = plats.find(x => x.id === pid), post = cur.posts[pid];
         if (!pl) return "";
         if (!post) return `<div style="margin-top:14px"><b>${esc(pl.name)}</b><p class="hint">Not written yet — press <b>Write posts</b>.</p></div>`;
@@ -1165,7 +1165,7 @@ async function viewPost(opt = {}) {
       <label class="field">Subject <span class="hint">the game/topic, named exactly</span><input class="text" id="pSubject" value="${esc(C.subject)}" placeholder="e.g. Chained Together"></label>
       <label class="field">Channel background <span class="hint">true for every Short (who's in it, schedule) — used sparingly, never as the opener</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:10px 16px;margin-top:10px;align-items:end">
-      <label class="field">Never mention <span class="hint">names/words kept out of every post, even quotes — e.g. friends' real names</span><input class="text" id="pAvoid" value="${esc(C.avoid || "")}" placeholder="e.g. Zach, Chris"></label>
+      <label class="field">Never mention <span class="hint">names/words kept out of every post, even quotes — e.g. friends' real names</span><input class="text" id="pAvoid" value="${esc(C.avoid || "")}" placeholder="e.g. Alex, Sam"></label>
       <label class="row" style="gap:6px;font-size:14px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label>
       <label class="field">Base tags <span class="hint">top up every Short's YouTube tags to the 500-character max (the game name + variants are added automatically)</span><input class="text" id="pBase" value="${esc(C.base_tags || "")}" placeholder="e.g. poosic, co op horror, funny fails"></label>
       <label class="field" style="grid-column:1/-1">Titles I like <span class="hint">paste 3-10 titles in your own voice, one per line — the AI copies how they sound (the best fix for cringe)</span><textarea class="text" id="pExamples" rows="3" placeholder="e.g.&#10;bro really said trust me&#10;we are not good at this game&#10;he let go on purpose">${esc(C.examples || "")}</textarea></label>

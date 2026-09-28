@@ -158,7 +158,7 @@ Problem (first real run, Pt 2): posts read alike. "The struggle is real in Chain
 title of two Shorts; most TikTok/Facebook posts opened with "Me and two friends..."; posts described
 scenery ("industrial settings", "first-person or third-person?") instead of the moment; one title was
 "WE WENT THROUGH", read off the Short's own burned-in captions; quotes came out as caption chunks
-("Well," "at least it" "starts us right"); a spoken real name ("Zach") and swearing got quoted; and
+("Well," "at least it" "starts us right"); a friend's real name (spoken in the clip) and swearing got quoted; and
 editing captions never re-wrote a Short that already had posts.
 
 - Each Short is written knowing what the other Shorts in the project already say: their first lines
@@ -176,8 +176,8 @@ editing captions never re-wrote a Short that already had posts.
   automatically. **Write all again** redoes every Short from scratch.
 
 Tested on Pt 2 Shorts 01-05 with the 12B: five different angles, no repeated openings, one too-close
-title caught and rewritten ("That fall hit different"); Short 01 with Never mention = Zach + clean:
-every post that quoted the swearing was rewritten, no "Zach".
+title caught and rewritten ("That fall hit different"); Short 01 with Never mention = that name + clean:
+every post that quoted the swearing was rewritten, no name.
 
 ## 0.13.1 - 2026-09-27
 
