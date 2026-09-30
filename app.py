@@ -333,6 +333,23 @@ def yt_task(on):
     return pub.task_install(exe=pyw, args='"%s" publish-due' % os.path.join(HERE, "shorts.py"), workdir=HERE)
 
 
+def tt_view(path):
+    import posting
+    import tiktok_step
+    st = posting.status()
+    out = dict(engine=st, account=None, plan=[], rows=[], task={}, auto=False)
+    if not st["ok"]:
+        return out
+    pub = posting.engine()["publish"]
+    acc = pub.accounts_status(check=False).get("tiktok", {})
+    plan = pub.settings()["plan"].get("tiktok") or []
+    cfg, shorts = _project_shorts(path)
+    out.update(account=dict(connected=bool(acc.get("connected")), who=acc.get("who"), has_app=bool(acc.get("has_app"))),
+               plan=plan, plan_label=pub.plan_label(plan), task=pub.task_status(),
+               auto=bool(((cfg.get("post") or {}).get("tt") or {}).get("auto")), rows=tiktok_step.state(shorts))
+    return out
+
+
 def autopilot_publish(path, indexes):
     """After autopilot wrote the posts: publish those Shorts with step 8's saved settings."""
     import config
@@ -344,13 +361,23 @@ def autopilot_publish(path, indexes):
         rows = yt_rows(b)
     except Exception as e:                           # e.g. no posting times yet - say so in the log, don't guess
         with LOCK:
-            JOB["lines"].append("Autopilot didn't publish: %s (set it up in step 8)." % e)
+            JOB["lines"].append("Autopilot didn't publish to YouTube: %s (set it up in step 8)." % e)
+        autopilot_tiktok(path, indexes)              # TikTok doesn't depend on YouTube's settings
         return
     fd, pf = tempfile.mkstemp(prefix="yt-plan-", suffix=".json")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(dict(rows=rows, settings=b["settings"], visibility=b["visibility"]), f)
     UPLOADS.clear()
-    run_job("Publishing to YouTube (autopilot)", command("publish", dict(path=path, plan_file=pf)))
+    run_job("Publishing to YouTube (autopilot)", command("publish", dict(path=path, plan_file=pf)),
+            lambda code: autopilot_tiktok(path, indexes))
+
+
+def autopilot_tiktok(path, indexes):
+    """Autopilot, TikTok: the new Shorts go to TikTok drafts at the next TikTok posting times."""
+    import config
+    if not (((config.load(base_of(path) + "_captions").get("post") or {}).get("tt")) or {}).get("auto"):
+        return
+    run_job("Sending to TikTok drafts (autopilot)", command("tiktok", dict(path=path, indexes=indexes or [])))
 
 
 def open_post_studio():
@@ -453,6 +480,11 @@ def command(action, o):
         return c + (["--fresh"] if o.get("fresh") else [])
     if action == "publish":
         return ["publish", p, "--plan", o["plan_file"]]
+    if action == "tiktok":
+        c = ["tiktok", p, "--when", o.get("when") or "plan"]
+        return c + (["--indexes", ",".join(str(int(i)) for i in o["indexes"])] if o.get("indexes") else [])
+    if action == "tt-connect":
+        return ["tiktok", "--connect"]
     if action == "yt-connect":
         return ["yt-connect"] + (["--forget"] if o.get("forget") else [])
     if action == "burn":
@@ -683,6 +715,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(project_info(q["path"]))
             if u.path == "/api/post":
                 return self.send_json(post_view(q["path"]))
+            if u.path == "/api/tt":
+                return self.send_json(tt_view(q["path"]))
             if u.path == "/api/yt":
                 return self.send_json(yt_view(q["path"], q.get("refresh") == "1"))
             if u.path == "/api/markers":
@@ -803,6 +837,35 @@ class Handler(BaseHTTPRequestHandler):
                     plan["youtube_shorts"] = out
                     pub.save_settings({"plan": plan})
                     return self.send_json({"plan": out, "label": pub.plan_label(out)})
+                if u.path == "/api/post/tt-times" and not self.remote:
+                    pub = posting.engine()["publish"]
+                    out, bad = [], []
+                    for t in b.get("times", []):
+                        hm = pub.parse_time(str(t))
+                        (out if hm else bad).append(hm or str(t))
+                    if bad:
+                        return self.send_json({"error": "Couldn't read: %s. Use times like 6:00 PM or 18:00." % ", ".join(bad)}, 400)
+                    plan = dict(pub.settings()["plan"])
+                    plan["tiktok"] = out
+                    pub.save_settings({"plan": plan})
+                    return self.send_json({"plan": out, "label": pub.plan_label(out)})
+                if u.path == "/api/post/tt-auto":
+                    if not self.known_project(b["path"]):
+                        return self.send_json({"error": "Unknown project."}, 403)
+                    import config
+                    config.update(base_of(b["path"]) + "_captions", {"post": {"tt": {"auto": bool(b.get("on"))}}})
+                    if b.get("on") and not posting.engine()["publish"].task_status().get("on") and not self.remote:
+                        yt_task(True)                    # TikTok has no "publish later": the 5-minute task sends them
+                    return self.send_json(tt_view(b["path"]))
+                if u.path == "/api/post/tt-send":
+                    if not self.known_project(b["path"]):
+                        return self.send_json({"error": "Unknown project."}, 403)
+                    jid = run_job("Sending to TikTok drafts", command("tiktok", dict(path=b["path"], indexes=b.get("indexes"),
+                                                                                    when=b.get("when") or "plan")))
+                    return self.send_json({"id": jid} if jid else {"error": "Something is already running."}, 200 if jid else 409)
+                if u.path == "/api/post/tt-connect" and not self.remote:
+                    jid = run_job("Connecting TikTok", command("tt-connect", dict(path="")))
+                    return self.send_json({"id": jid} if jid else {"error": "Something is already running."}, 200 if jid else 409)
                 if u.path == "/api/post/yt-auto" and not self.remote:
                     return self.send_json(yt_task(bool(b.get("on"))))
                 if u.path == "/api/post/yt-preview":

@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.18.0"
+__version__ = "0.19.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -513,6 +513,27 @@ def cmd_yt_connect(args):
     print("Connected: %s" % st.get("who"))
 
 
+def cmd_tiktok(args):
+    """Step 8, TikTok: queue rendered Shorts for your TikTok drafts (or log in first)."""
+    import posting
+    import tiktok_step
+    _utf8_out()
+    posting.engine()
+    if args.connect:
+        from publish import tiktok
+        print("Finish the TikTok login in the browser tab that opened (the poosic account).")
+        st = tiktok.connect()
+        if not st.get("connected"):
+            sys.exit("Not connected: %s" % st.get("error", "unknown"))
+        print("Connected: %s" % st.get("who"))
+        return
+    idx = [int(x) for x in args.indexes.split(",")] if args.indexes else None
+    try:
+        tiktok_step.send(args.project, tiktok_step.project_shorts(args.project), idx, args.when)
+    except ValueError as e:
+        sys.exit(str(e))
+
+
 def cmd_publish_due(args):
     """Post whatever is due in the queue (the every-5-minutes Windows task runs this)."""
     import posting
@@ -871,6 +892,12 @@ def main():
     yc.add_argument("--client-id")
     yc.add_argument("--client-secret")
     yc.set_defaults(func=cmd_yt_connect)
+    tt = sub.add_parser("tiktok", help="step 8: send rendered Shorts to your TikTok drafts at your TikTok times")
+    tt.add_argument("project", nargs="?", default="")
+    tt.add_argument("--indexes", help="comma list of Short numbers (default: every one not sent yet)")
+    tt.add_argument("--when", default="plan", choices=["plan", "now"], help="plan = next TikTok posting time each (default)")
+    tt.add_argument("--connect", action="store_true", help="log in to TikTok instead")
+    tt.set_defaults(func=cmd_tiktok)
     pd = sub.add_parser("publish-due", help="post whatever is due in the queue")
     pd.set_defaults(func=cmd_publish_due)
 

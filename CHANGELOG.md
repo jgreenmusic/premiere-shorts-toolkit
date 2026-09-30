@@ -2,6 +2,22 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.19.0 - 2026-09-30
+
+**📱 TikTok is part of the chain now: Render -> Post -> YouTube -> TikTok drafts.**
+
+- Step 8 has a **TikTok** card: connect, send times (e.g. "6pm"), every Short's caption with a Copy
+  button, status (not sent / queued / in TikTok drafts / failed), "Queue N at my times" and "Send N now".
+- **Autopilot** for TikTok (per project): after a render, the new Shorts are written, published to
+  YouTube, then queued for TikTok at the next free send times. Ticking it also turns on the Windows
+  task that does the sending every 5 minutes (TikTok has no "publish later" - the PC must be on).
+- TikTok's draft upload takes no caption, so the caption comes from step 7 (TikTok post, else the
+  YouTube title + hashtags) and waits in the card to be pasted on the phone.
+- CLI: `shorts.py tiktok <project> [--indexes 1,2] [--when plan|now]`, `shorts.py tiktok --connect`.
+- Tested on the real Pt 2 project in a throwaway data folder: 32 rows, 3 queued at 6 PM on three
+  days in a row, a second send skipped all 3, no times -> a plain refusal. Live TikTok upload was
+  proven earlier the same day (SEND_TO_USER_INBOX).
+
 ## 0.18.0 - 2026-09-30
 
 **⚡ Renders ~2.7x faster, titles in your own voice, TikTok drafts.**

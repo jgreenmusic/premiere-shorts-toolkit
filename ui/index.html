@@ -1228,6 +1228,51 @@ async function viewPost(opt = {}) {
 const YT_LBL = { draft: ["draft on YouTube", "warn"], scheduled: ["scheduled", "ok"], public: ["public", "ok"], private: ["private on YouTube", ""],
   unlisted: ["unlisted", ""], queued: ["uploading…", "warn"], not_uploaded: ["not on YouTube yet", ""], unknown: ["—", ""] };
 const fmtWhen = w => w ? new Date(w).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+// ---- TikTok (step 8): every rendered Short -> your TikTok drafts at your TikTok times; you finish it on the phone
+const TT_LBL = { not_sent: ["not sent", ""], draft: ["queued", "warn"], scheduled: ["queued", "warn"], retry: ["retrying", "warn"],
+  posting: ["sending…", "warn"], in_drafts: ["in TikTok drafts", "ok"], posted: ["posted", "ok"], failed: ["failed", "bad"] };
+async function viewTikTok() {
+  const box = $("#ttCard"); if (!box) return;
+  let T;
+  try { T = await api("/api/tt?path=" + encodeURIComponent(S.current)); } catch (e) { box.innerHTML = `<div class="card"><p class="warn">TikTok: ${esc(e.message)}</p></div>`; return; }
+  if (S.tab !== "publish" || !$("#ttCard")) return;
+  if (!T.engine.ok) { box.innerHTML = ""; return; }
+  const A = T.account || {}, rows = T.rows || [], todo = rows.filter(r => r.rendered && ["not_sent", "failed"].includes(r.status));
+  const counts = rows.reduce((a, r) => (a[r.status] = (a[r.status] || 0) + 1, a), {});
+  box.innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>TikTok</h3>
+    <p>${A.connected ? `Connected to <b>${esc(A.who || "your account")}</b>. Each Short goes to your <b>TikTok drafts</b> at your TikTok time — TikTok pings your phone, you add a sound, paste the caption, post.` : "Not connected yet."}</p></div>
+    ${A.connected ? `<button class="btn ghost" id="tRefresh">↻</button>` : `<button class="btn primary" id="tConnect" ${A.has_app ? "" : "disabled"}>Connect TikTok</button>`}</div>
+    ${!A.has_app ? `<p class="hint">Needs the TikTok developer app keys first (Post Studio › Publish › Accounts).</p>` : ""}
+    ${A.connected ? `
+    <div class="row" style="gap:6px;flex-wrap:wrap">${Object.entries(counts).map(([k, n]) => `<span class="badge ${(TT_LBL[k] || [])[1] || ""}">${n} ${(TT_LBL[k] || [k])[0]}</span>`).join("")}</div>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><span>Send times</span>
+      <input class="text" id="tTimes" value="${esc((T.plan || []).join(", "))}" placeholder="e.g. 6pm" style="width:180px">
+      <span class="hint">${T.plan_label ? esc(T.plan_label) : "none yet — one per day is a good start"}</span></div>
+    <label class="row" style="gap:8px;margin-top:8px"><input type="checkbox" id="tAuto" ${T.auto ? "checked" : ""}> <b>Autopilot</b> — every new Short from Render goes to TikTok too</label>
+    <p class="hint" style="margin:4px 0 0">Sending is done by the Windows task every 5 minutes (${T.task && T.task.on ? "<b>on</b>" : "<b class='warn'>off</b> — Autopilot turns it on"}); the PC must be on at send time.</p>
+    <div class="scroll" style="max-height:360px;margin-top:10px"><table><thead><tr><th>Short</th><th>Caption to paste</th><th>TikTok</th></tr></thead><tbody>
+      ${rows.map(r => { const L = TT_LBL[r.status] || [r.status, ""];
+        return `<tr><td><b>${esc(r.name)}</b>${r.rendered ? "" : `<div class="hint">not rendered</div>`}</td>
+          <td>${r.caption ? `${esc(r.caption)} <button class="btn sm ghost" data-tcopy="${r.i}">Copy</button>` : `<span class="hint">—</span>`}</td>
+          <td><span class="badge ${L[1]}">${L[0]}</span>${r.when ? `<div class="hint">${esc(r.when)}</div>` : ""}${r.error ? `<div class="warn">${esc(r.error)}</div>` : ""}</td></tr>`; }).join("")}
+    </tbody></table></div>
+    <div class="toolbar" style="margin-top:12px"><span class="grow"><b>${todo.length}</b> not sent yet</span>
+      <button class="btn" id="tNow" ${todo.length ? "" : "disabled"} title="Next check, in under 5 minutes">Send ${todo.length} now</button>
+      <button class="btn primary" id="tPlan" ${todo.length ? "" : "disabled"}>Queue ${todo.length} at my times</button></div>` : ""}</div>`;
+  const job = (url, body, msg) => api(url, body).then(() => { S.busy = true; openLog(true); poll(0); toast(msg, true); }).catch(e => toast(e.message));
+  if ($("#tConnect")) $("#tConnect").onclick = () => job("/api/post/tt-connect", {}, "Finish the TikTok login in your browser");
+  if (!A.connected) return;
+  $("#tRefresh").onclick = () => viewTikTok();
+  $("#tTimes").onchange = e => api("/api/post/tt-times", { times: e.target.value.split(/[,;]+/).map(x => x.trim()).filter(Boolean) })
+    .then(r => { toast(r.plan.length ? "TikTok times saved: " + r.label : "TikTok times cleared", true); viewTikTok(); }).catch(err => toast(err.message));
+  $("#tAuto").onchange = e => api("/api/post/tt-auto", { path: S.current, on: e.target.checked })
+    .then(() => { toast(e.target.checked ? "Autopilot sends new Shorts to TikTok" : "TikTok autopilot off", true); viewTikTok(); }).catch(err => toast(err.message));
+  $$("[data-tcopy]").forEach(b => b.onclick = () => { const r = rows.find(x => x.i === +b.dataset.tcopy); copyText(r.caption).then(ok => toast(ok ? "Caption copied" : "Couldn't copy", ok)); });
+  const idx = todo.map(r => r.i);
+  $("#tNow").onclick = () => job("/api/post/tt-send", { path: S.current, indexes: idx, when: "now" }, "Sending to TikTok drafts");
+  $("#tPlan").onclick = () => { if (!(T.plan || []).length) return toast("Add a send time first (e.g. 6pm)");
+    job("/api/post/tt-send", { path: S.current, indexes: idx, when: "plan" }, "Queued at your TikTok times"); };
+}
 async function viewPublish(refresh, opt = {}) {
   const snap = S.snap || snapshot(); S.snap = null;
   let Y = opt.cached && S.yt && S.yt.path === S.current ? S.yt : null;
@@ -1292,12 +1337,14 @@ async function viewPublish(refresh, opt = {}) {
     <div class="toolbar" style="margin-top:12px"><span class="grow"><b>${pick.size}</b> selected</span>
       <button class="btn" id="yPreview" ${pick.size ? "" : "disabled"}>Preview</button>
       <button class="btn primary" id="yApply" ${pick.size ? "" : "disabled"}>${S.ytRows.rows ? `Publish ${(S.ytRows.rows || []).filter(x => x.action !== "skip").length}` : `Preview &amp; publish ${pick.size}`}</button></div>
-    <p class="hint" style="margin:8px 0 0">${S.ytRows.rows ? "Check the <b>Will do</b> column, then press Publish (twice) — nothing is sent before that." : "Publish first shows you what each Short gets and when (the <b>Will do</b> column) — nothing is sent until you confirm."}</p></div>` : ""}`;
+    <p class="hint" style="margin:8px 0 0">${S.ytRows.rows ? "Check the <b>Will do</b> column, then press Publish (twice) — nothing is sent before that." : "Publish first shows you what each Short gets and when (the <b>Will do</b> column) — nothing is sent until you confirm."}</p></div>` : ""}
+  <div id="ttCard"></div>`;
   const body = () => { const vis = ($("[name=yvis]:checked") || {}).value || "plan", settings = {};
     $$("[data-yset]").forEach(el => settings[el.dataset.yset] = el.type === "checkbox" ? el.checked : el.value);
     return { path: S.current, indexes: [...pick], visibility: ["plan", "every"].includes(vis) ? "schedule" : vis, mode: vis === "every" ? "every" : "plan",
       start: vis === "every" ? $("#yStart").value : ($("#yFrom").value ? $("#yFrom").value + "T00:00" : null), every: +$("#yEvery").value || 24, settings }; };
   restore(snap);
+  viewTikTok();
   if ($("#yStats")) $("#yStats").onclick = e => { e.target.disabled = true; toast("Reading your channel…", true);
     api("/api/post/stats", {}).then(r => toast(r.watch_time ? "Channel report opened" : "Report opened - reconnect YouTube (Switch channel) to add watch time"))
       .catch(err => toast(err.message)).finally(() => e.target.disabled = false); };
