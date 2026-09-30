@@ -40,14 +40,16 @@ def _jobs_by_file():
 
 
 def caption_of(posts):
-    """The TikTok caption written in step 7; else built from the YouTube title + hashtags."""
+    """TikTok caption = the YouTube title (swears starred) - Julian 2026-09-30: the step-7 TikTok
+    captions read bland ("The struggle was real.") while the titles are what he picks and what gets
+    the views. A TikTok caption edited by hand in step 7 wins. Hashtags: TikTok's, else YouTube's."""
     tt = (posts or {}).get(PLATFORM) or {}
-    cap = (tt.get("caption") or {}).get("value") or ""
-    tags = (tt.get("hashtags") or {}).get("value") or []
+    yt = (posts or {}).get("youtube_shorts") or {}
+    edited = (tt.get("caption") or {}).get("edited")
+    cap = (tt.get("caption") or {}).get("value") if edited else ""
     if not cap:
-        yt = (posts or {}).get("youtube_shorts") or {}
-        cap = (yt.get("title") or {}).get("value") or ""
-        tags = tags or (yt.get("hashtags") or {}).get("value") or []
+        cap = posting.engine()["poststudio"].bleep((yt.get("title") or {}).get("value") or "") or             (tt.get("caption") or {}).get("value") or ""
+    tags = (tt.get("hashtags") or {}).get("value") or (yt.get("hashtags") or {}).get("value") or []
     return cap.strip(), [str(t).lstrip("#") for t in tags]
 
 

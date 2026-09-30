@@ -2,6 +2,14 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.19.1 - 2026-09-30
+
+- TikTok caption = the Short's **YouTube title** (swears starred) + hashtags. The separately written
+  step-7 TikTok captions read bland ("The struggle was real.", "The laughter is real."); the titles are
+  the ones Julian picks. A TikTok caption edited by hand in step 7 still wins.
+- Backlog: all 59 Shorts that are public/scheduled on YouTube are queued for TikTok drafts, one a day
+  at 6 PM (Sep 30 - Nov 25), in YouTube's release order, captions = their live YouTube titles.
+
 ## 0.19.0 - 2026-09-30
 
 **📱 TikTok is part of the chain now: Render -> Post -> YouTube -> TikTok drafts.**
