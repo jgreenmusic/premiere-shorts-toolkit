@@ -2,6 +2,20 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.18.0 - 2026-09-30
+
+**⚡ Renders ~2.7x faster, titles in your own voice, TikTok drafts.**
+
+- Render: the blurred background was blurred at full 1080x1920 - the most expensive thing in the
+  whole render. Now blurred at quarter size and scaled up; side by side it looks the same. A 30 s
+  Short from the 3072x1728 60 fps OBS recording: 21.8 s -> 8.2 s. (GPU encoding, h264_amf, was
+  benchmarked too: no real gain on top, 9.3 s, so x264 stays - it is the proven path.)
+- Step 7: every title now comes with alternates in other styles (quote / YELL / absurd mashup /
+  made-up word / stretched noise / deadpan) - click one to swap it in; the old one takes its place
+  so you can swap back. Styles rotate through a batch. Needs Post Studio 0.5.0 (bundled).
+- TikTok posts go to your TikTok drafts by default (see Post Studio 0.5.0) - status shows
+  "in TikTok drafts - finish on phone".
+
 ## 0.17.1 - 2026-09-28
 
 **📋 Copy log, so a friend's problem can be sent back and fixed.**
