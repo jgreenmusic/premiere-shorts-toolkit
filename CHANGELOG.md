@@ -2,6 +2,14 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.20.1 - 2026-10-01
+
+- **The caption list jumped back to the top after every edit.** Each fix, remove or add saved and
+  then rebuilt the whole list, which reset its scroll. The list now stays where it was, the line
+  you were typing in keeps the cursor (Enter -> next line keeps working), and anything typed while a
+  save is in flight is kept. Checked in a browser on New_Video_Shorts_Project: scrolled 200 px, the
+  list rebuilt, and it was still at 200 px with the cursor in the same line.
+
 ## 0.20.0 - 2026-10-01
 
 **Ohhs and laughs closer to what was actually said, a full caption designer with presets, faster

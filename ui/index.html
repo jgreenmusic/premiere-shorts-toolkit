@@ -745,11 +745,30 @@ async function loadCapEdit(s) {
         <button class="btn sm" data-madd="${k}" title="Add this caption">✓</button>
         <button class="btn sm" data-mskip="${k}" title="Not needed">✕</button>
       </div></div>`;
+  // every save rebuilds the list: keep where you were scrolled to, the line you're in, and anything typed meanwhile
+  const old = $("#capRows"), keepTop = old ? old.scrollTop : null, ae = document.activeElement;
+  let keepFocus = null;
+  if (ae && ae.tagName === "INPUT" && box.contains(ae)) {
+    const row = ae.closest(".caprow");
+    keepFocus = { sel: ae.dataset.ctext != null ? `.caprow[data-key="${CSS.escape(row.dataset.key)}"] input[data-ctext]` : `.caprow.miss[data-t="${row.dataset.t}"] input[data-mtext]`,
+      value: ae.value !== ae.defaultValue ? ae.value : null, a: ae.selectionStart, b: ae.selectionEnd };
+  }
   box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
     <p class="hint" style="margin:0 0 8px">Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
     ${miss.length ? `<div class="banner" style="margin:0 0 8px"><span class="grow"><b>${miss.length}</b> line${miss.length > 1 ? "s" : ""} heard with no caption (dashed). Check with the time button, ✓ to add.</span><button class="btn sm primary" id="mAll">Add all ${miss.length}</button></div>` : ""}
     <div class="row" style="gap:6px;margin:0 0 6px"><button class="btn sm" id="capAddHere" title="A new caption where the player is">+ Caption at the playhead</button></div>
     <div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`;
+  if (keepTop != null) $("#capRows").scrollTop = keepTop;
+  const back = keepFocus && box.querySelector(keepFocus.sel);
+  if (back && !back.disabled) {
+    back.focus({ preventScroll: true });
+    if (keepFocus.value != null) {                          // typed while the save was in flight: still save it on leaving
+      back.value = keepFocus.value; let typed = false;
+      back.addEventListener("input", () => typed = true, { once: true });
+      back.addEventListener("blur", () => { if (!typed && back.onchange) back.onchange(); }, { once: true });
+    }
+    try { back.setSelectionRange(keepFocus.a, keepFocus.b); } catch (e) {}
+  }
   const patchCfg = async (patch, msg) => {
     try { S.info.config = await api("/api/config", { path: S.current, patch }); }
     catch (e) { return toast(e.message); }
