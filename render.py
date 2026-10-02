@@ -115,11 +115,7 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
     # captions for this range, times shifted to start at 0
     ass = os.path.join(work, "short.ass")
     style.write_ass(ass, events, st=style.look(ctx.cfg), shift=a)
-    fonts = os.path.join(work, "fonts")
-    os.makedirs(fonts, exist_ok=True)
-    for f in os.listdir(style.FONTS):
-        if f.endswith(".ttf"):
-            shutil.copy2(os.path.join(style.FONTS, f), fonts)
+    style.copy_fonts(os.path.join(work, "fonts"), style.look(ctx.cfg))
     fl.append("[vcat]%s,ass=short.ass:fontsdir=fonts[vout]" % layout_filter(sw, sh, ctx.cfg["layout"]["blur_trim"]))
 
     # render to "<name>.part.mp4" first: a stopped or failed render never leaves a

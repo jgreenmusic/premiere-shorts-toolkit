@@ -169,10 +169,63 @@ def edited(c, m, edits):
         return c, m
     if e.get("hide"):
         return None
+    from dataclasses import replace
     if e.get("text") is not None and e["text"].strip() != c.text:
-        from dataclasses import replace
-        return replace(c, text=e["text"].strip()), dict(m, words=[])
+        c, m = replace(c, text=e["text"].strip()), dict(m, words=[])
+    if e.get("start") is not None or e.get("end") is not None:      # your timing fix
+        s = float(e["start"]) if e.get("start") is not None else c.start_s
+        t = float(e["end"]) if e.get("end") is not None else c.end_s
+        if t > s:
+            c = replace(c, start=int(round(s * TICKS)), end=int(round(t * TICKS)))
     return c, m
+
+
+def added_captions(cfg, first_index):
+    """Captions you added in the app (toolkit.json "caption_adds"), as (caption, match)."""
+    from prproj import Caption
+    out = []
+    for n, a in enumerate((cfg or {}).get("caption_adds") or []):
+        if a.get("text", "").strip() and float(a["end"]) > float(a["start"]):
+            c = Caption(first_index + n, int(round(float(a["start"]) * TICKS)), int(round(float(a["end"]) * TICKS)),
+                        a["text"].strip())
+            out.append((c, dict(ratio=0.0, run=0, first_heard=False, last_heard=False,
+                                speech_start=None, speech_end=None, words=[])))
+    return out
+
+
+def missing_words(captions, words, cfg, start=None, end=None, pad=0.15, gap=0.5, max_words=4):
+    """Speech Whisper heard where no caption is on screen - words the captions missed.
+    Grouped into short lines like auto captions. Lines you dismissed are left out."""
+    spans = sorted((c.start_s - pad, c.end_s + pad) for c in captions if c.text)
+    spans += [(float(a["start"]) - pad, float(a["end"]) + pad) for a in (cfg or {}).get("caption_adds") or []]
+    spans.sort()
+    import bisect
+    starts = [s for s, _ in spans]
+
+    def covered(t):
+        i = bisect.bisect_right(starts, t) - 1
+        return any(spans[k][0] <= t <= spans[k][1] for k in range(max(0, i - 3), i + 1))
+
+    loose = [w for w in words if (start is None or w[0] >= start) and (end is None or w[0] < end)
+             and norm(w[2]) and not covered((w[0] + w[1]) / 2)]
+    groups, cur = [], []
+    for w in loose:
+        if cur and (w[0] - cur[-1][1] > gap or len(cur) >= max_words or cur[-1][2].rstrip()[-1:] in ".?!"):
+            groups.append(cur)
+            cur = []
+        cur.append(w)
+    if cur:
+        groups.append(cur)
+    dismissed = (cfg or {}).get("caption_dismissed") or []
+    out = []
+    for g in groups:
+        s, t = g[0][0], max(g[-1][1], g[0][0] + 0.4)
+        if any(abs(s - d) < 0.05 for d in dismissed):
+            continue
+        if len(g) == 1 and (covered(s - 0.3) or covered(t + 0.3)):
+            continue          # one word against a caption: that caption's timing, not a missed line
+        out.append(dict(start=round(s, 2), end=round(t, 2), text=" ".join(w[2].strip() for w in g)))
+    return out
 
 
 # -- punctuation on screen ----------------------------------------------------

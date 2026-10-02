@@ -20,6 +20,16 @@ DEFAULTS = {
         "laugh_col": "8AE3FF",
         "loud_lines": True,       # shouted lines bigger + capitals
         "punct": "keep",          # punctuation on screen: keep / soft (no . , ; :) / all (no ? ! either)
+        "preset_name": "",        # the preset this look started from (style.PRESETS / your own), "Custom" once changed
+        "font": "Montserrat Black",
+        "case": "as_said",        # as_said / upper / lower
+        "words": 0,               # words on screen at once (0 = the whole caption)
+        "hl_mode": "color",       # spoken word: color / bigger / box / fill (karaoke)
+        "hl_text": "FFFFFF",      # text colour inside a highlight box
+        "outline": 7, "outline_col": "000000", "shadow": 3,
+        "box": False, "box_col": "000000", "box_opacity": 0.75,   # background box behind each line
+        "anim": "pop",            # how a line comes in: pop / bounce / fade / none
+        "spacing": 0,             # letter spacing, px
     },
     "layout": {
         "blur_trim": 0.25,        # 0 = whole gameplay visible with tall blur bands above/below;
@@ -64,7 +74,9 @@ DEFAULTS = {
         "extra": "",              # more words to bleep, comma separated
     },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
-                                  # made in the app; null = back to the original
+                                  # made in the app; null = back to the original. Also "start"/"end" (s): timing fixes
+    "caption_adds": [],           # [{"start": s, "end": s, "text": "..."}] captions you added (e.g. missed words)
+    "caption_dismissed": [],      # starts (s) of "missing words" suggestions you dismissed
 }
 
 

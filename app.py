@@ -222,8 +222,9 @@ def results(outdir, shorts_dir, cfg):
             for row in csv.DictReader(f):
                 kinds[row["kind"]] = kinds.get(row["kind"], 0) + 1
         r["prepare"] = dict(loud=kinds.get("loud", 0), scream=kinds.get("scream", 0), when=os.path.getmtime(em))
-    r["previews"] = sorted((os.path.basename(p) for p in glob.glob(os.path.join(outdir, "preview-*.mp4"))),
-                           key=lambda n: -os.path.getmtime(os.path.join(outdir, n)))
+    import previews
+    previews.prune(outdir)                       # old previews go; the newest always stays
+    r["previews"] = previews.listing(outdir)
     from shorts import safe_name
     r["renders"] = {}
     for s in cfg.get("shorts", []):
@@ -734,6 +735,18 @@ class Handler(BaseHTTPRequestHandler):
                 d["markers"] = [dict(t=round(m.start_s, 3), dur=round(m.dur_s, 3), name=m.name) for m in
                                 pipeline.with_toolkit_markers(pick(project(q["path"]), cfg).markers, cfg)]
                 return self.send_json(d)
+            if u.path == "/api/look-options":
+                import style
+                return self.send_json(dict(
+                    fonts=style.font_list(),
+                    presets=[dict(name=n, about=a, look=style.preset_look(n)) for n, a, _ in style.PRESETS],
+                    mine=load_settings().get("look_presets", {})))
+            if u.path == "/font":                         # caption fonts, for the Look tab's live sample
+                import style
+                fp = style.font_path(q.get("name", "")) if q.get("name") in style.font_list() else None
+                if not fp:
+                    return self.send_json({"error": "no such font"}, 404)
+                return self.send_file(fp, "font/ttf")
             if u.path == "/api/captions":
                 import pipeline
                 f = lambda k: float(q[k]) if q.get(k) not in (None, "") else None
@@ -946,6 +959,20 @@ class Handler(BaseHTTPRequestHandler):
                     p = os.path.join(RES, "premiere", os.path.basename(b["script"]))
                 open_path(p, b.get("how", "file"))
                 return self.send_json({"ok": True})
+            if u.path == "/api/look-presets":             # your own presets, shared by every project
+                import style
+                st = load_settings()
+                mine = st.get("look_presets", {})
+                name = (b.get("name") or "").strip()[:40]
+                if not name:
+                    return self.send_json({"error": "Give the preset a name."}, 400)
+                if b.get("delete"):
+                    mine.pop(name, None)
+                else:
+                    mine[name] = {k: v for k, v in (b.get("look") or {}).items() if k in style.PRESET_KEYS}
+                st["look_presets"] = mine
+                save_settings(st)
+                return self.send_json(dict(mine=mine))
             if u.path == "/api/config":
                 import config
                 cfg = config.update(base_of(b["path"]) + "_captions", b["patch"])

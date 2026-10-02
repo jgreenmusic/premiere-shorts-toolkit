@@ -15,12 +15,14 @@ import captions as cap
 import sounds
 
 ON_SCORE = 0.12          # a frame is "laughing" above this (smoothed probability)
-CONFIDENT = 0.25         # peak score for a laugh to be on by default
+CONFIDENT = 0.15         # peak score for a laugh with room between captions to be on by default
+                         # (0.25 until 0.20.0: on real footage every laugh switched on by hand was 0.16-0.22)
 SUGGEST = 0.15           # peak score to be suggested at all
 MIN_LAUGH = 0.4          # seconds
 MERGE_GAP = 0.3
+JOIN_GAP = 0.8           # laughs closer than this are one laugh (the model often splits one in two)
 MIN_ROOM = 0.5           # free space between captions needed to show a laugh by default
-MAX_SYLLABLES = 10
+MAX_SYLLABLES = {"heh": 4, "huh": 4, "hehe": 3, "ha": 6, "HA": 8}   # more reads as noise
 PAD = 0.2
 
 STYLES = {               # syllable, joined with a space?
@@ -53,7 +55,13 @@ def regions(ev):
         f0, f1 = int(a * sounds.FPS), int(b * sounds.FPS)
         peak = float(score[f0:f1].max())
         kind = sounds.LAUGH[int(np.argmax(stack[f0:f1].mean(0)))]
-        res.append(dict(start=a, end=b, peak=peak, kind=kind))
+        if res and a - res[-1]["end"] < JOIN_GAP:
+            r = res[-1]
+            if peak > r["peak"]:
+                r["kind"] = kind
+            r.update(end=b, peak=max(r["peak"], peak), starts=r["starts"] + [a])
+            continue
+        res.append(dict(start=a, end=b, peak=peak, kind=kind, starts=[a]))
     return res
 
 
@@ -78,11 +86,13 @@ def bursts(audio, a, b, hop=0.02):
 
 
 def default_style(kind, loud):
-    if kind == "Belly laugh" or loud >= 2.0:
+    """loud = this laugh against the recording's other laughs (1 = a typical laugh here):
+    laughs are nearly always louder than talking, so talk can't be the yardstick."""
+    if kind == "Belly laugh" or loud >= 1.35:
         return "HA"
     if kind == "Giggle":
         return "hehe"
-    if kind in ("Snicker", "Chuckle, chortle") or loud < 0.8:
+    if kind in ("Snicker", "Chuckle, chortle") or loud < 0.75:
         return "heh"
     return "ha"
 
@@ -119,10 +129,10 @@ def plan_laughs(captions, audio, ev, regions_voice, cfg, screams_on=()):
     spans = [(c.start_s, c.end_s) for c in captions if c.text]
     def near(t, lst):
         return any(abs(t - x) < 0.3 for x in lst)
+    found = [r for r in regions(ev) if r["peak"] >= SUGGEST]
+    typical = float(np.median([sc.loudness(audio, r["start"], r["end"]) for r in found])) if found else 1.0
     plan = []
-    for r in regions(ev):
-        if r["peak"] < SUGGEST:
-            continue
+    for r in found:
         if any(s - 0.2 < r["start"] < e for s, e in screams_on):
             continue
         a, b = r["start"], r["end"]
@@ -130,8 +140,12 @@ def plan_laughs(captions, audio, ev, regions_voice, cfg, screams_on=()):
         roomy = fb - fa >= MIN_ROOM
         loud = sc.loudness(audio, a, b) / normal
         auto = r["peak"] >= CONFIDENT and roomy
-        on = (auto and not near(a, cfg.get("off", []))) or (not auto and near(a, cfg.get("on", [])))
-        style = cfg.get("style", {}).get("%.2f" % a) or default_style(r["kind"], loud)
+        hit = lambda lst: any(near(x, lst) for x in r["starts"])     # your choices on either half of a joined laugh
+        all_off = all(near(x, cfg.get("off", [])) for x in r["starts"])   # off only if you switched off every part
+        on = (auto and not all_off) or (not auto and hit(cfg.get("on", [])))
+        styles = cfg.get("style", {})
+        style = (next((styles["%.2f" % x] for x in r["starts"] if "%.2f" % x in styles), None)
+                 or default_style(r["kind"], sc.loudness(audio, a, b) / (typical or 1.0)))
         show = (fa, fb) if roomy else (a, b)       # switched on under speech: full window
         plan.append(dict(start=a, end=b, show=show, peak=r["peak"], kind=r["kind"], loud=loud,
                          style=style, on=on, source="detected" if auto else ("under speech" if not roomy else "unsure")))
@@ -148,7 +162,7 @@ def cues_for(audio, p):
     a, b = p["show"]
     beats = [t for t in bursts(audio, p["start"], p["end"]) if a - 0.05 <= t < b] or [a]
     # one syllable per pulse, but never faster than ~5 a second (reads as noise)
-    n = min(MAX_SYLLABLES, max(2, len(beats)), max(2, int(round((b - a) * 5))))
+    n = min(MAX_SYLLABLES.get(p["style"], 6), max(2, len(beats)), max(2, int(round((b - a) * 5))))
     if len(beats) < n:                               # too few clear pulses: spread evenly
         beats = list(np.linspace(a, max(a, b - 0.15), n))
     beats = beats[:n]

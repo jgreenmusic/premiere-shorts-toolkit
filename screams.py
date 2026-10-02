@@ -13,7 +13,7 @@ from prproj import TICKS
 # Each sound is a list of (letter, share). share=0 means "exactly once, not stretched";
 # stretched letters split the extra length by their share.
 TEMPLATES = [
-    (r"a+h*",          [("A", .6), ("H", .4)]),
+    (r"a+h+|aa+h*",    [("A", .6), ("H", .4)]),      # "ah", "aaa" - not the word "a"
     (r"a+w+",          [("A", .6), ("W", .4)]),
     (r"o+h+|o+o+h*",   [("O", .6), ("H", .4)]),
     (r"n+o+",          [("N", 0), ("O", 1)]),
@@ -71,6 +71,25 @@ def talk_level(audio, regions):
     return float(np.median(levels)) if levels else 0.0
 
 
+def sustain_end(audio, start, end, hop=0.02):
+    """Where the held sound actually stops: the first point after the opening where the
+    voice drops under a fifth of its opening peak for 0.1 s (a breath, a gap before
+    someone else's noise). Otherwise `end`."""
+    x = audio[int(start * cap.RATE):int(end * cap.RATE)]
+    h = int(hop * cap.RATE)
+    n = len(x) // h
+    if n < 3:
+        return end
+    env = np.sqrt((x[:n * h].reshape(n, h) ** 2).mean(1))
+    low = env < 0.2 * env[:max(3, int(0.4 / hop))].max()
+    run = 0
+    for i in range(int(0.15 / hop), n):
+        run = run + 1 if low[i] else 0
+        if run * hop >= 0.1:
+            return start + (i - run + 1) * hop
+    return end
+
+
 def find_screams(captions, regions, words, audio, loud_ratio=LOUD_RATIO, max_gap=0.25):
     """[(start_s, end_s, template, bang, [caption indexes], loudness_ratio)].
 
@@ -108,11 +127,21 @@ def find_screams(captions, regions, words, audio, loud_ratio=LOUD_RATIO, max_gap
             continue
         found.append((c.start_s, None, tpl, bang, [c.index], c.end_s))
 
+    caps = sorted((c for c in captions if c.text), key=lambda c: c.start_s)
+    cap_starts = [c.start_s for c in caps]
     screams = []
     for s, _, tpl, bang, idx, _ in found:
         e = voice_end(s)
         if e is None:
             continue
+        # the next caption ends it too: "Oh" + "shit" is a phrase, not a drawn-out OHHH.
+        # (Whisper's word list often misses words a Premiere caption has.)
+        j = bisect.bisect_right(cap_starts, s + 0.05)
+        while j < len(caps) and caps[j].index in idx:
+            j += 1
+        if j < len(caps):
+            e = min(e, caps[j].start_s)
+        e = sustain_end(audio, s, e)
         # the first word after the scream begins that is NOT the scream itself
         i = bisect.bisect_right(word_starts, s + 0.15)
         while i < len(words) and word_starts[i] < e:
@@ -163,6 +192,11 @@ def cues_for(audio, start, end, tpl, bang):
     return cues
 
 
+def soften(cues):
+    """'OOOHHH' -> 'Ohhhh': a held sound in ordinary caption case."""
+    return [[a, b, t[:1] + t[1:].lower()] for a, b, t in cues]
+
+
 def srt_time(sec):
     ms = int(round(sec * 1000))
     return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
@@ -176,6 +210,8 @@ def write_srt(path, all_cues):
 
 # -- the full plan: detected + suggested + your own ------------------------------
 LETTER_CHOICES = {"AH": "aah", "OH": "ohh", "NO": "noo", "WHOA": "whoa", "YEAH": "yeah", "AW": "aww"}
+HELD_MIN = 0.9          # a quieter caption sound held this long is stretched ("Ohhhhh") in the normal caption look
+HELD_MAX = 2.0
 BURST_MIN = 0.8          # wordless voice must last this long to be suggested
 BURST_PEAK = 0.7         # ...and peak at least this loud vs normal talk
 
@@ -217,13 +253,17 @@ def plan_screams(captions, regions, words, audio, cfg, sound_events=None):
     """Every scream candidate, each with on/off, as dicts. cfg = the project's "screams" settings."""
     def near(t, lst):
         return any(abs(t - x) < 0.3 for x in lst)
+    by_index = {c.index: c for c in captions}
     plan = []
     for s, e, tpl, bang, idx, ratio in find_screams(captions, regions, words, audio, loud_ratio=0.0):
-        auto = ratio >= cfg.get("loud", LOUD_RATIO)
+        loud = ratio >= cfg.get("loud", LOUD_RATIO)
+        # a soft "ohhhh": stretched, not screamed. Past HELD_MAX it's often more than one sound -> suggested
+        held = not loud and cfg.get("held", HELD_MIN) <= e - s <= HELD_MAX
+        auto = loud or held
         on = (auto and not near(s, cfg.get("off", []))) or (not auto and near(s, cfg.get("on", [])))
-        plan.append(dict(start=s, end=e, tpl=tpl, bang=bang, replaces=idx, loud=ratio,
-                         source="caption" if auto else "quiet caption", on=on,
-                         was=", ".join(captions[j].text for j in idx if j < len(captions))))
+        plan.append(dict(start=s, end=e, tpl=tpl, bang=bang, replaces=idx, loud=ratio, soft=not loud,
+                         source="caption" if loud else ("drawn out" if held else "quiet caption"), on=on,
+                         was=", ".join(by_index[j].text for j in idx if j in by_index)))
     taken = [(p["start"], p["end"]) for p in plan]
     import sounds
     for s, e, peak in find_bursts(captions, regions, words, audio):
@@ -232,11 +272,11 @@ def plan_screams(captions, regions, words, audio, cfg, sound_events=None):
         if sounds.laugh_at(sound_events, s, e) >= 0.12:
             continue                      # the sound model hears laughing: it's a laugh, not a scream
         letters = cfg.get("letters", {}).get("%.2f" % s, "AH")
-        plan.append(dict(start=s, end=e, tpl=template_from_letters(letters), bang=False, replaces=[],
+        plan.append(dict(start=s, end=e, tpl=template_from_letters(letters), bang=False, replaces=[], soft=False,
                          loud=peak, source="no caption", letters=letters, on=near(s, cfg.get("on", [])), was=""))
     for m in cfg.get("add", []):
         plan.append(dict(start=float(m["start"]), end=float(m["end"]), tpl=template_from_letters(m.get("letters")),
-                         bang=True, replaces=[], loud=0.0, source="added", letters=m.get("letters", "AH"),
+                         bang=True, replaces=[], soft=False, loud=0.0, source="added", letters=m.get("letters", "AH"),
                          on=True, was=""))
     plan.sort(key=lambda p: p["start"])
     return plan

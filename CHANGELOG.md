@@ -2,6 +2,40 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.20.0 - 2026-10-01
+
+**Ohhs and laughs closer to what was actually said, a full caption designer with presets, faster
+caption fixing, and previews that always show your latest settings.**
+
+- **"Ohhh" was stretched over the next words.** A scream ran until Whisper heard another word, but
+  on New_Video_Shorts_Project Whisper heard only ~7.7k words in 2h10m - so "Oh" + "shit", "Oh" +
+  "God", "Oh" ... "yeah" became 3-5 s OOOOOOOOOO screams (9 of the 12 Julian switched off). Now a
+  scream also ends at the next *caption* and where the held sound actually drops off (screams.sustain_end).
+- **Soft held sounds** ("Ohhhh", "Noooo", "Yeaaah" that aren't loud) were switched-off "quiet"
+  suggestions. Held 0.9-2 s they're now on, stretched in the normal caption look (not the red
+  scream style) - badge "drawn out". Longer ones stay suggestions. A lone "a" no longer counts as "AH".
+- **Laughs:** every laugh switched on by hand was a confident-enough laugh in a gap between captions
+  but under the old 0.25 bar - the bar is now 0.15 when there's room. Laughs split in two (< 0.8 s
+  apart) are one laugh. Spellings are capped (heh x4, ha x6, HA x8 - ten "heh"s read as noise), and
+  CAPITALS go by loudness against the recording's *other laughs* (every laugh was "louder than talk").
+- **Caption style (Look tab):** 12 presets - Classic, Bold Pop, One Word, Word Box, Karaoke, TikTok Box,
+  Dark Box, Meme, Comic, Gamer, Minimal, Marker - and "Save as my preset" (shared by every project,
+  ~/.shorts-toolkit.json `look_presets`). New settings: font (11 new free fonts bundled + Impact /
+  Arial Black / Segoe UI Black / Comic Sans from Windows), letter case, words on screen at once,
+  animation (pop / bounce / fade / none), highlight style (colour / bigger / box / karaoke fill),
+  outline, shadow, letter spacing, background box + opacity, outline/box colours. A live sample above
+  the player redraws as you change things, in the real font, without rendering.
+- **Previews kept showing the old render.** The file was named by its start time, so a re-render from
+  the same spot had the same name and the player kept the copy it already had. Each preview now gets
+  its own file; the last 5 sit in a strip under the player to switch between; older than a day are
+  deleted, the newest always stays.
+- **Caption editor (step 3):** Premiere's captions skip words (24 words captioned in a minute where
+  Whisper heard ~45). Lines Whisper heard with no caption now show in the list (dashed) - ✓ adds one,
+  **Add all** adds them all, ✕ dismisses. Click into a caption for its timing: start/end -0.1 / +0.1 s
+  or "◆ here" (the playhead). "+ Caption at the playhead". Enter jumps to the next line. Stored in
+  toolkit.json `caption_adds`, `caption_dismissed`, `caption_edits[...].start/end`; the Premiere project
+  is never changed.
+
 ## 0.19.1 - 2026-09-30
 
 - TikTok caption = the Short's **YouTube title** (swears starred) + hashtags. The separately written

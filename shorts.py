@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.19.1"
+__version__ = "0.20.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -118,6 +118,8 @@ def cmd_screams(args):
     listing = []
     for p in plan:
         grow = sc.cues_for(ctx.audio, p["start"], p["end"], p["tpl"], p["bang"])
+        if p.get("soft"):
+            grow = sc.soften(grow)
         if p["on"]:
             cues += grow
         listing.append(dict(start=round(p["start"], 2), end=round(p["end"], 2), at=cap.fmt(p["start"]),
@@ -552,8 +554,11 @@ def cmd_style(args):
     events = style.build(ctx, plan)
     if args.preview is not None:
         t0 = parse_time(args.preview)
-        out = os.path.join(ctx.outdir, "preview-%s.mp4" % cap.fmt(t0).replace(":", "-"))
+        import previews
+        out = previews.new_path(ctx.outdir)            # a new name each time: the player never shows an old one
         render.make_short(ctx, t0, min(t0 + args.seconds, ctx.seq.end_s), out, events, preset="veryfast", crf=20)
+        previews.save_info(out, t0, args.seconds, ctx.cfg)
+        previews.prune(ctx.outdir)
         print("Preview (%.0fs from %s) -> %s" % (args.seconds, cap.fmt(t0), out))
         return
     ass = os.path.join(ctx.outdir, "styled-captions.ass")
@@ -562,7 +567,7 @@ def cmd_style(args):
     if args.video:
         out = os.path.splitext(args.video)[0] + "_captioned.mp4"
         print("Burning onto %s (audio copied untouched) ..." % args.video)
-        style.burn(args.video, ass, out)
+        style.burn(args.video, ass, out, st=style.look(ctx.cfg))
         print("Done -> %s" % out)
     else:
         print("Export the sequence from Premiere with captions OFF, then run again with --video <export.mp4>")

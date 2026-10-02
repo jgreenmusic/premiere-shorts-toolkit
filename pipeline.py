@@ -69,15 +69,35 @@ def caption_list(project_path, start=None, end=None):
         caps, _ = cap.auto_captions(cap.clean_loops(words, regions, cap.retyped(cfg)))   # the same words a render uses
         source = "toolkit"
     edits = cfg.get("caption_edits") or {}
+    words = _cached_words(outdir)
+    missing = cap.missing_words(caps, words, cfg, start, end) if words else []
     out = []
+    for n, a in enumerate(cfg.get("caption_adds") or []):
+        if (start is not None and a["end"] < start) or (end is not None and a["start"] > end):
+            continue
+        out.append(dict(key="add:%d" % n, start=a["start"], end=a["end"], orig=a["text"], text=a["text"],
+                        hidden=False, added=True))
     for c in caps:
         if (start is not None and c.end_s < start) or (end is not None and c.start_s > end):
             continue
         k = cap.caption_key(c)
         e = edits.get(k) or {}
         out.append(dict(key=k, start=round(c.start_s, 3), end=round(c.end_s, 3), orig=c.text,
-                        text=e.get("text") if e.get("text") is not None else c.text, hidden=bool(e.get("hide"))))
-    return dict(source=source, captions=out)
+                        text=e.get("text") if e.get("text") is not None else c.text, hidden=bool(e.get("hide")),
+                        new_start=e.get("start"), new_end=e.get("end")))
+    out.sort(key=lambda x: x["new_start"] if x.get("new_start") is not None else x["start"])
+    return dict(source=source, captions=out, missing=missing)
+
+
+def _cached_words(outdir):
+    """The newest cached Whisper words for this project, loops cleaned, or []."""
+    import glob
+    import json
+    cached = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
+    if not cached:
+        return []
+    with open(cached[-1], encoding="utf-8") as f:
+        return json.load(f)
 
 
 def load(project_path, sequence=None, model="small", log=print, need_words=True):
@@ -108,4 +128,8 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
         log("  no captions in this sequence - making them from speech")
         ctx.captions, ctx.matches = cap.auto_captions(ctx.words)
         ctx.auto = True
+    adds = cap.added_captions(cfg, len(ctx.captions))       # captions you added in the app
+    if adds:
+        order = sorted(list(zip(ctx.captions, ctx.matches)) + adds, key=lambda cm: cm[0].start)
+        ctx.captions, ctx.matches = [c for c, _ in order], [m for _, m in order]
     return ctx

@@ -71,6 +71,12 @@ main { overflow-y: auto; padding: 26px 32px 120px; }
 .tab { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tab:hover { color: var(--text); }
 .caprow.now input { box-shadow: 0 0 0 2px var(--accent); }
+.caprow { padding: 3px 0; }
+.caprow.miss input { border: 1px dashed var(--warn) !important; color: var(--muted); }
+.caprow.miss input:focus { color: var(--text); }
+.caprow.sel { background: var(--accent-soft); border-radius: 8px; padding: 3px 4px; }
+.captime { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); padding: 4px 0 2px 64px; }
+.captime b { color: var(--text); font-variant-numeric: tabular-nums; }
 .tab.on { color: var(--text); border-bottom-color: var(--accent); }
 .tab .count { font-size: 12px; font-weight: 600; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 
@@ -124,6 +130,21 @@ td.spell { font-weight: 800; letter-spacing: .02em; max-width: 260px; overflow: 
 
 .split { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
 .player { position: sticky; top: 0; }
+.pv-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.pv-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: inherit; cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
+.pv-chip small { opacity: .7; font-size: 11px; }
+.pv-chip.on { border-color: var(--accent); background: var(--accent-soft); }
+.lk-sample { position: relative; width: 100%; aspect-ratio: 9 / 16; max-height: 300px; margin: 0 auto 10px; border-radius: 10px; overflow: hidden;
+  background: linear-gradient(160deg, #3b4a5c 0%, #6b5a45 45%, #2a2f24 100%); }
+.lk-sample .lk-line { position: absolute; left: 0; right: 0; text-align: center; padding: 0 8%; }
+.preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.preset-tile { position: relative; display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 8px 6px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 12px; text-align: center; }
+.preset-tile:hover { border-color: var(--muted); }
+.preset-tile.on { border-color: var(--accent); background: var(--accent-soft); }
+.pt-sample { height: 46px; width: 100%; display: grid; place-items: center; border-radius: 6px; overflow: hidden;
+  background: linear-gradient(160deg, #3b4a5c, #6b5a45 60%, #2a2f24); }
+.pt-del { position: absolute; top: 2px; right: 2px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
 video { width: 100%; border-radius: 12px; background: #000; display: block; aspect-ratio: 9/16; }
 .video-empty { aspect-ratio: 9/16; border-radius: 12px; border: 1px dashed var(--border); display: grid; place-items: center; text-align: center; color: var(--faint); font-size: 13px; padding: 20px; }
 .bars { display: grid; grid-template-columns: 190px 1fr 64px; gap: 7px 12px; align-items: center; font-size: 14px; }
@@ -690,38 +711,118 @@ async function loadCapEdit(s) {
   let r; try { r = await api(`/api/captions?path=${encodeURIComponent(S.current)}&start=${s.start}&end=${s.end}`); }
   catch (e) { box.innerHTML = `<p class="hint">Couldn't read the captions: ${esc(e.message)}</p>`; return; }
   if ($("#capEdit") !== box) return;                        // another Short was picked meanwhile
-  const caps = r.captions;
-  if (!caps.length) {
+  const caps = r.captions, miss = r.missing || [];
+  if (!caps.length && !miss.length) {
     box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions</h4><p class="hint">${r.source === "none"
       ? "No captions yet — they're made from the speech the first time you place markers, analyse or render."
       : "No captions in this Short."}</p>`;
     return;
   }
-  const n = caps.filter(c => c.hidden || c.text !== c.orig).length;
+  const C = S.info.config, adds = C.caption_adds || [];
+  const st = c => c.new_start != null ? c.new_start : c.start, en = c => c.new_end != null ? c.new_end : c.end;
+  const rows = [...caps.map((c, k) => ({ kind: "cap", c, k, t: st(c) })), ...miss.map((m, k) => ({ kind: "miss", m, k, t: m.start }))].sort((a, b) => a.t - b.t);
+  const n = caps.filter(c => c.hidden || c.text !== c.orig || c.new_start != null || c.new_end != null || c.added).length;
+  const timing = c => {
+    if (S.capSel !== c.key || c.hidden) return "";
+    const nb = (w, d, l) => `<button class="btn sm" data-nudge="${esc(c.key)}" data-w="${w}" data-d="${d}">${l}</button>`;
+    return `<div class="captime"><span>Starts <b>${tc(st(c))}</b></span>${nb("start", -0.1, "−0.1")}${nb("start", 0.1, "+0.1")}<button class="btn sm" data-tohere="${esc(c.key)}" data-w="start" title="Start where the player is">◆ here</button>
+      <span style="margin-left:10px">Ends <b>${tc(en(c))}</b></span>${nb("end", -0.1, "−0.1")}${nb("end", 0.1, "+0.1")}<button class="btn sm" data-tohere="${esc(c.key)}" data-w="end" title="End where the player is">◆ here</button></div>`;
+  };
+  const capRow = (c, k) => {
+    const changed = c.text !== c.orig || c.new_start != null || c.new_end != null;
+    return `<div class="caprow${c.hidden ? " off" : ""}${S.capSel === c.key ? " sel" : ""}" data-key="${esc(c.key)}" data-t="${st(c)}" data-e="${en(c)}">
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn link sm" data-cseek="${k}" style="min-width:58px;font-variant-numeric:tabular-nums" title="Hear it">${tc(st(c))}</button>
+        <input class="text" data-ctext="${k}" value="${esc(c.hidden ? c.orig : c.text)}" ${c.hidden ? "disabled" : ""} style="flex:1;min-width:0;${c.added ? "border-style:dashed;" : ""}${changed && !c.hidden ? "border-color:var(--accent)" : ""}${c.hidden ? ";text-decoration:line-through;opacity:.5" : ""}" title="${c.added ? "Added by you" : changed ? "Was: " + esc(c.orig) : ""}">
+        ${!c.added && (c.hidden || changed) ? `<button class="btn sm" data-crestore="${k}" title="Back to the original (words and timing)">↺</button>` : ""}
+        ${c.hidden ? "" : `<button class="btn sm" data-chide="${k}" title="${c.added ? "Remove" : "Take this caption out"}">✕</button>`}
+      </div>${timing(c)}</div>`;
+  };
+  const missRow = (m, k) => `<div class="caprow miss" data-t="${m.start}" data-e="${m.end}">
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn link sm" data-mseek="${k}" style="min-width:58px;font-variant-numeric:tabular-nums" title="Hear it">${tc(m.start)}</button>
+        <input class="text" data-mtext="${k}" value="${esc(m.text)}" style="flex:1;min-width:0" title="Heard but not captioned. Fix the words if needed, then ✓">
+        <button class="btn sm" data-madd="${k}" title="Add this caption">✓</button>
+        <button class="btn sm" data-mskip="${k}" title="Not needed">✕</button>
+      </div></div>`;
   box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
-    <p class="hint" style="margin:0 0 8px">Click a time to hear it. Type to fix the words, ✕ takes a caption out. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
-    <div class="scroll" style="max-height:330px" id="capRows">${caps.map((c, k) => `
-      <div class="caprow${c.hidden ? " off" : ""}" data-k="${k}" data-t="${c.start}" data-e="${c.end}" style="display:flex;gap:6px;align-items:center;padding:3px 0">
-        <button class="btn link sm" data-cseek="${k}" style="min-width:58px;font-variant-numeric:tabular-nums">${tc(c.start)}</button>
-        <input class="text" data-ctext="${k}" value="${esc(c.hidden ? c.orig : c.text)}" ${c.hidden ? "disabled" : ""} style="flex:1;min-width:0;${c.text !== c.orig && !c.hidden ? "border-color:var(--accent)" : ""}${c.hidden ? ";text-decoration:line-through;opacity:.5" : ""}" title="${c.text !== c.orig ? "Was: " + esc(c.orig) : ""}">
-        ${c.hidden || c.text !== c.orig ? `<button class="btn sm" data-crestore="${k}" title="Back to the original">↺</button>` : ""}
-        ${c.hidden ? "" : `<button class="btn sm" data-chide="${k}" title="Take this caption out">✕</button>`}
-      </div>`).join("")}</div>`;
-  const save = async (k, v, msg) => {
-    try { S.info.config = await api("/api/config", { path: S.current, patch: { caption_edits: { [caps[k].key]: v } } }); }
+    <p class="hint" style="margin:0 0 8px">Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
+    ${miss.length ? `<div class="banner" style="margin:0 0 8px"><span class="grow"><b>${miss.length}</b> line${miss.length > 1 ? "s" : ""} heard with no caption (dashed). Check with the time button, ✓ to add.</span><button class="btn sm primary" id="mAll">Add all ${miss.length}</button></div>` : ""}
+    <div class="row" style="gap:6px;margin:0 0 6px"><button class="btn sm" id="capAddHere" title="A new caption where the player is">+ Caption at the playhead</button></div>
+    <div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`;
+  const patchCfg = async (patch, msg) => {
+    try { S.info.config = await api("/api/config", { path: S.current, patch }); }
     catch (e) { return toast(e.message); }
     if (msg) toast(msg, true);
     loadCapEdit(s);
   };
-  $$("[data-cseek]").forEach(b => b.onclick = () => { seek(Math.max(s.start, caps[+b.dataset.cseek].start - 0.3)); playNow(); });
+  const addIdx = c => +c.key.slice(4);
+  const save = (k, v, msg) => {
+    const c = caps[k];
+    if (c.added) {                                           // your own caption: edit the list
+      const list = adds.slice();
+      if (v && v.hide) list.splice(addIdx(c), 1); else if (v) list[addIdx(c)] = { ...list[addIdx(c)], ...v };
+      return patchCfg({ caption_adds: list }, v && v.hide ? "Removed" : msg);
+    }
+    return patchCfg({ caption_edits: { [c.key]: v } }, msg);
+  };
+  const focusNext = inp => {
+    const all = $$("#capRows input.text:not([disabled])"), i = all.indexOf(inp);
+    if (all[i + 1]) { all[i + 1].focus(); all[i + 1].select(); }
+  };
+  $$("[data-cseek]").forEach(b => b.onclick = () => { const c = caps[+b.dataset.cseek]; seek(Math.max(s.start, st(c) - 0.3)); playNow(); });
+  $$("[data-mseek]").forEach(b => b.onclick = () => { seek(Math.max(s.start, miss[+b.dataset.mseek].start - 0.3)); playNow(); });
   $$("[data-ctext]").forEach(inp => {
-    inp.onchange = () => { const k = +inp.dataset.ctext, v = inp.value.trim();
+    inp.onfocus = () => {                                    // show this line's timing controls
+      const c = caps[+inp.dataset.ctext];
+      if (S.capSel === c.key) return;
+      S.capSel = c.key;
+      $$("#capRows .caprow.sel").forEach(x => { x.classList.remove("sel"); const t = x.querySelector(".captime"); if (t) t.remove(); });
+      const row = inp.closest(".caprow"); row.classList.add("sel"); row.insertAdjacentHTML("beforeend", timing(c)); wireTiming();
+    };
+    inp.onchange = () => {
+      const k = +inp.dataset.ctext, c = caps[k], v = inp.value.trim();
       if (!v) return save(k, { hide: true }, "Caption taken out — ↺ brings it back");
-      save(k, v === caps[k].orig ? null : { text: v, hide: false }); };
-    inp.onkeydown = e => { if (e.key === "Enter") inp.blur(); e.stopPropagation(); };   // typing never triggers the timeline keys
+      if (c.added) return save(k, { text: v });
+      if (v === c.orig && c.new_start == null && c.new_end == null) return save(k, null);
+      save(k, { text: v === c.orig ? null : v, hide: false });
+    };
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); focusNext(inp); } e.stopPropagation(); };   // typing never triggers the timeline keys
+  });
+  $$("[data-mtext]").forEach(inp => inp.onkeydown = e => {
+    if (e.key === "Enter") { e.preventDefault(); $(`[data-madd="${inp.dataset.mtext}"]`).click(); }
+    e.stopPropagation();
   });
   $$("[data-chide]").forEach(b => b.onclick = () => save(+b.dataset.chide, { hide: true }, "Caption taken out — ↺ brings it back"));
   $$("[data-crestore]").forEach(b => b.onclick = () => save(+b.dataset.crestore, null));
+  $$("[data-madd]").forEach(b => b.onclick = () => {
+    const k = +b.dataset.madd, m = miss[k], text = ($(`[data-mtext="${k}"]`).value || "").trim();
+    if (!text) return toast("Type the words first");
+    patchCfg({ caption_adds: [...adds, { start: m.start, end: m.end, text }] }, "Caption added");
+  });
+  $$("[data-mskip]").forEach(b => b.onclick = () => patchCfg({ caption_dismissed: [...(C.caption_dismissed || []), miss[+b.dataset.mskip].start] }));
+  const all = $("#mAll");
+  if (all) all.onclick = () => patchCfg({ caption_adds: [...adds, ...miss.map((m, k) => ({ start: m.start, end: m.end, text: ($(`[data-mtext="${k}"]`).value || m.text).trim() })).filter(a => a.text)] },
+    `Added ${miss.length} captions — ✕ removes any that are wrong`);
+  $("#capAddHere").onclick = () => {
+    const t = +T.play.toFixed(2);
+    if (t < s.start || t > s.end) return toast("Move the player inside this Short first");
+    const next = caps.map(st).filter(x => x > t + 0.05).sort((a, b) => a - b)[0];
+    const end = +Math.min(t + 1.2, next != null ? next : t + 1.2).toFixed(2);
+    patchCfg({ caption_adds: [...adds, { start: t, end: Math.max(end, t + 0.3), text: "…" }] }, "Added — type the words");
+  };
+  function wireTiming() {
+    const setTime = (key, w, val) => {
+      const c = caps.find(x => x.key === key); val = +Math.max(0, val).toFixed(2);
+      const a = w === "start" ? val : st(c), b = w === "end" ? val : en(c);
+      if (b - a < 0.1) return toast("A caption needs to end after it starts");
+      if (c.added) { const list = adds.slice(); list[addIdx(c)] = { ...list[addIdx(c)], [w]: val }; return patchCfg({ caption_adds: list }); }
+      patchCfg({ caption_edits: { [key]: { ...((S.info.config.caption_edits || {})[key] || {}), [w]: val } } });
+    };
+    $$("[data-nudge]").forEach(b => b.onclick = () => { const c = caps.find(x => x.key === b.dataset.nudge); setTime(c.key, b.dataset.w, (b.dataset.w === "start" ? st(c) : en(c)) + +b.dataset.d); });
+    $$("[data-tohere]").forEach(b => b.onclick = () => setTime(b.dataset.tohere, b.dataset.w, T.play));
+  }
+  wireTiming();
 }
 // the caption under the playhead lights up in the editor
 function markCapRow() {
@@ -999,6 +1100,7 @@ function viewScreams() {
     <td class="muted">${x.source === "added" ? "—" : x.loud.toFixed(1) + "×"}</td>
     <td class="spell">${esc(x.spelled)}</td>
     <td>${x.source === "caption" ? `<span class="badge">caption</span>` : x.source === "added" ? `<span class="badge ok">added by you</span>`
+       : x.source === "drawn out" ? `<span class="badge" title="A held sound that isn't loud - stretched in the normal caption look, not as a scream">drawn out</span>`
        : x.source === "no caption" ? `<span class="badge warn" title="Wordless voice with no caption - could be a scream, a laugh or game audio">no caption</span>`
        : `<span class="badge" title="A drawn-out caption that isn't very loud">quiet</span>`}${x.check ? ` <span class="badge warn" title="Long - may include laughing or game audio">long</span>` : ""}</td>
     <td>${x.source === "no caption" || x.source === "added" ? `<select class="text" style="width:auto;padding:3px 6px" data-letters="${x.start}" data-src="${x.source}">
@@ -1008,7 +1110,7 @@ function viewScreams() {
   $("#view").innerHTML = `
   <div class="card">
     <div class="card-head"><div class="grow"><h3>Animated screams</h3>
-      <p>Long “AAAH / OHHH / NOOO” moments are spelled out letter by letter as the voice goes on. Loud ones are found automatically; quieter or uncaptioned ones are suggested — listen with ▶ and switch them on.</p></div>
+      <p>Long “AAAH / OHHH / NOOO” moments are spelled out letter by letter as the voice goes on. Loud ones become screams; softer held ones (“Ohhhh”) stretch in the normal caption look. Uncaptioned ones are suggested — listen with ▶ and switch them on.</p></div>
       <button class="btn ${R ? "" : "primary"}" data-run="screams" ${dis()}>${R ? "Update screams & laughs" : "Find screams & laughs"}</button></div>
     ${R && R.stale ? `<div class="banner"><span class="grow">You changed settings since the last update.</span><button class="btn primary sm" data-run="screams" ${dis()}>Update now</button></div>` : ""}
     <div class="setting" style="max-width:420px;margin-bottom:14px"><label>How loud counts as a scream <span id="loudVal">${(+C.loud).toFixed(1)}× normal talk</span></label>
@@ -1033,7 +1135,7 @@ function viewScreams() {
   l.onchange = () => saveCfg({ screams: { loud: +l.value } });
   const sg = $("#sugg"); if (sg) sg.ontoggle = () => S.showSugg = sg.open;
   $$("[data-toggle]").forEach(c => c.onchange = () => {
-    const t = +c.dataset.toggle, auto = c.dataset.src === "caption";
+    const t = +c.dataset.toggle, auto = c.dataset.src === "caption" || c.dataset.src === "drawn out";
     const onL = C.on.filter(x => Math.abs(x - t) > 0.3), offL = C.off.filter(x => Math.abs(x - t) > 0.3);
     if (c.checked && !auto) onL.push(t); if (!c.checked && auto) offL.push(t);
     const it = S.info.results.screams.items.find(x => x.start === t); if (it) it.on = c.checked;
@@ -1471,9 +1573,124 @@ function viewLaughs() {
   });
 }
 
+// ---- caption look: presets, live sample, every setting
+const FONT_FACES = new Set();
+function fontFace(name) {                     // the real caption font, served by the app, for the live sample
+  if (!FONT_FACES.has(name)) {
+    FONT_FACES.add(name);
+    const st = document.createElement("style");
+    st.textContent = `@font-face { font-family: "tk ${name}"; src: url("/font?name=${encodeURIComponent(name)}"); }`;
+    document.head.appendChild(st);
+  }
+  return `'tk ${name}', 'Arial Black', sans-serif`;   // single quotes: it goes inside a style="" attribute
+}
+const hexA = (hex, a) => { const n = parseInt(hex || "000000", 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
+// An approximation in HTML of what libass will draw: same font, colours, outline, box, highlight.
+function sampleHTML(L, text, k, sc) {
+  let words = text.split(" ");
+  const n = +L.words || 0;
+  if (n && n < words.length) { const from = Math.floor(k / n) * n; words = words.slice(from, from + n); k -= from; }
+  if (L.case === "upper") words = words.map(w => w.toUpperCase()); else if (L.case === "lower") words = words.map(w => w.toLowerCase());
+  const o = (L.box ? 0 : +L.outline || 0) * sc, sh = (L.box ? 0 : +L.shadow || 0) * sc, oc = "#" + (L.outline_col || "000000");
+  const ring = o > 0 ? Array.from({ length: 16 }, (_, i) => `${(Math.cos(i * Math.PI / 8) * o).toFixed(1)}px ${(Math.sin(i * Math.PI / 8) * o).toFixed(1)}px 0 ${oc}`) : [];
+  if (sh > 0) ring.push(`${sh}px ${sh}px ${sh}px rgba(0,0,0,.5)`);
+  const mode = L.highlight ? (L.hl_mode || "color") : "none", hc = "#" + (L.highlight_col || "FFD23C");
+  const span = (w, i) => {
+    const on = mode !== "none" && (i === k || (mode === "fill" && i < k));
+    if (!on) return esc(w);
+    if (mode === "bigger") return `<span style="color:${hc};font-size:1.18em">${esc(w)}</span>`;
+    if (mode === "box") return `<span style="color:#${L.hl_text || L.text};background:${hc};border-radius:.18em;padding:0 .14em;text-shadow:none">${esc(w)}</span>`;
+    return `<span style="color:${hc}">${esc(w)}</span>`;
+  };
+  const box = L.box ? `background:${hexA(L.box_col, L.box_opacity == null ? .75 : L.box_opacity)};padding:.1em .3em;border-radius:.12em;` : "";
+  return `<span style="font-family:${fontFace(L.font || "Montserrat Black")};font-size:${(L.size || 76) * sc}px;color:#${L.text || "FFFFFF"};letter-spacing:${(+L.spacing || 0) * sc}px;text-shadow:${ring.join(",") || "none"};${box}line-height:1.25;-webkit-box-decoration-break:clone;box-decoration-break:clone">${words.map(span).join(" ")}</span>`;
+}
+const SAMPLE = "This is so good";
+function drawSample(L) {
+  const el = $("#lkSample"); if (!el) return;
+  el.innerHTML = `<div class="lk-line" style="bottom:${(L.position || 560) / 1920 * 100}%">${sampleHTML(L, SAMPLE, 2, el.clientWidth / 1080 || 0.25)}</div>`;
+}
+async function lookOptions() {
+  if (!S.lookOpts) { try { S.lookOpts = await api("/api/look-options"); } catch (e) { S.lookOpts = { fonts: ["Montserrat Black"], presets: [], mine: {} }; } }
+  return S.lookOpts;
+}
+function captionStyleCard(L) {
+  const O = S.lookOpts || { fonts: [], presets: [], mine: {} };
+  const tile = (name, look, about, mine) => `<div class="preset-tile ${L.preset_name === name ? "on" : ""}" data-preset="${esc(name)}" data-mine="${mine ? 1 : ""}" title="${esc(about || "")}" role="button" tabindex="0">
+      <div class="pt-sample">${sampleHTML({ ...L, ...look }, "So good", 1, 0.2)}</div><b>${esc(name)}</b>${mine ? `<button class="pt-del" data-pdel="${esc(name)}" title="Delete this preset">✕</button>` : ""}</div>`;
+  const sel = (key, label, opts, help) => `<div class="setting"><label>${label}</label><select class="text" data-lk="${key}">${opts.map(([v, l]) => `<option value="${esc(String(v))}" ${String(L[key]) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>${help ? `<p>${help}</p>` : ""}</div>`;
+  const rng = (key, label, min, max, step, unit, help) => `<div class="setting"><label>${label} <span data-lkv="${key}">${L[key]}${unit}</span></label><input type="range" data-lk="${key}" data-unit="${unit}" min="${min}" max="${max}" step="${step}" value="${L[key]}">${help ? `<p>${help}</p>` : ""}</div>`;
+  const tog = (key, label, help) => `<div class="toggle-row"><div><b>${label}</b><small>${help}</small></div><label class="switch"><input type="checkbox" data-lk="${key}" ${L[key] ? "checked" : ""}><span></span></label></div>`;
+  const col = (key, label) => `<label class="row" style="gap:8px;font-size:14px"><input type="color" data-lk="${key}" value="#${L[key] || "000000"}"> ${label}</label>`;
+  const mine = Object.entries(O.mine || {});
+  return `<div class="card">
+      <div class="card-head"><div class="grow"><h3>Caption style</h3><p>Start from a preset, then change anything — the sample above the player updates as you go. Saved per project; applies to what you render from now on.</p></div></div>
+      <div class="preset-grid">${O.presets.map(p => tile(p.name, p.look, p.about)).join("")}${mine.map(([n, lk]) => tile(n, lk, "Your preset", true)).join("")}</div>
+      <div class="row" style="gap:6px;margin:10px 0 14px"><input class="text" id="myPresetName" placeholder="Name this look" style="max-width:220px"><button class="btn sm" id="myPresetSave">Save as my preset</button><span class="hint">Your presets work in every project.</span></div>
+      <div class="settings">
+        ${sel("font", "Font", O.fonts.map(f => [f, f]))}
+        ${rng("size", "Text size", 40, 160, 2, " px", "76 reads well on phones; one-word styles go bigger.")}
+        ${rng("position", "Height from the bottom", 250, 1100, 10, " px", "560 keeps clear of YouTube's buttons.")}
+        ${sel("case", "Letters", [["as_said", "As said"], ["upper", "ALL CAPITALS"], ["lower", "all lowercase"]])}
+        ${sel("words", "Words on screen at once", [[0, "The whole caption"], [1, "1 word"], [2, "2 words"], [3, "3 words"], [4, "4 words"]], "Fewer words = faster, punchier captions.")}
+        ${sel("anim", "How each line comes in", [["pop", "Pop"], ["bounce", "Bounce"], ["fade", "Fade"], ["none", "No animation"]])}
+        ${tog("highlight", "Highlight the spoken word", "The word being said stands out.")}
+        ${sel("hl_mode", "Highlight style", [["color", "Colour"], ["bigger", "Colour + bigger"], ["box", "Coloured box behind the word"], ["fill", "Karaoke (words stay lit once said)"]])}
+        ${rng("outline", "Outline", 0, 16, 1, " px")}
+        ${rng("shadow", "Shadow", 0, 10, 1, " px")}
+        ${rng("spacing", "Letter spacing", 0, 10, 1, " px")}
+        ${tog("box", "Background box", "A box behind each line (replaces the outline). Easy to read over busy gameplay.")}
+        ${rng("box_opacity", "Box opacity", 0.2, 1, 0.05, "", "")}
+        ${tog("loud_lines", "Bigger loud lines", "Shouted lines pop bigger, in capitals.")}
+        <div class="setting"><label>Punctuation</label>${punctSelect("lkPunct", L.punct)}<p>What the captions show. Words keep their timing; apostrophes (don't), hyphens (co-op) and numbers (2.5) always stay.</p></div>
+      </div>
+      <div class="row" style="margin-top:16px;gap:16px;flex-wrap:wrap">${col("text", "Text")}${col("highlight_col", "Highlight")}${col("hl_text", "Text in highlight box")}${col("outline_col", "Outline")}${col("box_col", "Box")}${col("loud_col", "Loud lines")}${col("scream_col", "Screams")}${col("laugh_col", "Laughs")}</div>
+    </div>`;
+}
+function wireCaptionStyle() {
+  const L = { ...S.info.config.look };
+  drawSample(L);
+  const val = el => el.type === "checkbox" ? el.checked : el.type === "color" ? el.value.slice(1).toUpperCase()
+    : el.type === "range" || ["words"].includes(el.dataset.lk) ? +el.value : el.value;
+  $$("[data-lk]").forEach(el => {
+    const key = el.dataset.lk;
+    el.oninput = () => {
+      L[key] = val(el);
+      const v = $(`[data-lkv="${key}"]`); if (v) v.textContent = L[key] + (el.dataset.unit || "");
+      drawSample(L);
+    };
+    el.onchange = () => {
+      L[key] = val(el); L.preset_name = "Custom"; drawSample(L);
+      $$(".preset-tile.on").forEach(t => t.classList.remove("on"));
+      saveCfg({ look: { [key]: L[key], preset_name: "Custom" } }, false);
+    };
+  });
+  $("#lkPunct").onchange = e => saveCfg({ look: { punct: e.target.value } }, false);
+  const O = S.lookOpts || { presets: [], mine: {} };
+  $$("[data-preset]").forEach(t => t.onclick = e => {
+    if (e.target.closest("[data-pdel]")) return;
+    const name = t.dataset.preset;
+    const look = t.dataset.mine ? { ...(O.presets[0] || {}).look, ...O.mine[name], preset_name: name } : (O.presets.find(p => p.name === name) || {}).look;
+    if (look) saveCfg({ look }).then(() => toast(`“${name}” applied — render a preview to see it moving`, true));
+  });
+  $$("[data-pdel]").forEach(b => b.onclick = async () => {
+    try { S.lookOpts.mine = (await api("/api/look-presets", { name: b.dataset.pdel, delete: true })).mine; } catch (e) { return toast(e.message); }
+    render();
+  });
+  $("#myPresetSave").onclick = async () => {
+    const name = $("#myPresetName").value.trim();
+    if (!name) return toast("Type a name for this look first");
+    try { S.lookOpts.mine = (await api("/api/look-presets", { name, look: S.info.config.look })).mine; } catch (e) { return toast(e.message); }
+    await saveCfg({ look: { preset_name: name } }, false);
+    render(); toast(`Saved “${name}”`, true);
+  };
+}
+
 // ---- Look
 function viewLook() {
+  if (!S.lookOpts) lookOptions().then(() => { if (S.tab === "look") render(); });
   const I = S.info, L = I.config.look, Y = I.config.layout, pv = I.results.previews || [];
+  const cur = pv.find(p => p.file === S.pvFile) || pv[0];
   const BL = { on: false, level: "strong", look: "grawlix", sound: "beep", extra: "", ...(I.config.bleep || {}) };
   const first = I.config.shorts[S.sel] || I.config.shorts[0];
   const sl = (id, label, val, min, max, step, fmt, help) => `<div class="setting"><label>${label} <span id="${id}V">${fmt(val)}</span></label>
@@ -1488,17 +1705,7 @@ function viewLook() {
         ${sl("trim", "Gameplay size", Y.blur_trim, 0, 1, 0.05, v => Math.round(v * 100) + "%", "0% = whole gameplay with tall blur bands. Higher = bigger gameplay, smaller bands, sides cropped.")}
       </div>
     </div>
-    <div class="card">
-      <div class="card-head"><div class="grow"><h3>Captions</h3><p>Saved per project. Applies to Shorts you render from now on.</p></div></div>
-      <div class="settings">
-        ${sl("size", "Text size", L.size, 50, 110, 2, v => v + " px", "76 reads well on phones.")}
-        ${sl("pos", "Height from the bottom", L.position, 250, 1100, 10, v => v + " px", "560 keeps clear of YouTube's buttons.")}
-        ${tg("hl", "Highlight the spoken word", L.highlight, "The word being said turns the highlight colour.")}
-        ${tg("loudl", "Bigger loud lines", L.loud_lines, "Shouted lines pop bigger, in capitals.")}
-        <div class="setting"><label>Punctuation</label>${punctSelect("lkPunct", L.punct)}<p>What the captions show. Words keep their timing; apostrophes (don't), hyphens (co-op) and numbers (2.5) always stay.</p></div>
-      </div>
-      <div class="row" style="margin-top:16px;gap:20px">${col("cText", "Text", L.text)}${col("cHl", "Highlight", L.highlight_col)}${col("cLoud", "Loud lines", L.loud_col)}${col("cScream", "Screams", L.scream_col)}${col("cLaugh", "Laughs", L.laugh_col || "8AE3FF")}</div>
-    </div>
+    ${captionStyleCard(L)}
     <div class="card">
       <div class="card-head"><div class="grow"><h3>Censor (bleep)</h3><p>Off unless you turn it on. Curse words become <b>#$@&amp;%!</b> in the captions and a TV beep in the sound. Saved per project.</p></div></div>
       <div class="settings">
@@ -1515,27 +1722,29 @@ function viewLook() {
         <label class="field">From<input class="text time" id="pvAt" value="${esc(store.get("pvAt", first ? tc(first.start) : "6:18"))}"></label>
         <label class="field">Seconds<input class="text time" id="pvS" value="${store.get("pvS", 10)}" style="width:70px"></label>
         <button class="btn primary" data-run="preview" style="align-self:flex-end" ${dis()}>Render preview</button>
-        ${pv.length > 1 ? `<select class="text" id="pvPick" style="width:auto;align-self:flex-end">${pv.map(p => `<option>${esc(p)}</option>`).join("")}</select>` : ""}
       </div>
     </div>
   </div>
-  <div class="player">${pv.length ? `<video id="vid" controls playsinline src="${media(I.outdir + "\\" + pv[0])}"></video><p class="hint">${esc(pv[0])}</p>` : `<div class="video-empty">Render a preview to see the look</div>`}</div>
+  <div class="player"><div class="lk-sample" id="lkSample" title="A quick sample of the caption style - render a preview to see it on your footage"></div>${pv.length ? `<video id="vid" controls playsinline src="${media(I.outdir + "\\" + cur.file)}"></video>
+    <div class="pv-strip">${pv.map(p => `<button class="pv-chip ${p.file === cur.file ? "on" : ""}" data-pv="${esc(p.file)}" title="${esc(p.file)}">
+      <b>${p === pv[0] ? "Newest" : esc(new Date(p.when * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</b>
+      <small>${p.at != null ? "from " + tc(p.at) : ""}${p.look ? " · " + esc(p.look) : ""}</small></button>`).join("")}</div>
+    <p class="hint">The last ${pv.length > 1 ? pv.length + " previews are" : "preview is"} kept to compare. Older ones are deleted after a day; the newest stays until you render another.</p>`
+    : `<div class="video-empty">Render a preview to see the look</div>`}</div>
   </div>`;
   const hook = (id, fmt, patch) => { const el = $("#" + id); el.oninput = () => $("#" + id + "V").textContent = fmt(+el.value); el.onchange = () => saveCfg(patch(+el.value), false); };
   hook("trim", v => Math.round(v * 100) + "%", v => ({ layout: { blur_trim: v } }));
-  hook("size", v => v + " px", v => ({ look: { size: v } }));
-  hook("pos", v => v + " px", v => ({ look: { position: v } }));
-  $("#hl").onchange = e => saveCfg({ look: { highlight: e.target.checked } }, false);
-  $("#loudl").onchange = e => saveCfg({ look: { loud_lines: e.target.checked } }, false);
-  $("#lkPunct").onchange = e => saveCfg({ look: { punct: e.target.value } }, false);
   $("#blOn").onchange = e => saveCfg({ bleep: { on: e.target.checked } });          // re-render: enables the options
   for (const [id, key] of [["blLevel", "level"], ["blLook", "look"], ["blSound", "sound"], ["blExtra", "extra"]])
     $("#" + id).onchange = e => saveCfg({ bleep: { [key]: e.target.value } }, false);
-  for (const [id, key] of [["cText", "text"], ["cHl", "highlight_col"], ["cLoud", "loud_col"], ["cScream", "scream_col"], ["cLaugh", "laugh_col"]])
-    $("#" + id).onchange = e => saveCfg({ look: { [key]: e.target.value.slice(1).toUpperCase() } }, false);
+  wireCaptionStyle();
   $("#pvAt").onchange = e => store.set("pvAt", e.target.value);
   $("#pvS").onchange = e => store.set("pvS", e.target.value);
-  const pp = $("#pvPick"); if (pp) pp.onchange = () => $("#vid").src = media(S.info.outdir + "\\" + pp.value);
+  $$("[data-pv]").forEach(b => b.onclick = () => {
+    S.pvFile = b.dataset.pv;
+    $("#vid").src = media(S.info.outdir + "\\" + b.dataset.pv);
+    $$("[data-pv]").forEach(x => x.classList.toggle("on", x === b));
+  });
 }
 
 // ---- Captions
@@ -1762,7 +1971,7 @@ async function run(action, data = {}) {
   const body = { action, title: TITLES[action], path: S.current };
   if (action === "timeline" || action === "markers") { Object.assign(body, { count: data.count, min: data.min, max: data.max, replace: !!data.replace }); }
   S.mkBefore = action === "markers" ? (data.replace ? 0 : (S.info.config.markers || []).length) : null;
-  if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; }
+  if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; S.pvFile = null; }
   if (action === "make") {
     body.preset = store.get("preset", "medium");
     if (data.indexes) { body.indexes = data.indexes; body.title = `Rendering ${data.indexes.length} Short${data.indexes.length === 1 ? "" : "s"}`; }
