@@ -77,6 +77,7 @@ DEFAULTS = {
                                   # made in the app; null = back to the original. Also "start"/"end" (s): timing fixes
     "caption_adds": [],           # [{"start": s, "end": s, "text": "..."}] captions you added (e.g. missed words)
     "caption_dismissed": [],      # starts (s) of "missing words" suggestions you dismissed
+    "caption_heard_skip": [],     # caption keys whose "heard" suggestion (re-listen) you turned down
 }
 
 

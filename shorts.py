@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.20.1"
+__version__ = "0.21.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -240,6 +240,25 @@ def cmd_speech(args):
     with open(out, "w", encoding="utf-8") as f:
         json.dump([w[:3] for w in words], f)
     print("%d words -> %s" % (len(words), out))
+
+
+def cmd_relisten(args):
+    """Hear one stretch (a Short) again with a bigger Whisper model. The caption editor then
+    offers what it heard under each caption, and the lines with no caption at all. Only
+    that stretch is decoded, so a 45 s Short takes seconds, not the whole recording."""
+    import config
+    import pipeline
+    base, outdir = pipeline.outdir_for(args.project)
+    cfg = config.load(outdir)
+    seq = pipeline.pick_sequence(pipeline.open_project(args.project), args.sequence or cfg.get("sequence"))
+    a, b = max(0.0, args.start - 0.5), args.end + 0.5
+    print("Listening again to %s - %s with Whisper '%s'" % (cap.fmt(a), cap.fmt(b), args.model))
+    print("  (the first time, the model is downloaded once - about 1.6 GB)")
+    audio = cap.timeline_audio(seq, window=(a, b))
+    words = cap.clean_loops(cap.transcribe(audio, os.path.join(outdir, "relisten"), model=args.model, vad=False))
+    words = [[round(w[0] + a, 3), round(w[1] + a, 3), w[2], w[3]] for w in words]
+    pipeline.save_relisten(outdir, a, b, words)
+    print("Heard %d words." % len(words))
 
 
 def cmd_markers(args):
@@ -879,6 +898,13 @@ def main():
     sp = sub.add_parser("speech", help="words for Premiere captions (used by the app's Premiere bridge)")
     common(sp)
     sp.set_defaults(func=cmd_speech)
+
+    rl = sub.add_parser("relisten", help="hear one stretch again with a bigger model (caption editor suggestions)")
+    common(rl, words=False)
+    rl.add_argument("--start", type=float, required=True, help="seconds on the timeline")
+    rl.add_argument("--end", type=float, required=True)
+    rl.add_argument("--model", default="large-v3-turbo")
+    rl.set_defaults(func=cmd_relisten)
 
     po = sub.add_parser("post", help="step 7: write titles/descriptions/tags per platform (Post Studio), optionally schedule")
     common(po, words=False)

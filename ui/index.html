@@ -77,6 +77,17 @@ main { overflow-y: auto; padding: 26px 32px 120px; }
 .caprow.sel { background: var(--accent-soft); border-radius: 8px; padding: 3px 4px; }
 .captime { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); padding: 4px 0 2px 64px; }
 .captime b { color: var(--text); font-variant-numeric: tabular-nums; }
+.heard { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); padding: 2px 0 2px 64px; }
+.heard b { color: var(--text); font-weight: 600; }
+.captext { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; max-height: 380px; }
+.capgut { flex: none; overflow: hidden; background: var(--accent-soft); padding: 6px 0; }
+.capgut button { display: block; height: 22px; line-height: 22px; padding: 0 8px; border: 0; background: none; color: var(--muted); font-family: inherit; font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; text-align: right; width: 100%; }
+.capgut button:hover, .capgut button.now { color: var(--accent); }
+#capTxt { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; padding: 6px 10px; font-family: inherit; font-size: 14px; line-height: 22px; background: var(--surface-2); color: var(--text); white-space: pre; overflow: auto; min-height: 220px; }
+.capover { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%); max-width: 86%; padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size: clamp(14px, 2.4vw, 24px); color: #fff; text-align: center;
+  text-shadow: 0 2px 6px #000, 0 0 2px #000; cursor: text; display: none; outline: 0; }
+.capover:hover { background: rgba(0,0,0,.35); box-shadow: 0 0 0 2px var(--accent); }
+.capover.editing { display: block; background: rgba(0,0,0,.6); box-shadow: 0 0 0 2px var(--accent); }
 .tab.on { color: var(--text); border-bottom-color: var(--accent); }
 .tab .count { font-size: 12px; font-weight: 600; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 
@@ -541,6 +552,7 @@ function viewShorts() {
       <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
         <video id="src" playsinline preload="metadata" style="width:100%;height:100%;aspect-ratio:auto;border-radius:0"></video>
         <div id="srcMsg" class="hint" style="position:absolute;inset:0;display:grid;place-items:center;color:#aaa">${T.tl ? "" : "Analyse the video to use the player and timeline"}</div>
+        <div id="capOver" class="capover" title="Click to fix this caption"></div>
       </div>
       <div class="row" style="margin-top:8px;gap:8px">
         <button class="btn sm" id="pPlay" title="Space">▶ Play</button>
@@ -736,7 +748,7 @@ async function loadCapEdit(s) {
         <input class="text" data-ctext="${k}" value="${esc(c.hidden ? c.orig : c.text)}" ${c.hidden ? "disabled" : ""} style="flex:1;min-width:0;${c.added ? "border-style:dashed;" : ""}${changed && !c.hidden ? "border-color:var(--accent)" : ""}${c.hidden ? ";text-decoration:line-through;opacity:.5" : ""}" title="${c.added ? "Added by you" : changed ? "Was: " + esc(c.orig) : ""}">
         ${!c.added && (c.hidden || changed) ? `<button class="btn sm" data-crestore="${k}" title="Back to the original (words and timing)">↺</button>` : ""}
         ${c.hidden ? "" : `<button class="btn sm" data-chide="${k}" title="${c.added ? "Remove" : "Take this caption out"}">✕</button>`}
-      </div>${timing(c)}</div>`;
+      </div>${c.heard && !c.hidden ? `<div class="heard"><span>Heard:</span><b>${esc(c.heard)}</b><button class="btn sm" data-huse="${k}" title="Use what the better model heard">Use</button><button class="btn sm" data-hskip="${k}" title="Keep my caption">✕</button></div>` : ""}${timing(c)}</div>`;
   };
   const missRow = (m, k) => `<div class="caprow miss" data-t="${m.start}" data-e="${m.end}">
       <div style="display:flex;gap:6px;align-items:center">
@@ -746,19 +758,32 @@ async function loadCapEdit(s) {
         <button class="btn sm" data-mskip="${k}" title="Not needed">✕</button>
       </div></div>`;
   // every save rebuilds the list: keep where you were scrolled to, the line you're in, and anything typed meanwhile
-  const old = $("#capRows"), keepTop = old ? old.scrollTop : null, ae = document.activeElement;
+  const old = $("#capRows") || $("#capTxt"), keepTop = old ? old.scrollTop : null, ae = document.activeElement;
   let keepFocus = null;
-  if (ae && ae.tagName === "INPUT" && box.contains(ae)) {
+  if (ae && ae.id === "capTxt") keepFocus = { sel: "#capTxt", value: ae.value !== ae.defaultValue ? ae.value : null, a: ae.selectionStart, b: ae.selectionEnd };
+  else if (ae && ae.tagName === "INPUT" && box.contains(ae)) {
     const row = ae.closest(".caprow");
     keepFocus = { sel: ae.dataset.ctext != null ? `.caprow[data-key="${CSS.escape(row.dataset.key)}"] input[data-ctext]` : `.caprow.miss[data-t="${row.dataset.t}"] input[data-mtext]`,
       value: ae.value !== ae.defaultValue ? ae.value : null, a: ae.selectionStart, b: ae.selectionEnd };
   }
-  box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
-    <p class="hint" style="margin:0 0 8px">Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
-    ${miss.length ? `<div class="banner" style="margin:0 0 8px"><span class="grow"><b>${miss.length}</b> line${miss.length > 1 ? "s" : ""} heard with no caption (dashed). Check with the time button, ✓ to add.</span><button class="btn sm primary" id="mAll">Add all ${miss.length}</button></div>` : ""}
+  const mode = store.get("capMode", "list"), heardN = caps.filter(c => c.heard && !c.hidden).length;
+  const again = (r.relistened || []).some(([a, b]) => a <= s.start + 0.6 && b >= s.end - 0.6);
+  const vis = rows.filter(x => x.kind === "cap" && !x.c.hidden).map(x => x.c);    // the text box: one line per caption on screen
+  box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin:0 0 4px"><h4 style="margin:0;font-size:14px;flex:1">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
+      <div class="row" style="gap:4px"><button class="btn sm${mode === "list" ? " primary" : ""}" data-capmode="list" title="One box per caption, with timing">List</button><button class="btn sm${mode === "text" ? " primary" : ""}" data-capmode="text" title="Type through the whole Short like a document">Text</button></div></div>
+    <p class="hint" style="margin:0 0 8px">${mode === "text"
+      ? "One line per caption — type through it like a document. An empty line takes that caption out. Saves when you click away (or Ctrl+Enter). Click a time to hear it."
+      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing."} You can also click the caption on the video to fix it. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
+    <div class="banner" style="margin:0 0 8px;flex-wrap:wrap;gap:8px"><span style="flex:1 1 100%">${again
+      ? (heardN ? `Heard again with the better model: <b>${heardN}</b> caption${heardN > 1 ? "s" : ""} sound${heardN > 1 ? "" : "s"} different${mode === "text" ? " (see List)" : " — “Heard:” under each"}.` : "Heard again with the better model — it agrees with every caption.")
+      : "Missing words? Hear this Short again with a bigger, more accurate model (10–30 s)."}</span>
+      ${heardN && mode === "list" ? `<button class="btn sm primary" id="hAll">Use all ${heardN}</button>` : ""}<button class="btn sm${again ? "" : " primary"}" id="relisten" ${S.busy ? "disabled" : ""}>🎧 Listen again</button></div>
+    ${miss.length ? `<div class="banner" style="margin:0 0 8px;flex-wrap:wrap;gap:8px"><span style="flex:1 1 100%"><b>${miss.length}</b> line${miss.length > 1 ? "s" : ""} heard with no caption${mode === "list" ? " (dashed). Check with the time button, ✓ to add." : ": " + miss.map(m => "“" + esc(m.text) + "”").join(", ")}</span><button class="btn sm primary" id="mAll">Add all ${miss.length}</button></div>` : ""}
     <div class="row" style="gap:6px;margin:0 0 6px"><button class="btn sm" id="capAddHere" title="A new caption where the player is">+ Caption at the playhead</button></div>
-    <div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`;
-  if (keepTop != null) $("#capRows").scrollTop = keepTop;
+    ${mode === "text"
+      ? `<div class="captext"><div class="capgut" id="capGut">${vis.map((c, i) => `<button data-gl="${i}" title="Hear it">${tc(st(c))}</button>`).join("")}</div><textarea id="capTxt" wrap="off" spellcheck="true">${esc(vis.map(c => c.text).join("\n"))}</textarea></div>`
+      : `<div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`}`;
+  if (keepTop != null) { const sc = $("#capRows") || $("#capTxt"); if (sc) sc.scrollTop = keepTop; }
   const back = keepFocus && box.querySelector(keepFocus.sel);
   if (back && !back.disabled) {
     back.focus({ preventScroll: true });
@@ -785,6 +810,53 @@ async function loadCapEdit(s) {
     }
     return patchCfg({ caption_edits: { [c.key]: v } }, msg);
   };
+  const setText = (k, v) => {                               // a caption's words, from any editor
+    const c = caps[k];
+    if (!v) return save(k, { hide: true }, "Caption taken out — ↺ brings it back");
+    if (c.added) return save(k, { text: v });
+    if (v === c.orig && c.new_start == null && c.new_end == null) return save(k, null);
+    return save(k, { text: v === c.orig ? null : v, hide: false });
+  };
+  T.capData = { box, s, caps, st, en, setText };              // for clicking the caption on the video
+  $$("[data-capmode]").forEach(b => b.onclick = () => { store.set("capMode", b.dataset.capmode); loadCapEdit(s); });
+  $("#relisten").onclick = () => run("relisten", { start: s.start, end: s.end });
+  $$("[data-huse]").forEach(b => b.onclick = () => setText(+b.dataset.huse, caps[+b.dataset.huse].heard));
+  $$("[data-hskip]").forEach(b => b.onclick = () => patchCfg({ caption_heard_skip: [...(C.caption_heard_skip || []), caps[+b.dataset.hskip].key] }));
+  const hAll = $("#hAll");
+  if (hAll) hAll.onclick = () => {
+    const edits = {}, list = adds.slice();
+    caps.forEach(c => { if (!c.heard || c.hidden) return; if (c.added) list[addIdx(c)] = { ...list[addIdx(c)], text: c.heard }; else edits[c.key] = { text: c.heard, hide: false }; });
+    patchCfg({ caption_edits: edits, caption_adds: list }, `Used ${heardN} — ↺ on a line puts it back`);
+  };
+  const txt = $("#capTxt");
+  if (txt) {
+    const gut = $("#capGut");
+    txt.onscroll = () => { gut.scrollTop = txt.scrollTop; };
+    gut.scrollTop = txt.scrollTop;
+    $$("[data-gl]").forEach(b => b.onclick = () => { seek(Math.max(s.start, st(vis[+b.dataset.gl]) - 0.3)); playNow(); });
+    const saveTxt = () => {
+      const lines = txt.value.replace(/\r/g, "").split("\n");
+      while (lines.length > vis.length && !lines.at(-1).trim()) lines.pop();
+      if (lines.join("\n") === vis.map(c => c.text).join("\n")) return;
+      if (lines.length !== vis.length)
+        return toast(`Keep one line per caption: there are ${vis.length} captions and ${lines.length} lines. An empty line takes one out; “+ Caption at the playhead” adds one.`);
+      const edits = {}, list = adds.slice(), drop = [];
+      let nch = 0;
+      vis.forEach((c, i) => {
+        const v = lines[i].trim();
+        if (v === c.text) return;
+        nch++;
+        if (c.added) { if (v) list[addIdx(c)] = { ...list[addIdx(c)], text: v }; else drop.push(addIdx(c)); return; }
+        edits[c.key] = !v ? { hide: true } : v === c.orig && c.new_start == null && c.new_end == null ? null : { text: v === c.orig ? null : v, hide: false };
+      });
+      drop.sort((a, b) => b - a).forEach(i => list.splice(i, 1));
+      patchCfg({ caption_edits: edits, caption_adds: list }, `Saved ${nch} change${nch === 1 ? "" : "s"}`);
+    };
+    txt.onblur = saveTxt;
+    txt.onkeydown = e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveTxt(); } e.stopPropagation(); };
+    const lineNow = () => { const i = txt.value.slice(0, txt.selectionStart).split("\n").length - 1; $$("#capGut button").forEach((b, k) => b.classList.toggle("now", k === i)); };
+    txt.onkeyup = lineNow; txt.onclick = lineNow;
+  }
   const focusNext = inp => {
     const all = $$("#capRows input.text:not([disabled])"), i = all.indexOf(inp);
     if (all[i + 1]) { all[i + 1].focus(); all[i + 1].select(); }
@@ -799,13 +871,7 @@ async function loadCapEdit(s) {
       $$("#capRows .caprow.sel").forEach(x => { x.classList.remove("sel"); const t = x.querySelector(".captime"); if (t) t.remove(); });
       const row = inp.closest(".caprow"); row.classList.add("sel"); row.insertAdjacentHTML("beforeend", timing(c)); wireTiming();
     };
-    inp.onchange = () => {
-      const k = +inp.dataset.ctext, c = caps[k], v = inp.value.trim();
-      if (!v) return save(k, { hide: true }, "Caption taken out — ↺ brings it back");
-      if (c.added) return save(k, { text: v });
-      if (v === c.orig && c.new_start == null && c.new_end == null) return save(k, null);
-      save(k, { text: v === c.orig ? null : v, hide: false });
-    };
+    inp.onchange = () => setText(+inp.dataset.ctext, inp.value.trim());
     inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); focusNext(inp); } e.stopPropagation(); };   // typing never triggers the timeline keys
   });
   $$("[data-mtext]").forEach(inp => inp.onkeydown = e => {
@@ -842,10 +908,36 @@ async function loadCapEdit(s) {
     $$("[data-tohere]").forEach(b => b.onclick = () => setTime(b.dataset.tohere, b.dataset.w, T.play));
   }
   wireTiming();
+  capOverlay();
 }
 // the caption under the playhead lights up in the editor
 function markCapRow() {
   $$("#capRows .caprow").forEach(r => r.classList.toggle("now", T.play >= +r.dataset.t && T.play < +r.dataset.e));
+  capOverlay();
+}
+// the caption on screen over the player: click it to fix it right there
+function capOverlay() {
+  const o = $("#capOver"); if (!o || o.classList.contains("editing")) return;
+  const d = T.capData, live = d && d.box === $("#capEdit") && T.play >= d.s.start && T.play <= d.s.end;
+  const k = live ? d.caps.findIndex(c => !c.hidden && T.play >= d.st(c) && T.play < d.en(c)) : -1;
+  if (k < 0) { o.style.display = "none"; o.dataset.k = ""; return; }
+  o.style.display = "block";
+  if (o.dataset.k !== String(k) || o.textContent !== d.caps[k].text) { o.dataset.k = k; o.textContent = d.caps[k].text; }
+  if (o.onclick) return;
+  o.onclick = () => {
+    if (o.classList.contains("editing")) return;
+    const v = $("#src"); if (v) v.pause();
+    const dd = T.capData, kk = +o.dataset.k, was = o.textContent;
+    o.classList.add("editing"); o.contentEditable = "plaintext-only"; o.focus();
+    const rg = document.createRange(); rg.selectNodeContents(o); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+    const done = keep => {
+      o.onkeydown = o.onblur = null; o.contentEditable = "false"; o.classList.remove("editing");
+      const t = o.textContent.replace(/\s+/g, " ").trim();
+      if (keep && t !== was) dd.setText(kk, t); else o.textContent = was;
+    };
+    o.onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); done(true); } else if (e.key === "Escape") { e.preventDefault(); done(false); } };
+    o.onblur = () => done(true);
+  };
 }
 
 // ---- player (plays the source footage at the timeline position)
@@ -1984,7 +2076,7 @@ function wireCommon() {
 
 // ---------------------------------------------------------------- jobs
 const TITLES = { markers: "Finding the best moments", timeline: "Analysing the video", check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
-  preview: "Rendering preview", make: "Rendering", burn: "Burning captions onto video", post: "Writing posts" };
+  preview: "Rendering preview", make: "Rendering", relisten: "Listening again (better model)", burn: "Burning captions onto video", post: "Writing posts" };
 async function run(action, data = {}) {
   if (S.busy) return;
   const body = { action, title: TITLES[action], path: S.current };
@@ -1997,6 +2089,7 @@ async function run(action, data = {}) {
     else if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.renderSel = body.index; }
     else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
+  if (action === "relisten") { body.start = data.start; body.end = data.end; }
   if (action === "post") { Object.assign(body, data); if (data.schedule) body.title = "Writing + scheduling posts"; }
   if (action === "burn") { body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; if (!body.video) return toast("Pick the video you exported from Premiere first."); }
   try { await api("/api/run", body); } catch (e) { return toast(e.message); }

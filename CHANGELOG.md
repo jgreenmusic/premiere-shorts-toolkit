@@ -2,6 +2,35 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.21.0 - 2026-10-01
+
+**Easier caption fixing: listen again with a better model, type the whole Short as text, or
+click the caption on the video.**
+
+- **Captions were missing words, and the toolkit couldn't flag them.** Its "heard with no caption"
+  rows come from Whisper *small*, which heard only ~7.7k words in New_Video_Shorts_Project's
+  2h10m (Premiere's captions have ~9.9k). New **🎧 Listen again** in a Short's caption editor
+  re-hears just that Short with Whisper *large-v3-turbo* (`shorts.py relisten --start --end`,
+  only that stretch is decoded - ~15 s for a 35 s Short on CPU; the model downloads once, ~1.6 GB).
+  It runs **without the voice filter**: on Short 03 the filter threw away everything after the
+  first 4 s under the game sound (1 line heard vs 11). Results go in `<project>_captions/relisten.json`.
+- **"Heard:" suggestions.** Each caption shows what the better model heard when it differs - **Use**,
+  **✕** (keep mine, remembered in `caption_heard_skip`), or **Use all**. The caption text and the
+  heard words are lined up by their *words*, not their times (Whisper times are only good to ~0.5 s
+  and Premiere captions are 1-3 word fragments, so timing alone gave "still there" -> "still").
+  A suggestion must add a word the caption doesn't have, and near-identical ones (fuckin'/fucking)
+  are skipped. On Short 03: 8 suggestions (e.g. "Legibly" -> "Allegedly.", "boulders" ->
+  "Schmoopolders") plus 1 line with no caption at all.
+- **Text mode.** List / Text switch: the whole Short as one text box, one line per caption, times
+  in a gutter you can click to hear. Saves on click-away or Ctrl+Enter; an empty line takes a
+  caption out. The line count must stay the same (a pop-up says so if not).
+- **Click the caption on the video.** The Shorts player shows the current caption over the footage;
+  click it, type, Enter saves (Esc cancels). The video pauses while you type.
+- Checked in a headless browser on a copy of the project: Use, Use all, text save, the line-count
+  guard and the on-video edit all saved to toolkit.json and the list kept its scroll. Not yet
+  checked: the text box saving on click-away inside the app window (it uses the same save as
+  Ctrl+Enter).
+
 ## 0.20.1 - 2026-10-01
 
 - **The caption list jumped back to the top after every edit.** Each fix, remove or add saved and

@@ -69,7 +69,8 @@ def caption_list(project_path, start=None, end=None):
         caps, _ = cap.auto_captions(cap.clean_loops(words, regions, cap.retyped(cfg)))   # the same words a render uses
         source = "toolkit"
     edits = cfg.get("caption_edits") or {}
-    words = _cached_words(outdir)
+    rel = relistened(outdir)
+    words = heard_words(outdir, rel)
     missing = cap.missing_words(caps, words, cfg, start, end) if words else []
     out = []
     for n, a in enumerate(cfg.get("caption_adds") or []):
@@ -85,8 +86,49 @@ def caption_list(project_path, start=None, end=None):
         out.append(dict(key=k, start=round(c.start_s, 3), end=round(c.end_s, 3), orig=c.text,
                         text=e.get("text") if e.get("text") is not None else c.text, hidden=bool(e.get("hide")),
                         new_start=e.get("start"), new_end=e.get("end")))
-    out.sort(key=lambda x: x["new_start"] if x.get("new_start") is not None else x["start"])
-    return dict(source=source, captions=out, missing=missing)
+    eff = lambda x, k: x.get("new_" + k) if x.get("new_" + k) is not None else x[k]
+    out.sort(key=lambda x: eff(x, "start"))
+    if rel["ranges"]:                            # a better model listened again: offer what it heard
+        rows = [dict(key=x["key"], s=eff(x, "start"), e=eff(x, "end"), text=x["text"], hidden=x["hidden"]) for x in out]
+        heard = cap.heard_fixes(rows, rel["words"], rel["ranges"], cfg.get("caption_heard_skip") or [])
+        for x in out:
+            if x["key"] in heard:
+                x["heard"] = heard[x["key"]]
+    again = [r for r in rel["ranges"] if (end is None or r[0] < end) and (start is None or r[1] > start)]
+    return dict(source=source, captions=out, missing=missing, relistened=again)
+
+
+def relistened(outdir):
+    """Stretches heard again with a bigger model (shorts.py relisten): {ranges, words}."""
+    import json
+    try:
+        with open(os.path.join(outdir, "relisten.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        return dict(ranges=d.get("ranges") or [], words=d.get("words") or [])
+    except (OSError, ValueError):
+        return dict(ranges=[], words=[])
+
+
+def save_relisten(outdir, a, b, words):
+    """Add one re-listened stretch: its words replace anything heard there before."""
+    import json
+    d = relistened(outdir)
+    keep = [w for w in d["words"] if not a <= (w[0] + w[1]) / 2 <= b]
+    ranges = sorted([r for r in d["ranges"] if r[1] < a or r[0] > b] +
+                    [[min([a] + [r[0] for r in d["ranges"] if not (r[1] < a or r[0] > b)]),
+                      max([b] + [r[1] for r in d["ranges"] if not (r[1] < a or r[0] > b)])]])
+    with open(os.path.join(outdir, "relisten.json"), "w", encoding="utf-8") as f:
+        json.dump(dict(ranges=ranges, words=sorted(keep + words)), f)
+
+
+def heard_words(outdir, rel=None):
+    """The project's cached words, with re-listened stretches swapped for the better model's."""
+    words = _cached_words(outdir)
+    rel = rel or relistened(outdir)
+    if not rel["ranges"]:
+        return words
+    inside = lambda w: any(a <= (w[0] + w[1]) / 2 <= b for a, b in rel["ranges"])
+    return sorted([w for w in words if not inside(w)] + rel["words"])
 
 
 def _cached_words(outdir):

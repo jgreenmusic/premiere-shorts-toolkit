@@ -470,6 +470,8 @@ def command(action, o):
                 "--max", str(o.get("max", 30))]
     if action == "speech":
         return ["speech", p]
+    if action == "relisten":
+        return ["relisten", p, "--start", "%.2f" % float(o["start"]), "--end", "%.2f" % float(o["end"])]
     if action == "post":
         c = ["post", p]
         if o.get("indexes"):

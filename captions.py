@@ -16,9 +16,13 @@ RATE = 16000  # Whisper wants 16 kHz mono
 
 
 # -- 1. timeline audio --------------------------------------------------------
-def timeline_audio(seq, log=print, rate=RATE):
-    """Mix every audio clip into one mono array laid out on the sequence timeline."""
+def timeline_audio(seq, log=print, rate=RATE, window=None):
+    """Mix every audio clip into one mono array laid out on the sequence timeline.
+    window=(start s, end s): only that stretch (index 0 = window start) - for one Short."""
     items = sorted(seq.audio, key=lambda a: a.start)
+    if window:
+        w0, w1 = int(window[0] * TICKS), int(window[1] * TICKS)
+        items = [a for a in items if a.end > w0 and a.start < w1]
     if not items:
         raise SystemExit("This sequence has no audio clips.")
     for a in items:
@@ -36,7 +40,13 @@ def timeline_audio(seq, log=print, rate=RATE):
         else:
             runs.append(dict(path=a.path, track=a.track, start=a.start, end=a.end,
                              src_in=a.src_in, src_out=a.src_out))
-    total = max(a.end for a in items) / TICKS
+    if window:                                   # trim each run to the window, timeline re-based on it
+        for r in runs:
+            cut = max(0, w0 - r["start"])
+            r["start"], r["src_in"] = r["start"] + cut, r["src_in"] + cut
+            r["end"] = min(r["end"], w1)
+        runs = [dict(r, start=r["start"] - w0, end=r["end"] - w0) for r in runs if r["end"] > r["start"]]
+    total = (w1 - w0 if window else max(a.end for a in items)) / TICKS
     buf = np.zeros(int(total * rate) + rate, dtype=np.float32)
     log("  decoding %d audio run(s) (%s of timeline)" % (len(runs), fmt(total)))
     for r in runs:
@@ -53,9 +63,11 @@ def timeline_audio(seq, log=print, rate=RATE):
 
 
 # -- 2. words with timestamps ---------------------------------------------------
-def transcribe(audio, cache_dir, model="small", log=print):
-    """faster-whisper word timestamps, cached by audio content + model."""
-    key = hashlib.sha1(audio.tobytes()).hexdigest()[:16] + "-" + model
+def transcribe(audio, cache_dir, model="small", log=print, vad=True):
+    """faster-whisper word timestamps, cached by audio content + model. vad=False hears
+    speech under loud game sound that the voice filter throws away (used for re-listens:
+    on one Short it found 11 lines where the filtered pass found 1)."""
+    key = hashlib.sha1(audio.tobytes()).hexdigest()[:16] + "-" + model + ("" if vad else "-novad")
     cache = os.path.join(cache_dir, "words-%s.json" % key)
     if os.path.exists(cache):
         log("  using cached transcript %s" % os.path.basename(cache))
@@ -64,7 +76,7 @@ def transcribe(audio, cache_dir, model="small", log=print):
     from faster_whisper import WhisperModel
     log("  transcribing with Whisper '%s' on CPU - this is the slow step" % model)
     wm = WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=os.cpu_count() or 4)
-    segments, _ = wm.transcribe(audio, language="en", word_timestamps=True, vad_filter=True,
+    segments, _ = wm.transcribe(audio, language="en", word_timestamps=True, vad_filter=vad,
                                 condition_on_previous_text=False)
     words, last = [], -60
     for seg in segments:
@@ -225,6 +237,52 @@ def missing_words(captions, words, cfg, start=None, end=None, pad=0.15, gap=0.5,
         if len(g) == 1 and (covered(s - 0.3) or covered(t + 0.3)):
             continue          # one word against a caption: that caption's timing, not a missed line
         out.append(dict(start=round(s, 2), end=round(t, 2), text=" ".join(w[2].strip() for w in g)))
+    return out
+
+
+def heard_fixes(rows, words, ranges, skip=()):
+    """What a re-listen heard under each caption, where it differs from the caption's text.
+    rows: [{key, s, e, text, hidden}]; words: the re-listen's [start, end, word, p];
+    ranges: the stretches re-listened. The two word streams are lined up by their text
+    (word times are only good to ~0.5 s and Premiere captions are 1-3 word fragments, so
+    timing alone hands words to the wrong fragment). Where they differ, the heard words go
+    to the nearest caption in that stretch. A suggestion must bring a word the caption
+    doesn't have - the model missing a word is not a reason to drop it."""
+    import difflib
+    inside = lambda t: any(a <= t <= b for a, b in ranges)
+    live = [r for r in rows if not r["hidden"] and inside((r["s"] + r["e"]) / 2)]
+    heard = [w for w in words if inside((w[0] + w[1]) / 2) and norm(w[2])]
+    if not live or not heard:
+        return {}
+    ct = [(norm(x), k) for k, r in enumerate(live) for x in r["text"].split() if norm(x)]
+    ht = [norm(w[2]) for w in heard]
+    got = {k: [] for k in range(len(live))}
+
+    def near(j, ks, slack=None):
+        m = (heard[j][0] + heard[j][1]) / 2
+        d = lambda k: 0 if live[k]["s"] <= m <= live[k]["e"] else min(abs(m - live[k]["s"]), abs(m - live[k]["e"]))
+        k = min(ks, key=d)
+        return k if slack is None or d(k) <= slack else None
+
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, [t for t, _ in ct], ht, autojunk=False).get_opcodes():
+        for j in range(j1, j2):
+            if op == "equal":
+                k = ct[i1 + j - j1][1]
+            elif op == "replace":
+                k = near(j, sorted({ct[i][1] for i in range(i1, i2)}), slack=0.6)
+            else:                                   # heard but not in any caption's text
+                ks = [ct[i][1] for i in (i1 - 1, i1) if 0 <= i < len(ct)]
+                k = near(j, ks, slack=0.6) if ks else None    # far from both: a missed line
+            if k is not None:
+                got[k].append(heard[j][2].strip())
+    out = {}
+    for k, r in enumerate(live):
+        h = " ".join(got[k])
+        mine = [x for x in (norm(y) for y in r["text"].split()) if x]
+        new = [x for x in (norm(y) for y in h.split()) if x]
+        close = len(new) == len(mine) and difflib.SequenceMatcher(None, " ".join(mine), " ".join(new)).ratio() > 0.85
+        if h and r["key"] not in skip and not close and any(x not in mine for x in new):    # not just fuckin'/fucking
+            out[r["key"]] = h
     return out
 
 
