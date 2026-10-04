@@ -431,6 +431,7 @@ def build(ctx, plan):
     edits = ctx.cfg.get("caption_edits") or {}
     fit = getattr(ctx, "fit", None) or {}
     holds = []                                        # (start, readable until) of every spoken caption
+    mine_until = 0.0                                  # a caption whose end you set keeps the screen until then
     n_own = len(ctx.seq.captions) if not getattr(ctx, "auto", False) else 0    # captions you added come after these
     for c, m in zip(ctx.captions, ctx.matches):
         if c.index in hidden:
@@ -442,12 +443,20 @@ def build(ctx, plan):
         times = fit.get(c.index) if c.index < n_own else None
         c, m = cm
         c = cap.fitted(c, times, own)                 # timing fitted to the speech; your own timing wins
+        if c.start_s < mine_until and own.get("start") is None:
+            if c.end_s - mine_until < 0.1:            # nothing left of it to show
+                continue
+            c = cap.delayed(c, mine_until)
         if not c.text:
             continue
         loud = bool(lk.get("loud_lines", True) and normal
                     and sc.loudness(ctx.audio, c.start_s, c.end_s) / normal >= st["loud_ratio"])
         events += caption_events(c, m, c.start_s, c.end_s, loud, st, lk.get("highlight", True))
-        holds.append((c.start_s, min(c.end_s, c.start_s + readable(c.text))))
+        if own.get("end") is not None:
+            mine_until = max(mine_until, c.end_s)
+            holds.append((c.start_s, c.end_s))
+        else:
+            holds.append((c.start_s, min(c.end_s, c.start_s + readable(c.text))))
     events = hold_for_speech(events, holds)
     on = [p for p in plan if p["on"]]
     for i, p in enumerate(on):

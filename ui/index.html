@@ -77,6 +77,8 @@ main { overflow-y: auto; padding: 18px 24px 120px; }
 .caprow.sel { background: var(--accent-soft); border-radius: 8px; padding: 3px 4px; }
 .captime { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13.5px; color: var(--muted); padding: 4px 0 2px 64px; }
 .captime b { color: var(--text); font-variant-numeric: tabular-nums; }
+.capdur { min-width: 46px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.capdur.mine { color: var(--accent); border-color: var(--accent); }
 .caprow.out { opacity: .7; }
 .caprow.out .outtxt { flex: 1; min-width: 0; padding: 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .capedge { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13.5px; color: var(--muted); margin: 6px 0; }
@@ -850,7 +852,7 @@ async function loadCapEdit(s) {
     if (S.capSel !== c.key || c.hidden) return "";
     const nb = (w, d, l) => `<button class="btn sm" data-nudge="${esc(c.key)}" data-w="${w}" data-d="${d}">${l}</button>`;
     return `<div class="captime"><span>Starts <b>${tc(st(c))}</b></span>${nb("start", -0.1, "−0.1")}${nb("start", 0.1, "+0.1")}<button class="btn sm" data-tohere="${esc(c.key)}" data-w="start" title="Start where the player is">◆ here</button>
-      <span style="margin-left:10px">Ends <b>${tc(en(c))}</b></span>${nb("end", -0.1, "−0.1")}${nb("end", 0.1, "+0.1")}<button class="btn sm" data-tohere="${esc(c.key)}" data-w="end" title="End where the player is">◆ here</button></div>`;
+      <span style="flex-basis:100%;height:0"></span><span>Ends&nbsp; <b>${tc(en(c))}</b></span>${nb("end", -0.5, "−½")}${nb("end", -0.1, "−0.1")}${nb("end", 0.1, "+0.1")}${nb("end", 0.5, "+½")}<button class="btn sm" data-tohere="${esc(c.key)}" data-w="end" title="End where the player is">◆ here</button></div>`;
   };
   const capRow = (c, k) => {
     const changed = c.text !== c.orig || c.new_start != null || c.new_end != null;
@@ -858,6 +860,7 @@ async function loadCapEdit(s) {
       <div style="display:flex;gap:6px;align-items:center">
         <button class="btn link sm" data-cseek="${k}" style="min-width:58px;font-variant-numeric:tabular-nums" title="Hear it">${tc(st(c))}</button>
         <input class="text" data-ctext="${k}" value="${esc(c.hidden ? c.orig : c.text)}" ${c.hidden ? "disabled" : ""} style="flex:1;min-width:0;${c.added ? "border-style:dashed;" : ""}${changed && !c.hidden ? "border-color:var(--accent)" : ""}${c.hidden ? ";text-decoration:line-through;opacity:.5" : ""}" title="${c.added ? "Added by you" : changed ? "Was: " + esc(c.orig) : ""}">
+        ${c.hidden ? "" : `<button class="btn sm capdur${c.new_start != null || c.new_end != null ? " mine" : ""}" data-ctime="${k}" title="On screen for ${(en(c) - st(c)).toFixed(2)} s — press to change when it starts and ends">${(en(c) - st(c)).toFixed(1)}s</button>`}
         ${!c.added && (c.hidden || changed) ? `<button class="btn sm" data-crestore="${k}" title="Back to the original (words and timing)">↺</button>` : ""}
         ${c.hidden ? "" : `<button class="btn sm" data-chide="${k}" title="${c.added ? "Remove" : "Take this caption out"}">✕</button>`}
       </div>${c.heard && !c.hidden ? `<div class="heard"><span>Heard:</span><b>${esc(c.heard)}</b><button class="btn sm" data-huse="${k}" title="Use what the better model heard">Use</button><button class="btn sm" data-hskip="${k}" title="Keep my caption">✕</button></div>` : ""}${timing(c)}</div>`;
@@ -884,10 +887,10 @@ async function loadCapEdit(s) {
   const again = (r.relistened || []).some(([a, b]) => a <= s.start + 0.6 && b >= s.end - 0.6);
   const vis = rows.filter(x => x.kind === "cap" && !x.c.hidden).map(x => x.c);    // the text box: one line per caption on screen
   box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin:0 0 4px"><h4 style="margin:0;font-size:15.5px;flex:1">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
-      <div class="row" style="gap:4px"><button class="btn sm${mode === "list" ? " primary" : ""}" data-capmode="list" title="One box per caption, with timing">List</button><button class="btn sm${mode === "text" ? " primary" : ""}" data-capmode="text" title="Type through the whole Short like a document">Text</button></div></div>
+      <div class="row" style="gap:4px"><button class="btn sm${mode === "list" ? " primary" : ""}" data-capmode="list" title="One box per caption, with timing">List</button><button class="btn sm${mode === "text" ? " primary" : ""}" data-capmode="text" title="Type through the whole Short like a document (timing is in List)">Text</button></div></div>
     <details class="how hint"><summary>How to fix captions</summary><p>${mode === "text"
       ? "One line per caption — type through it like a document. An empty line takes that caption out. Saves when you click away (or Ctrl+Enter). Click a time to hear it."
-      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing."} You can also click the caption on the video to fix it. Need more of the video? Move the Short's start or end right here — the captions just outside it are listed so you can pull them in. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p></details>
+      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out. The button with a caption's length (0.6s) opens its timing: when it starts, when it ends, how long it stays up."} You can also click the caption on the video to fix it. Need more of the video? Move the Short's start or end right here — the captions just outside it are listed so you can pull them in. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p></details>
     <div class="banner" style="margin:0 0 8px;flex-wrap:wrap;gap:8px"><span style="flex:1 1 100%">${again
       ? (heardN ? `Heard again with the better model: <b>${heardN}</b> caption${heardN > 1 ? "s" : ""} sound${heardN > 1 ? "" : "s"} different${mode === "text" ? " (see List)" : " — “Heard:” under each"}.` : "Heard again with the better model — it agrees with every caption.")
       : "Missing words? Hear this Short again with a bigger, more accurate model (10–30 s)."}</span>
@@ -983,14 +986,15 @@ async function loadCapEdit(s) {
   };
   $$("[data-cseek]").forEach(b => b.onclick = () => { const c = caps[+b.dataset.cseek]; seek(Math.max(s.start, st(c) - 0.3)); playNow(); });
   $$("[data-mseek]").forEach(b => b.onclick = () => { seek(Math.max(s.start, miss[+b.dataset.mseek].start - 0.3)); playNow(); });
+  const showTiming = (c, row) => {                           // this line's timing controls, under it
+    if (S.capSel === c.key && row.querySelector(".captime")) return;
+    S.capSel = c.key;
+    $$("#capRows .caprow.sel").forEach(x => { x.classList.remove("sel"); const t = x.querySelector(".captime"); if (t) t.remove(); });
+    row.classList.add("sel"); row.insertAdjacentHTML("beforeend", timing(c)); wireTiming();
+  };
+  $$("[data-ctime]").forEach(b => b.onclick = () => showTiming(caps[+b.dataset.ctime], b.closest(".caprow")));
   $$("[data-ctext]").forEach(inp => {
-    inp.onfocus = () => {                                    // show this line's timing controls
-      const c = caps[+inp.dataset.ctext];
-      if (S.capSel === c.key) return;
-      S.capSel = c.key;
-      $$("#capRows .caprow.sel").forEach(x => { x.classList.remove("sel"); const t = x.querySelector(".captime"); if (t) t.remove(); });
-      const row = inp.closest(".caprow"); row.classList.add("sel"); row.insertAdjacentHTML("beforeend", timing(c)); wireTiming();
-    };
+    inp.onfocus = () => showTiming(caps[+inp.dataset.ctext], inp.closest(".caprow"));
     inp.onchange = () => setText(+inp.dataset.ctext, inp.value.trim());
     inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); focusNext(inp); } e.stopPropagation(); };   // typing never triggers the timeline keys
   });

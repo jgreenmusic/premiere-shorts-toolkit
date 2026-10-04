@@ -257,6 +257,12 @@ def fitted(c, times, edit=None):
     return replace(c, start=s, end=t) if t > s else c
 
 
+def delayed(c, start_s):
+    """The caption starting later (its end stays)."""
+    from dataclasses import replace
+    return replace(c, start=int(round(start_s * TICKS)))
+
+
 def added_captions(cfg, first_index):
     """Captions you added in the app (toolkit.json "caption_adds"), as (caption, match)."""
     from prproj import Caption

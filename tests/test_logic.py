@@ -234,6 +234,13 @@ class FittedTiming(unittest.TestCase):
         self.assertLess(new[0][1] / TICKS, 5.0)                      # never into the next caption
 
 
+class YourOwnTiming(unittest.TestCase):
+    def test_a_caption_can_be_made_to_start_later(self):
+        c = captions.delayed(cap(0, 1.0, 2.0, "hello"), 1.4)
+        self.assertAlmostEqual(c.start_s, 1.4)
+        self.assertAlmostEqual(c.end_s, 2.0)
+
+
 class SpeechBeforeLaughs(unittest.TestCase):
     def test_a_laugh_waits_until_the_caption_can_be_read(self):
         import style

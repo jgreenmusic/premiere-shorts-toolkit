@@ -69,6 +69,11 @@ Choose, trim and polish your Shorts.
 | **+ Add Short** | One at the playhead. |
 | **Send to Premiere** | Your Shorts as named range markers on the Premiere timeline. |
 
+In the caption editor every caption has a button with **how long it is on screen** (`0.6s`).
+Press it to change when that caption starts and ends: −0.1 / +0.1, half-second steps for the
+end, or **◆ here** to use where the player is. A caption whose end you set keeps the screen
+until then.
+
 In the **Your Shorts** list, the Short you changed most recently has a blue **Last worked on** tag,
 and every Short you have trimmed, renamed or fixed captions on says *edited … ago* — so you can
 see where you left off. Clicking a Short without changing it does not count.

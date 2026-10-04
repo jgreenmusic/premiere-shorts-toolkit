@@ -2,6 +2,19 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.27.1 - 2026-10-04
+
+- **"I can't nudge how long a caption is any more."** Two things were in the way:
+  - The timing buttons only appeared after clicking inside a caption's text box, and nothing on
+    screen said so. Every caption in the editor now has a button showing **how long it is on
+    screen** (`0.6s`); press it for that caption's timing. It turns yellow once you have set the
+    timing yourself, and updates as you nudge.
+  - Making a caption end later often did nothing: in fast talk the next caption starts straight
+    after and took the screen anyway. A caption whose end **you** set now keeps the screen until
+    then, and the next caption waits for it.
+- The timing row has half-second steps for the end (**-1/2**, **+1/2**) next to the 0.1 s ones,
+  and Starts / Ends sit on a line each.
+
 ## 0.27.0 - 2026-10-04
 
 - **Captions not lining up, or gone too soon, on a project with Premiere captions.** The fix
