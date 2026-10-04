@@ -2,6 +2,21 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.24.1 - 2026-10-04
+
+- **First real phone test (iPhone, Safari): the app opened, the video would not play.** The cause
+  is not confirmed - there is no iPhone here to test on. Fixed what was provably wrong in how
+  video is served, and made a failure say why:
+  - "The last N bytes" requests (`bytes=-1000`) were answered with the *first* bytes, and a range
+    running past the end of the file promised more data than exists. Both are now answered
+    correctly, and a range wholly past the end gets a proper 416.
+  - Media is answered as HTTP/1.1 (it was HTTP/1.0).
+  - A player closing its connection mid-file (normal when it seeks) was logged as an app error.
+  - Touch devices get the video's own play controls, and Play starts inside the tap instead of
+    150 ms later - phones only allow playback that starts in a tap.
+  - If a video still will not play, the app now says why (blocked, connection dropped, can't
+    decode, format or size not supported) instead of staying silent.
+
 ## 0.24.0 - 2026-10-04
 
 **Bigger viewer, no dead space, larger text, no stray scroll bars.**

@@ -1030,8 +1030,10 @@ function setupPlayer() {
   });
   v.addEventListener("error", () => {
     const m = $("#srcMsg"); if (!m) return;
-    m.innerHTML = `<span style="padding:20px;text-align:center">This recording can't play in the browser (${v.error && v.error.code === 4 ? "its video format isn't supported — e.g. HEVC/H.265" : "it couldn't be read"}).<br>The timeline, suggestions and rendering all still work — use <b>Render</b> or the Look tab's preview to watch.</span>`;
+    const why = { 1: "loading was stopped", 2: "the connection to the PC dropped while loading it", 3: "this device can't decode it", 4: "this device doesn't support its format or size" }[v.error && v.error.code] || "it couldn't be read";
+    m.innerHTML = `<span style="padding:20px;text-align:center">This recording can't play here (${why}${v.error && v.error.message ? " - " + esc(v.error.message) : ""}).<br>The timeline, suggestions and rendering all still work — use <b>Render</b> or the Look tab's preview to watch.</span>`;
   });
+  if (document.body.classList.contains("remote") || matchMedia("(pointer: coarse)").matches) v.controls = true;
   v.addEventListener("play", () => { T.playing = true; $("#pPlay").textContent = "❚❚ Pause"; });
   v.addEventListener("pause", () => { T.playing = false; $("#pPlay").textContent = "▶ Play"; });
   seek(T.play);
@@ -1051,8 +1053,15 @@ function seek(t, keepPlaying) {
   if (t < T.v0 || t > T.v1) { const w = T.v1 - T.v0; setView(t - w * 0.2, t + w * 0.8); }
   tick();
 }
-function togglePlay() { const v = $("#src"); if (!v || !T.seg) return; v.paused ? v.play().catch(() => {}) : v.pause(); }
-function playNow() { const v = $("#src"); if (v) setTimeout(() => v.play().catch(() => {}), 150); }
+// why a video would not start, said out loud (a phone refuses quietly otherwise)
+function playFail(e) {
+  if (!e || e.name === "AbortError") return;                // a newer play/seek replaced this one
+  toast(e.name === "NotAllowedError" ? "The browser blocked playback - tap the video's own play button."
+    : "The video wouldn't play: " + (e.message || e.name));
+}
+function togglePlay() { const v = $("#src"); if (!v || !T.seg) return; v.paused ? v.play().catch(playFail) : v.pause(); }
+// start right away, inside the tap (phones only allow that), and once more when the seek has settled
+function playNow() { const v = $("#src"); if (!v) return; v.play().catch(() => {}); setTimeout(() => { if (v.paused) v.play().catch(playFail); }, 150); }
 function jumpMarker(dir) {
   const ms = T.tl.markers.map(m => m.t).sort((a, b) => a - b);
   const t = dir > 0 ? ms.find(x => x > T.play + 0.05) : [...ms].reverse().find(x => x < T.play - 0.05);

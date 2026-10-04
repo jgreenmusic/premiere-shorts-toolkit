@@ -1071,15 +1071,26 @@ class Handler(BaseHTTPRequestHandler):
         ctype = ctype or mimetypes.guess_type(path)[0] or "application/octet-stream"
         rng = self.headers.get("Range")
         start, end = 0, size - 1
-        if rng:                                  # video seeking needs byte ranges
-            m = re.match(r"bytes=(\d*)-(\d*)", rng)
-            if m:
-                start = int(m.group(1) or 0)
-                end = int(m.group(2)) if m.group(2) else size - 1
+        m = re.match(r"bytes=(\d*)-(\d*)$", rng.strip()) if rng else None
+        if ctype.startswith(("video/", "audio/")):   # phones' players (Safari) want HTTP/1.1 answers for media
+            self.protocol_version = "HTTP/1.1"
+        if m and (m.group(1) or m.group(2)):     # video seeking needs byte ranges
+            if m.group(1):
+                start = int(m.group(1))
+                end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+            else:                                # "bytes=-500": the last 500 bytes
+                start = max(0, size - int(m.group(2)))
+            if start > end:                      # past the end of the file
+                self.send_response(416)
+                self.send_header("Content-Range", "bytes */%d" % size)
+                self.send_header("Content-Length", "0")
+                self.send_header("Connection", "close")
+                return self.end_headers()
             self.send_response(206)
             self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
         else:
             self.send_response(200)
+        self.send_header("Connection", "close")
         self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith("text/") else ""))
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(end - start + 1))
@@ -1094,8 +1105,8 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 try:
                     self.wfile.write(chunk)
-                except (ConnectionResetError, BrokenPipeError):
-                    return
+                except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                    return                       # the player stopped reading - normal when it seeks
                 left -= len(chunk)
 
 
