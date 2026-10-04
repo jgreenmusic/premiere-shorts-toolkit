@@ -2,6 +2,13 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## Unreleased
+
+- **The README still described version 0.9** (six steps, an old installer name) and there was no
+  other documentation. Rewritten as a short front page plus four pages in `docs/`: guide,
+  Premiere, command line, how it works.
+- Step 3 said "Render it in step 5"; rendering is step 6.
+
 ## 0.22.1 - 2026-10-04
 
 - **Every time a Short was made longer or shorter, the whole page jolted upward** and the

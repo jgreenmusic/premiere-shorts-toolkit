@@ -631,7 +631,7 @@ function refreshShorts() {
   const listTops = ["#shortsCard .scroll", "#sugCard .scroll"].map(q => { const e = $(q); return e ? e.scrollTop : 0; });
   $("#shortsCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Your Shorts <span class="muted" style="font-weight:500">(${list.length})</span></h3></div>
-      ${list.length ? `<span class="hint">Render them in step 5</span>` : ""}</div>
+      ${list.length ? `<span class="hint">Render them in step 6</span>` : ""}</div>
     ${list.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
       ${list.map((s, i) => `<tr class="${T.sel?.kind === "short" && T.sel.i === i ? "sel" : ""}" data-pick="short,${i}" style="cursor:pointer">
         <td style="width:18px"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent)"></span></td>
@@ -713,7 +713,7 @@ function panel() {
       <button class="btn sm" id="spPlay">▶ Play it</button>
     </div>
     <div class="row" style="margin-top:12px;gap:6px">
-      <button class="btn" id="spToRender">${r ? "Rendered — see step 5" : "Render it in step 5"}</button>
+      <button class="btn" id="spToRender">${r ? "Rendered — see step 6" : "Render it in step 6"}</button>
       <button class="btn sm danger" id="spDel">Remove</button>
     </div>
     ${r ? `<video controls playsinline src="${media(r.path)}#t=0.01" style="margin-top:12px;max-height:340px;width:auto;max-width:100%"></video>
