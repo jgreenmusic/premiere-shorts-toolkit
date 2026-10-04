@@ -626,6 +626,9 @@ function selRange() {
 // ---- lists + side panel
 function refreshShorts() {
   const R = S.info.results.renders || {}, list = shortsList(), sugs = sugList();
+  // every trim lands here: the page and both lists stay where they were scrolled to
+  const mainEl = $("main"), mainTop = mainEl ? mainEl.scrollTop : 0;
+  const listTops = ["#shortsCard .scroll", "#sugCard .scroll"].map(q => { const e = $(q); return e ? e.scrollTop : 0; });
   $("#shortsCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Your Shorts <span class="muted" style="font-weight:500">(${list.length})</span></h3></div>
       ${list.length ? `<span class="hint">Render them in step 5</span>` : ""}</div>
@@ -663,6 +666,8 @@ function refreshShorts() {
   };
   wireCommon();
   panel(); draw();
+  ["#shortsCard .scroll", "#sugCard .scroll"].forEach((q, k) => { const e = $(q); if (e) e.scrollTop = listTops[k]; });
+  if (mainEl) mainEl.scrollTop = mainTop;
 }
 
 function select2(sel, jump) {
@@ -694,6 +699,8 @@ function panel() {
   const sc0 = $("#capRows") || $("#capTxt");
   if (sc0 && T.capData && T.capData.i === i) T.capKeep = { i, top: sc0.scrollTop, end: sc0.scrollTop > 0 && sc0.scrollTop + sc0.clientHeight >= sc0.scrollHeight - 4 };
   else if (sc0 || !T.capKeep || T.capKeep.i !== i) T.capKeep = null;
+  // ...and hold the caption editor's height while it reloads, or the page gets shorter and jumps up
+  const ce0 = $("#capEdit"), holdH = ce0 && T.capData && T.capData.i === i ? ce0.offsetHeight : 0;
   el.innerHTML = `
     <input class="text" id="spName" value="${esc(s.name)}" style="font-weight:650;font-size:15px;margin-bottom:10px">
     <div class="row" style="gap:8px">
@@ -711,7 +718,7 @@ function panel() {
     </div>
     ${r ? `<video controls playsinline src="${media(r.path)}#t=0.01" style="margin-top:12px;max-height:340px;width:auto;max-width:100%"></video>
       <button class="btn link" data-folder="${esc(r.path)}">Show file</button>` : ""}
-    <div id="capEdit" style="margin-top:16px"><p class="hint">Loading captions…</p></div>`;
+    <div id="capEdit" style="margin-top:16px${holdH ? `;min-height:${holdH}px` : ""}"><p class="hint">Loading captions…</p></div>`;
   clearTimeout(T.capTimer); T.capTimer = setTimeout(() => loadCapEdit(s), 250);   // dragging redraws this panel constantly
   const upd = (patch) => { const list = structuredClone(shortsList()); Object.assign(list[i], patch); if (list[i].end <= list[i].start) return toast("End must be after start"); saveShorts(list); };
   $("#spName").onchange = e => upd({ name: e.target.value.trim() || s.name });
@@ -730,8 +737,9 @@ async function loadCapEdit(s) {
   const box = $("#capEdit"); if (!box) return;
   const CTX = 15;                                           // also fetch the captions just outside the Short, to grow it onto them
   let r; try { r = await api(`/api/captions?path=${encodeURIComponent(S.current)}&start=${Math.max(0, s.start - CTX)}&end=${s.end + CTX}`); }
-  catch (e) { box.innerHTML = `<p class="hint">Couldn't read the captions: ${esc(e.message)}</p>`; return; }
+  catch (e) { box.style.minHeight = ""; box.innerHTML = `<p class="hint">Couldn't read the captions: ${esc(e.message)}</p>`; return; }
   if ($("#capEdit") !== box) return;                        // another Short was picked meanwhile
+  box.style.minHeight = "";                                 // held by panel() while this loaded
   const st = c => c.new_start != null ? c.new_start : c.start, en = c => c.new_end != null ? c.new_end : c.end;
   const isBefore = c => en(c) <= s.start + 0.05, isAfter = c => st(c) >= s.end - 0.05;
   const caps = r.captions.filter(c => !isBefore(c) && !isAfter(c)), miss = (r.missing || []).filter(m => m.end > s.start && m.start < s.end);

@@ -2,6 +2,16 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.22.1 - 2026-10-04
+
+- **Every time a Short was made longer or shorter, the whole page jolted upward** and the
+  "Your Shorts" list went back to its top. Each trim redraws the lists and the side panel; while
+  the caption editor reloaded, the page was briefly ~450 px shorter, so the scroll was pushed up.
+  Now the caption editor holds its height while it reloads, and the page and both lists are put
+  back exactly where they were. Reproduced in a headless browser on the 0.21.0 screen (page
+  1406 -> 958, list 500 -> 0), gone with the fix (page and list unchanged). Not yet checked in
+  the app window.
+
 ## 0.22.0 - 2026-10-04
 
 **Make a Short longer or shorter from the caption editor.**
