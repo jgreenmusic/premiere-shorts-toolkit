@@ -2,6 +2,16 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.25.0 - 2026-10-04
+
+- **The Your Shorts list shows where you left off.** Coming back to a project there was no way to
+  tell which Short you had been working on. Now the Short you changed most recently carries a blue
+  **Last worked on** tag and a blue bar at its left edge, with how long ago; every other Short you
+  have changed says *edited 2 h ago*. Changing a Short means trimming it, renaming it, or fixing
+  its captions - just clicking one does not count. The list scrolls to the tagged Short when you
+  open the project. It is saved with the project, so it is still there after a restart and shows
+  on a paired phone too.
+
 ## 0.24.2 - 2026-10-04
 
 - **Step 8 showed Shorts as "uploading…" for ever.** Every Short the toolkit had uploaded itself

@@ -66,6 +66,10 @@ Choose, trim and polish your Shorts.
 | **+ Add Short** | One at the playhead. |
 | **Send to Premiere** | Your Shorts as named range markers on the Premiere timeline. |
 
+In the **Your Shorts** list, the Short you changed most recently has a blue **Last worked on** tag,
+and every Short you have trimmed, renamed or fixed captions on says *edited … ago* — so you can
+see where you left off. Clicking a Short without changing it does not count.
+
 **Timeline and player**
 
 - The timeline shows markers, Shorts, suggestions, screams and laughs.

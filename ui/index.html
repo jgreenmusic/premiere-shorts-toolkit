@@ -15,7 +15,7 @@
   --bg: #0e1014; --surface: #161a20; --surface-2: #1c2129; --border: #262c36;
   --text: #e8eaed; --muted: #98a2ae; --faint: #6b7480;
   --accent: #f5c542; --accent-ink: #1a1400; --accent-soft: rgba(245,197,66,.12);
-  --ok: #3fb950; --warn: #e3a02b; --bad: #f85149; --info: #58a6ff;
+  --ok: #3fb950; --warn: #e3a02b; --bad: #f85149; --info: #58a6ff; --on-info: #0b1220;
   --radius: 14px; --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.25);
   color-scheme: dark;
 }
@@ -23,7 +23,7 @@
   --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f0f2f5; --border: #e1e5ea;
   --text: #15181d; --muted: #5b6470; --faint: #8a93a0;
   --accent: #c9960e; --accent-ink: #ffffff; --accent-soft: rgba(201,150,14,.12);
-  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --info: #0969da;
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --info: #0969da; --on-info: #fff;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.05);
   color-scheme: light;
 }
@@ -127,6 +127,8 @@ th { text-align: left; font-weight: 600; color: var(--muted); font-size: 13.5px;
 td { padding: 6px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; vertical-align: middle; }
 tr:last-child td { border-bottom: 0; }
 tr.sel td { background: var(--accent-soft); }
+tr.here td:first-child { box-shadow: inset 4px 0 0 var(--info); }
+.badge.here { background: var(--info); color: var(--on-info); }
 td.spell { font-weight: 800; letter-spacing: .02em; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge { font-size: 12.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 .badge.warn { background: rgba(227,160,43,.15); color: var(--warn); }
@@ -556,7 +558,24 @@ const shortsList = () => S.info.config.shorts;
 const sugList = () => (T.tl?.suggestions || []).filter(s => !(S.info.config.dismissed || []).some(d => Math.abs(d[0] - s.start) < 1 && Math.abs(d[1] - s.end) < 1)
   && !shortsList().some(x => Math.abs(x.start - s.start) < 1 && Math.abs(x.end - s.end) < 1));
 
+// "worked" = when you last changed a Short (trim, rename, its captions). Kept on the Short itself in
+// toolkit.json, so the Your Shorts list can show where you left off - on any device, after any restart.
+const nowS = () => Math.round(Date.now() / 1000);
+const lastWorked = () => shortsList().reduce((b, x, i) => x.worked && (b < 0 || x.worked > shortsList()[b].worked) ? i : b, -1);
+function workMark(x, i, last) {
+  if (!x.worked) return "";
+  return i === last ? `<span class="badge here" title="The Short you changed most recently">Last worked on · ${ago(x.worked)}</span>`
+    : `<span class="hint" title="You changed this Short">edited ${ago(x.worked)}</span>`;
+}
+function markShorts() {                      // refresh only the marks - the lists and the editor stay as they are
+  const last = lastWorked();
+  $$("#shortsCard [data-mark]").forEach(el => { const i = +el.dataset.mark, x = shortsList()[i]; if (!x) return;
+    el.innerHTML = workMark(x, i, last); el.closest("tr").classList.toggle("here", i === last); });
+}
 async function saveShorts(list, note) {
+  const old = shortsList();
+  if (list.length === old.length)            // same Shorts, something about one changed: that one was worked on
+    list = list.map((x, i) => x.name !== old[i].name || x.start !== old[i].start || x.end !== old[i].end ? { ...x, worked: nowS() } : x);
   T.undo.push(structuredClone(shortsList())); if (T.undo.length > 50) T.undo.shift();
   S.info.config = await api("/api/config", { path: S.current, patch: { shorts: list } });
   if ($("#shortsCard")) refreshShorts(); if (note) toast(note, true);
@@ -653,7 +672,7 @@ function selRange() {
 
 // ---- lists + side panel
 function refreshShorts() {
-  const R = S.info.results.renders || {}, list = shortsList(), sugs = sugList();
+  const R = S.info.results.renders || {}, list = shortsList(), sugs = sugList(), lastW = lastWorked();
   // every trim lands here: the page and both lists stay where they were scrolled to
   const mainEl = $("main"), mainTop = mainEl ? mainEl.scrollTop : 0;
   const listTops = ["#shortsCard .scroll", "#sugCard .scroll"].map(q => { const e = $(q); return e ? e.scrollTop : 0; });
@@ -661,10 +680,11 @@ function refreshShorts() {
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Your Shorts <span class="muted" style="font-weight:500">(${list.length})</span></h3></div>
       ${list.length ? `<span class="hint">Render them in step 6</span>` : ""}</div>
     ${list.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
-      ${list.map((s, i) => `<tr class="${T.sel?.kind === "short" && T.sel.i === i ? "sel" : ""}" data-pick="short,${i}" style="cursor:pointer">
+      ${list.map((s, i) => `<tr class="${T.sel?.kind === "short" && T.sel.i === i ? "sel" : ""} ${i === lastW ? "here" : ""}" data-pick="short,${i}" style="cursor:pointer">
         <td style="width:18px"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent)"></span></td>
         <td><b>${esc(s.name)}</b><div class="hint">${tc(s.start)} → ${tc(s.end)} · ${Math.round(s.end - s.start)}s</div></td>
-        <td>${R[s.name] ? `<span class="badge ok">Rendered</span>` : `<span class="badge">Not yet</span>`}</td></tr>`).join("")}
+        <td style="text-align:right" data-mark="${i}">${workMark(s, i, lastW)}</td>
+        <td style="width:1%">${R[s.name] ? `<span class="badge ok">Rendered</span>` : `<span class="badge">Not yet</span>`}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="hint">No Shorts yet. Accept suggestions, import from markers, or press <b>I</b> on the timeline to start one at the playhead.</p>`}`;
   $("#sugCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Suggested <span class="muted" style="font-weight:500">(${sugs.length})</span></h3>
@@ -695,6 +715,11 @@ function refreshShorts() {
   wireCommon();
   panel(); draw();
   ["#shortsCard .scroll", "#sugCard .scroll"].forEach((q, k) => { const e = $(q); if (e) e.scrollTop = listTops[k]; });
+  if (T.hereFor !== S.current) {             // first look at this project: bring "Last worked on" into view
+    T.hereFor = S.current;
+    const row = $("#shortsCard tr.here"), box = $("#shortsCard .scroll");
+    if (row && box) box.scrollTop = Math.max(0, row.offsetTop - box.clientHeight / 2 + row.offsetHeight / 2);
+  }
   if (mainEl) mainEl.scrollTop = mainTop;
 }
 
@@ -869,9 +894,12 @@ async function loadCapEdit(s) {
     try { back.setSelectionRange(keepFocus.a, keepFocus.b); } catch (e) {}
   }
   const patchCfg = async (patch, msg) => {
+    const si = shortsList().findIndex(x => x.name === s.name && x.start === s.start && x.end === s.end);
+    if (si >= 0) patch = { ...patch, shorts: shortsList().map((x, i) => i === si ? { ...x, worked: nowS() } : x) };
     try { S.info.config = await api("/api/config", { path: S.current, patch }); }
     catch (e) { return toast(e.message); }
     if (msg) toast(msg, true);
+    markShorts();
     loadCapEdit(s);
   };
   const addIdx = c => +c.key.slice(4);
