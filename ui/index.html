@@ -2015,11 +2015,17 @@ function viewCaptions() {
     </div>` : ""}
   </div>
   <div class="card">
-    <div class="card-head"><div class="grow"><h3>Fix timing &amp; fit lengths</h3><p>Moves captions that are off and makes each stay up as long as its words are voiced. Writes a <b>new copy</b> of the project — the original is never changed.</p></div>
-      <button class="btn ${synced.length ? "" : "primary"}" data-run="fix" ${dis()}>Create synced copy</button></div>
+    <div class="toggle-row" style="margin:0"><div><b>Fit caption timing in my Shorts</b>
+      <small>Everything the toolkit renders moves captions that are off and keeps each one up for as long as its words are voiced — no synced copy needed. A caption you timed by hand in step 3 keeps your timing.${/_captions-synced/.test(name) ? " This project is already a synced copy, so its timing is used as it is." : ""}</small></div>
+      <label class="switch"><input type="checkbox" id="fitTiming" ${I.config.fit_timing !== false ? "checked" : ""}><span></span></label></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="grow"><h3>Timing inside Premiere too</h3><p>For finishing in Premiere: the same fix written into a <b>new copy</b> of the project — the original is never changed.</p></div>
+      <button class="btn" data-run="fix" ${dis()}>Create synced copy</button></div>
     ${synced.length ? `<div class="row">${synced.map(p => `<button class="btn" data-select="${esc(p.path)}">${esc(p.version)} · ${ago(p.modified)}</button>`).join("")}</div>` : ""}
     ${R.too_short ? `<p class="hint" style="margin:12px 0 0">${R.too_short} captions are too short to read and have no room to grow. <button class="btn link" data-open="${esc(I.outdir)}\\too-short-captions.txt">See list</button></p>` : ""}
   </div>`;
+  $("#fitTiming").onchange = e => saveCfg({ fit_timing: e.target.checked }, false).then(() => toast(e.target.checked ? "Caption timing is fitted in renders" : "Renders use Premiere's own caption timing", true));
 }
 
 // ---- Making Premiere captions (no captions yet). Two ways that end the same:

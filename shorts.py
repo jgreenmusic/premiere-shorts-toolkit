@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.26.0"
+__version__ = "0.27.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -688,6 +688,28 @@ def cmd_captions(args):
         verify(out, seq.name, new)
         print("\nFixed %d caption(s) -> %s" % (changed, out))
         print("Open that file in Premiere. Your original project is untouched.")
+
+
+def fitted_times(seq, matches, regions, words):
+    """What `captions --fix` would write, without writing it: {caption index: (start, end)}
+    in ticks for every caption whose timing is off or too short for its sound. Captions with
+    no evidence are left out. Used by renders so the original project gets the same timing
+    as a synced copy."""
+    proposed, _ = cap.retime(seq.captions, matches, seq.caption_frame)
+    changes = {}
+    for c, m in zip(seq.captions, matches):
+        st = classify(c, m)
+        if "no-match" in st or "empty" in st:
+            continue                    # no evidence - never move these
+        ps, pe = proposed[c.index]
+        s = ps if ("early" in st or "late" in st) else c.start      # change only the edge that is wrong
+        e = pe if ("cut-off" in st or "lingers" in st) else c.end
+        if e <= s:
+            e = pe
+        if (s, e) != (c.start, c.end):
+            changes[c.index] = (s, e)
+    changes, _ = fit_durations(seq, matches, regions, changes, words)
+    return settle(seq.captions, changes, seq.caption_frame)
 
 
 def fit_durations(seq, matches, regions, changes, words):

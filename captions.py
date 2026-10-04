@@ -246,6 +246,17 @@ def edited(c, m, edits):
     return c, m
 
 
+def fitted(c, times, edit=None):
+    """The caption with its fitted (start, end) ticks - except an edge you set yourself."""
+    if not times:
+        return c
+    from dataclasses import replace
+    e = edit or {}
+    s = c.start if e.get("start") is not None else times[0]
+    t = c.end if e.get("end") is not None else times[1]
+    return replace(c, start=s, end=t) if t > s else c
+
+
 def added_captions(cfg, first_index):
     """Captions you added in the app (toolkit.json "caption_adds"), as (caption, match)."""
     from prproj import Caption

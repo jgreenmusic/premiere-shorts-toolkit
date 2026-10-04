@@ -48,9 +48,12 @@ Optional. Skip it and the toolkit writes its own captions from the speech, 1–3
   Whisper) → caption lines → a real caption track in your sequence. Needs the
   [Premiere panels](premiere.md).
 - **Making them by hand in Premiere:** create the captions, **Ctrl+S**, then **Watch for captions**.
-- **Sequence already has captions:** the toolkit checks their timing against the speech and can
-  write a **synced copy** of the project with the timing fixed. Your original is untouched. Pick
-  the synced copy on the left to keep working from it.
+- **Sequence already has captions:** **Fit caption timing in my Shorts** (on by default) makes
+  everything the toolkit renders move captions that are off and keep each one up for as long as
+  its words are voiced. A caption you timed by hand in step 3 keeps your timing. **Run check**
+  shows how far off Premiere's captions are.
+- **Finishing in Premiere instead:** **Create synced copy** writes the same fix into a new copy of
+  the project. Your original is untouched.
 
 ## 3 · Shorts
 

@@ -64,6 +64,14 @@ Collect issues here as they come up while making Shorts.
 
 Open as of 2026-10-04 (0.24.2):
 
+- **Captions that flash by in fast talk.** Premiere splits quick speech into 1-3 word captions
+  that follow each other with no gap, so some are up for under 0.3 s and cannot be made longer
+  without covering the next one (about 150 inside the Shorts of one 2-hour project). Idea: when
+  rendering, join a caption that short with its neighbour into one line. Not built - it changes
+  how the captions read, so it wants a yes first.
+- **Timing fit depends on what the speech model heard.** Whisper `small` matched under half of
+  one project's captions; unmatched ones are only trimmed, never moved or extended. The bigger
+  model (`large-v3-turbo`, used by Listen again) would match more - about 19 minutes per 2 hours.
 - **Phone video.** On an iPhone the app opens but the source video did not play (0.24.1 fixed how
   video is served; not re-tested on the phone). If it still fails: make a small phone-size preview
   per Short with ffmpeg on the PC.

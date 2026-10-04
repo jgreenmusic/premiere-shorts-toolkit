@@ -2,6 +2,25 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.27.0 - 2026-10-04
+
+- **Captions not lining up, or gone too soon, on a project with Premiere captions.** The fix
+  that moves late/early captions and holds each one for as long as its words are voiced only
+  ever existed in step 2's *synced copy*. Shorts rendered from the original project used
+  Premiere's own caption times untouched. On the project where this was noticed, 357 of the
+  1,218 captions inside the Shorts were affected, and 452 were on screen for under half a second.
+  Now **every render, preview and the caption editor use the fitted timing** - no synced copy
+  needed. It is the switch **Fit caption timing in my Shorts** in step 2, on by default. A
+  caption you timed by hand keeps your timing, your caption edits still belong to the same
+  captions, and the Premiere project is still never changed. (Under half a second: 452 -> 315.
+  The rest are back-to-back fragments in fast talk, with the next caption starting straight
+  after - see the roadmap.)
+- **A laugh could wipe out a caption.** A laugh caption starting just after a spoken caption
+  replaced it at once: a caption added by hand, meant to show for 2.3 s, was on screen for
+  0.17 s. A laugh now waits until the spoken caption has been up long enough to read (0.5 s,
+  up to 1.5 s for long lines), then takes over.
+- `tests\test_logic.py`: 7 new checks for both.
+
 ## 0.26.0 - 2026-10-04
 
 - **Empty space put to use.** On a big window several steps left large blank areas while the

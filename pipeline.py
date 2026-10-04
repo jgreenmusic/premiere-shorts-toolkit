@@ -45,6 +45,49 @@ def with_toolkit_markers(markers, cfg):
     return sorted(out, key=lambda m: m.start_s)
 
 
+def fit_times(project_path, seq, outdir, cfg, words=None, regions=None):
+    """{caption index: (start, end) ticks} - Premiere captions fitted to the speech, the same
+    numbers `captions --fix` writes into a synced copy. Empty when switched off, when the
+    captions are the toolkit's own, when the project already is a synced copy, or before the
+    speech has been analysed. Kept in fit.json until the project or the transcript changes.
+    words / regions: the raw transcript and voice regions if the caller has them loaded."""
+    import glob
+    import json
+    stem = os.path.splitext(os.path.basename(project_path))[0]
+    if not seq.captions or not cfg.get("fit_timing", True) or re.search(r"_captions-synced(-v\d+)?$", stem):
+        return {}
+    wfile = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
+    vfile = sorted(glob.glob(os.path.join(outdir, "voice-*.json")), key=os.path.getmtime)
+    if not wfile or not vfile:
+        return {}
+    st = os.stat(project_path)
+    key = [1, seq.name, len(seq.captions), st.st_mtime_ns, st.st_size, os.path.basename(wfile[-1]),
+           os.path.getmtime(wfile[-1]), os.path.basename(vfile[-1])]
+    cache = os.path.join(outdir, "fit.json")
+    try:
+        with open(cache, encoding="utf-8") as f:
+            d = json.load(f)
+        if d["key"] == key:
+            return {int(i): tuple(t) for i, t in d["times"].items()}
+    except (OSError, ValueError, KeyError):
+        pass
+    if words is None:
+        with open(wfile[-1], encoding="utf-8") as f:
+            words = json.load(f)
+    if regions is None:
+        with open(vfile[-1], encoding="utf-8") as f:
+            regions = json.load(f)
+    import shorts
+    words = cap.clean_loops(words, regions)
+    times = shorts.fitted_times(seq, cap.align(seq.captions, words), regions, words)
+    try:
+        with open(cache, "w", encoding="utf-8") as f:
+            json.dump(dict(key=key, times={str(i): list(t) for i, t in times.items()}), f)
+    except OSError:
+        pass
+    return times
+
+
 def caption_list(project_path, start=None, end=None, seq=None):
     """Captions as the app shows them for editing - fast: no audio. Premiere's own, or the
     toolkit's made from the cached transcript (the same ones a render uses).
@@ -55,8 +98,10 @@ def caption_list(project_path, start=None, end=None, seq=None):
     cfg = config.load(outdir)
     if seq is None:
         seq = pick_sequence(open_project(project_path), cfg.get("sequence"))
+    fit = {}
     if seq.captions:
         caps, source = seq.captions, "premiere"
+        fit = fit_times(project_path, seq, outdir, cfg)
     else:
         cached = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
         if not cached:
@@ -85,6 +130,7 @@ def caption_list(project_path, start=None, end=None, seq=None):
             continue
         k = cap.caption_key(c)
         e = edits.get(k) or {}
+        c = cap.fitted(c, fit.get(c.index))          # the times a render uses (the key stays the original start)
         out.append(dict(key=k, start=round(c.start_s, 3), end=round(c.end_s, 3), orig=c.text,
                         text=e.get("text") if e.get("text") is not None else c.text, hidden=bool(e.get("hide")),
                         new_start=e.get("start"), new_end=e.get("end")))
@@ -160,9 +206,12 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
     if not need_words:
         return ctx
     log("[speech] words and voice")
-    ctx.words = cap.transcribe(audio, outdir, model=model, log=log)
+    raw = cap.transcribe(audio, outdir, model=model, log=log)
     ctx.regions = cap.voice_regions(audio, outdir, log=log)
-    ctx.words = cap.clean_loops(ctx.words, ctx.regions, cap.retyped(cfg))   # Whisper's repetition loops out
+    ctx.words = cap.clean_loops(raw, ctx.regions, cap.retyped(cfg))   # Whisper's repetition loops out
+    ctx.fit = fit_times(project_path, seq, outdir, cfg, raw, ctx.regions)
+    if ctx.fit:
+        log("  %d captions fitted to the speech (step 2 setting)" % len(ctx.fit))
     import sounds
     ctx.sounds = sounds.detect(seq, outdir, audio, log=log)      # None if not installed
     if seq.captions:

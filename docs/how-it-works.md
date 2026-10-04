@@ -18,6 +18,7 @@ Next to your project (or video file):
 | `…\toolkit.json` | Everything you chose: Shorts list, markers, look, caption edits, scream and laugh choices, post settings. Plain text. |
 | `…\words-*.json`, `voice-*.json`, `sounds-*.npz` | Cached transcript, voice regions and sound events. This is why the second run is fast. |
 | `…\audio-*.f32` | The recording's decoded sound (about 230 MB per hour of video), so each command starts in about a second instead of decoding it again. Safe to delete; it is rebuilt when needed. |
+| `…\fit.json` | Fitted caption times for a project with Premiere captions. Rebuilt when the project is saved again. |
 | `…\relisten.json` | What the bigger model heard for the Shorts you pressed **Listen again** on. |
 | `…\preview-*.mp4` | Look previews. Old ones are removed after a day. |
 | `<project>_shorts\` | Your rendered Shorts. |

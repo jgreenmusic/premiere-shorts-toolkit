@@ -9,6 +9,8 @@ import os
 
 DEFAULTS = {
     "sequence": None,             # which sequence to use (None = the one with captions / the first)
+    "fit_timing": True,           # Premiere captions: move the ones that are off and hold each for as long as
+                                  # its words are voiced, in everything the toolkit renders (step 2)
     "look": {
         "size": 76,               # caption text size, px on 1080x1920
         "position": 560,          # distance from the bottom, px (clears the Shorts buttons)

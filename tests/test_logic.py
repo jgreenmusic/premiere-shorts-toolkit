@@ -201,5 +201,58 @@ class AutoCaptions(unittest.TestCase):
         self.assertEqual([c.text for c in caps], ["wait", "what"])
 
 
+class FittedTiming(unittest.TestCase):
+    """Premiere captions get their timing fitted to the speech in renders (0.27.0)."""
+
+    def test_fitted_times_replace_the_captions_own(self):
+        c = captions.fitted(cap(0, 1.0, 1.2, "hello"), (int(1.0 * TICKS), int(1.8 * TICKS)))
+        self.assertAlmostEqual(c.end_s, 1.8)
+
+    def test_nothing_fitted_changes_nothing(self):
+        c = cap(0, 1.0, 1.2, "hello")
+        self.assertIs(captions.fitted(c, None), c)
+
+    def test_an_edge_you_set_yourself_wins(self):
+        mine = cap(0, 1.1, 2.5, "hello")                       # as returned by captions.edited: your start and end
+        fit = (int(1.0 * TICKS), int(1.8 * TICKS))
+        self.assertAlmostEqual(captions.fitted(mine, fit, {"end": 2.5}).end_s, 2.5)
+        self.assertAlmostEqual(captions.fitted(mine, fit, {"end": 2.5}).start_s, 1.0)
+        self.assertAlmostEqual(captions.fitted(mine, fit, {"start": 1.1}).start_s, 1.1)
+
+    def test_a_short_caption_with_room_is_held_for_its_voice(self):
+        import shorts
+        from types import SimpleNamespace
+        frame = TICKS // 30
+        caps = [cap(0, 1.0, 1.2, "hello there"), cap(1, 5.0, 5.6, "bye")]
+        words = [[1.0, 1.3, "hello", 0.9], [1.3, 1.9, "there", 0.9], [5.0, 5.4, "bye", 0.9]]
+        regions = [[0.95, 2.0], [4.95, 5.5]]
+        seq = SimpleNamespace(captions=caps, caption_frame=frame)
+        new = shorts.fitted_times(seq, captions.align(caps, words), regions, words)
+        self.assertIn(0, new)
+        self.assertEqual(new[0][0], caps[0].start)                   # it started on time: the start stays
+        self.assertGreater(new[0][1] / TICKS, 1.9)                   # held until the voice stops
+        self.assertLess(new[0][1] / TICKS, 5.0)                      # never into the next caption
+
+
+class SpeechBeforeLaughs(unittest.TestCase):
+    def test_a_laugh_waits_until_the_caption_can_be_read(self):
+        import style
+        events = [(10.0, 12.3, "Main", "You are a dingus"), (10.17, 10.4, "Laugh", "HA"), (10.4, 10.7, "Laugh", "HAHA"),
+                  (10.7, 11.5, "Laugh", "HAHAHA")]
+        out = style.hold_for_speech(events, [(10.0, 10.0 + style.readable("You are a dingus"))])
+        self.assertEqual([e[3] for e in out], ["You are a dingus", "HAHAHA"])     # cues that would be over are dropped
+        self.assertAlmostEqual(out[1][0], 10.8)
+
+    def test_laughs_elsewhere_are_untouched(self):
+        import style
+        events = [(10.0, 11.0, "Main", "hello"), (12.0, 12.5, "Laugh", "HA")]
+        self.assertEqual(style.hold_for_speech(events, [(10.0, 10.5)]), events)
+
+    def test_readable_time(self):
+        import style
+        self.assertEqual(style.readable("Oh"), 0.5)
+        self.assertEqual(style.readable("x" * 100), 1.5)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

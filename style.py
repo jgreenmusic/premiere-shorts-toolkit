@@ -390,6 +390,30 @@ def laugh_events(cues, st):
     return ev
 
 
+def readable(text):
+    """Seconds a caption needs on screen to be read: 0.5 s, more for longer text, 1.5 s at most."""
+    return min(1.5, max(0.5, len(text) / 20.0))
+
+
+def hold_for_speech(events, holds):
+    """A laugh that starts while a spoken caption has only just appeared waits until the
+    caption has been up long enough to read (the rule "one caption at a time" used to cut the
+    caption to a flash). Laugh cues that would be over by then are dropped."""
+    import bisect
+    holds = sorted(holds)
+    starts = [h[0] for h in holds]
+    out = []
+    for a, b, kind, text in events:
+        if kind == "Laugh":
+            i = bisect.bisect_right(starts, a) - 1
+            if i >= 0 and a < holds[i][1]:
+                a = holds[i][1]
+                if b - a < 0.05:
+                    continue
+        out.append((a, b, kind, text))
+    return out
+
+
 def build(ctx, plan):
     """All caption events for the sequence (timeline seconds), from the loaded project
     (pipeline.load) and its scream plan (screams.plan_screams)."""
@@ -405,18 +429,26 @@ def build(ctx, plan):
         if p["on"]:
             events += laugh_events(lg.cues_for(ctx.audio, p), st)
     edits = ctx.cfg.get("caption_edits") or {}
+    fit = getattr(ctx, "fit", None) or {}
+    holds = []                                        # (start, readable until) of every spoken caption
+    n_own = len(ctx.seq.captions) if not getattr(ctx, "auto", False) else 0    # captions you added come after these
     for c, m in zip(ctx.captions, ctx.matches):
         if c.index in hidden:
             continue
         cm = cap.edited(c, m, edits)                  # your fixes from the app
         if cm is None:
             continue
+        own = edits.get(cap.caption_key(c)) or {}
+        times = fit.get(c.index) if c.index < n_own else None
         c, m = cm
+        c = cap.fitted(c, times, own)                 # timing fitted to the speech; your own timing wins
         if not c.text:
             continue
         loud = bool(lk.get("loud_lines", True) and normal
                     and sc.loudness(ctx.audio, c.start_s, c.end_s) / normal >= st["loud_ratio"])
         events += caption_events(c, m, c.start_s, c.end_s, loud, st, lk.get("highlight", True))
+        holds.append((c.start_s, min(c.end_s, c.start_s + readable(c.text))))
+    events = hold_for_speech(events, holds)
     on = [p for p in plan if p["on"]]
     for i, p in enumerate(on):
         cues = sc.cues_for(ctx.audio, p["start"], p["end"], p["tpl"], p["bang"])
