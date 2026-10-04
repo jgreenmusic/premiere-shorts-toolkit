@@ -29,45 +29,45 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { background: var(--bg); color: var(--text); font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--text); font: 16.5px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, select { font: inherit; color: inherit; }
 .app { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
 
 header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
 .logo span { display: block; width: 14px; height: 3px; border-radius: 2px; background: var(--accent-ink); box-shadow: 0 -5px 0 var(--accent-ink), 0 5px 0 var(--accent-ink); }
-header h1 { font-size: 16px; font-weight: 650; margin: 0; }
-header .ver { color: var(--faint); font-size: 12px; margin-left: -4px; }
+header h1 { font-size: 17.5px; font-weight: 650; margin: 0; }
+header .ver { color: var(--faint); font-size: 13.5px; margin-left: -4px; }
 header .spacer { flex: 1; }
 .icon-btn { background: none; border: 1px solid var(--border); border-radius: 9px; height: 32px; padding: 0 10px; cursor: pointer; color: var(--muted); }
 .icon-btn:hover { color: var(--text); background: var(--surface-2); }
 
 aside { border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 12px 90px; background: var(--surface); }
-.side-title h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 8px 10px; font-weight: 600; }
+.side-title h2 { font-size: 13.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 8px 10px; font-weight: 600; }
 .search { width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); margin-bottom: 10px; outline: none; }
 .search:focus, input:focus, select:focus { border-color: var(--accent) !important; outline: none; }
 .group { margin-bottom: 10px; }
-.group-name { font-size: 13px; color: var(--muted); padding: 6px 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-name { font-size: 14.5px; color: var(--muted); padding: 6px 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .proj { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; border-radius: 9px; padding: 7px 10px; cursor: pointer; }
 .proj:hover { background: var(--surface-2); }
 .proj.active { background: var(--accent-soft); }
-.proj .tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.proj .tag { font-size: 13.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .proj.active .tag { border-color: var(--accent); color: var(--text); }
-.proj .when { margin-left: auto; font-size: 12px; color: var(--faint); }
+.proj .when { margin-left: auto; font-size: 13.5px; color: var(--faint); }
 .side-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 14px; }
 
-main { overflow-y: auto; padding: 26px 32px 120px; }
-.wrap { max-width: 1040px; margin: 0 auto; }
-.hero { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
-.hero-text { flex: 1; min-width: 280px; }
-.hero h2 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.02em; font-weight: 650; word-break: break-word; }
+main { overflow-y: auto; padding: 18px 24px 120px; }
+.wrap { max-width: 2200px; margin: 0 auto; }
+.hero { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+.hero-text { flex: 1; min-width: 280px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.hero h2 { font-size: 24px; margin: 0; letter-spacing: -.02em; font-weight: 650; word-break: break-word; }
 .meta { display: flex; flex-wrap: wrap; gap: 8px; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 14.5px; color: var(--muted); }
 .pill b { color: var(--text); font-weight: 600; }
 .empty { text-align: center; color: var(--muted); padding: 100px 20px; }
 .empty h2 { color: var(--text); font-size: 21px; margin-bottom: 6px; }
 
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
 .tab { background: none; border: 0; padding: 10px 14px; cursor: pointer; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tab:hover { color: var(--text); }
 .caprow.now input { box-shadow: 0 0 0 2px var(--accent); }
@@ -75,30 +75,30 @@ main { overflow-y: auto; padding: 26px 32px 120px; }
 .caprow.miss input { border: 1px dashed var(--warn) !important; color: var(--muted); }
 .caprow.miss input:focus { color: var(--text); }
 .caprow.sel { background: var(--accent-soft); border-radius: 8px; padding: 3px 4px; }
-.captime { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); padding: 4px 0 2px 64px; }
+.captime { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13.5px; color: var(--muted); padding: 4px 0 2px 64px; }
 .captime b { color: var(--text); font-variant-numeric: tabular-nums; }
 .caprow.out { opacity: .7; }
 .caprow.out .outtxt { flex: 1; min-width: 0; padding: 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.capedge { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); margin: 6px 0; }
+.capedge { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13.5px; color: var(--muted); margin: 6px 0; }
 .capedge b { color: var(--text); font-variant-numeric: tabular-nums; margin-right: 6px; }
-.heard { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); padding: 2px 0 2px 64px; }
+.heard { display: flex; gap: 6px; align-items: center; font-size: 13.5px; color: var(--muted); padding: 2px 0 2px 64px; }
 .heard b { color: var(--text); font-weight: 600; }
-.captext { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; max-height: 380px; }
+.captext { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; max-height: min(66vh, 760px); }
 .capgut { flex: none; overflow: hidden; background: var(--accent-soft); padding: 6px 0; }
-.capgut button { display: block; height: 22px; line-height: 22px; padding: 0 8px; border: 0; background: none; color: var(--muted); font-family: inherit; font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; text-align: right; width: 100%; }
+.capgut button { display: block; height: 24px; line-height: 24px; padding: 0 8px; border: 0; background: none; color: var(--muted); font-family: inherit; font-size: 13.5px; font-variant-numeric: tabular-nums; cursor: pointer; text-align: right; width: 100%; }
 .capgut button:hover, .capgut button.now { color: var(--accent); }
-#capTxt { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; padding: 6px 10px; font-family: inherit; font-size: 14px; line-height: 22px; background: var(--surface-2); color: var(--text); white-space: pre; overflow: auto; min-height: 220px; }
+#capTxt { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; padding: 6px 10px; font-family: inherit; font-size: 15.5px; line-height: 24px; background: var(--surface-2); color: var(--text); white-space: pre; overflow: auto; min-height: 220px; }
 .capover { position: absolute; left: 50%; bottom: 9%; transform: translateX(-50%); max-width: 86%; padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size: clamp(14px, 2.4vw, 24px); color: #fff; text-align: center;
   text-shadow: 0 2px 6px #000, 0 0 2px #000; cursor: text; display: none; outline: 0; }
 .capover:hover { background: rgba(0,0,0,.35); box-shadow: 0 0 0 2px var(--accent); }
 .capover.editing { display: block; background: rgba(0,0,0,.6); box-shadow: 0 0 0 2px var(--accent); }
 .tab.on { color: var(--text); border-bottom-color: var(--accent); }
-.tab .count { font-size: 12px; font-weight: 600; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.tab .count { font-size: 13.5px; font-weight: 600; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px; }
 .card-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
-.card-head h3 { margin: 0; font-size: 16px; font-weight: 650; }
-.card-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; max-width: 64ch; }
+.card-head h3 { margin: 0; font-size: 17.5px; font-weight: 650; }
+.card-head p { margin: 2px 0 0; color: var(--muted); font-size: 15.5px; max-width: 96ch; }
 .card-head .grow { flex: 1; min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 
@@ -109,30 +109,30 @@ main { overflow-y: auto; padding: 26px 32px 120px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
 .btn.link { background: none; border: 0; padding: 4px 6px; color: var(--muted); font-weight: 500; }
 .btn.link:hover { color: var(--text); }
-.btn.sm { padding: 4px 9px; font-size: 13px; border-radius: 8px; }
+.btn.sm { padding: 4px 9px; font-size: 14.5px; border-radius: 8px; }
 .btn.icon { width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
 .btn.danger:hover { color: var(--bad); border-color: var(--bad); }
-.hint { font-size: 13px; color: var(--faint); }
+.hint { font-size: 14.5px; color: var(--faint); }
 .muted { color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
 input.text, select.text { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; width: 100%; }
 input.time { width: 96px; font-variant-numeric: tabular-nums; }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 14.5px; color: var(--muted); }
 input[type=range] { accent-color: var(--accent); width: 100%; }
 input[type=color] { width: 44px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: none; padding: 2px; cursor: pointer; }
 
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; font-size: 15.5px; }
+th { text-align: left; font-weight: 600; color: var(--muted); font-size: 13.5px; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: 6px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; vertical-align: middle; }
 tr:last-child td { border-bottom: 0; }
 tr.sel td { background: var(--accent-soft); }
 td.spell { font-weight: 800; letter-spacing: .02em; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.badge { font-size: 12.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 .badge.warn { background: rgba(227,160,43,.15); color: var(--warn); }
 .badge.ok { background: rgba(63,185,80,.14); color: var(--ok); }
 .badge.bad { background: rgba(229,83,75,.15); color: var(--bad, #e5534b); }
-.warn { color: var(--warn); font-size: 12.5px; }
+.warn { color: var(--warn); font-size: 14px; }
 .scroll { max-height: 460px; overflow-y: auto; }
 
 /* switch */
@@ -146,50 +146,50 @@ td.spell { font-weight: 800; letter-spacing: .02em; max-width: 260px; overflow: 
 .split { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
 .player { position: sticky; top: 0; }
 .pv-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.pv-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: inherit; cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
-.pv-chip small { opacity: .7; font-size: 11px; }
+.pv-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: inherit; cursor: pointer; font: inherit; font-size: 13.5px; text-align: left; }
+.pv-chip small { opacity: .7; font-size: 12.5px; }
 .pv-chip.on { border-color: var(--accent); background: var(--accent-soft); }
 .lk-sample { position: relative; width: 100%; aspect-ratio: 9 / 16; max-height: 300px; margin: 0 auto 10px; border-radius: 10px; overflow: hidden;
   background: linear-gradient(160deg, #3b4a5c 0%, #6b5a45 45%, #2a2f24 100%); }
 .lk-sample .lk-line { position: absolute; left: 0; right: 0; text-align: center; padding: 0 8%; }
 .preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
 .preset-tile { position: relative; display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 8px 6px; border-radius: 10px;
-  border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 12px; text-align: center; }
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 13.5px; text-align: center; }
 .preset-tile:hover { border-color: var(--muted); }
 .preset-tile.on { border-color: var(--accent); background: var(--accent-soft); }
 .pt-sample { height: 46px; width: 100%; display: grid; place-items: center; border-radius: 6px; overflow: hidden;
   background: linear-gradient(160deg, #3b4a5c, #6b5a45 60%, #2a2f24); }
-.pt-del { position: absolute; top: 2px; right: 2px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
+.pt-del { position: absolute; top: 2px; right: 2px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12.5px; }
 video { width: 100%; border-radius: 12px; background: #000; display: block; aspect-ratio: 9/16; }
-.video-empty { aspect-ratio: 9/16; border-radius: 12px; border: 1px dashed var(--border); display: grid; place-items: center; text-align: center; color: var(--faint); font-size: 13px; padding: 20px; }
-.bars { display: grid; grid-template-columns: 190px 1fr 64px; gap: 7px 12px; align-items: center; font-size: 14px; }
+.video-empty { aspect-ratio: 9/16; border-radius: 12px; border: 1px dashed var(--border); display: grid; place-items: center; text-align: center; color: var(--faint); font-size: 14.5px; padding: 20px; }
+.bars { display: grid; grid-template-columns: 190px 1fr 64px; gap: 7px 12px; align-items: center; font-size: 15.5px; }
 .bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 99px; }
 .bars .n { text-align: right; color: var(--muted); }
 .drift { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 6px; }
 .drift div { flex: 1; background: var(--accent); opacity: .75; border-radius: 3px 3px 0 0; min-height: 2px; }
-.drift-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 4px; gap: 10px; }
+.drift-labels { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--faint); margin-top: 4px; gap: 10px; }
 .result { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-.result h4 { margin: 0 0 10px; font-size: 13px; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
-.banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent); margin-bottom: 12px; font-size: 14px; }
+.result h4 { margin: 0 0 10px; font-size: 14.5px; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
+.banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent); margin-bottom: 12px; font-size: 15.5px; }
 .banner .grow { flex: 1; }
 .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; }
-.setting label { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.setting label { display: flex; justify-content: space-between; font-size: 15.5px; font-weight: 600; margin-bottom: 4px; }
 .setting label span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
-.setting p { margin: 2px 0 0; font-size: 12.5px; color: var(--faint); }
+.setting p { margin: 2px 0 0; font-size: 14px; color: var(--faint); }
 .toggle-row { display: flex; align-items: center; gap: 12px; }
 .toggle-row div { flex: 1; }
-.toggle-row b { display: block; font-size: 14px; }
-.toggle-row small { color: var(--faint); font-size: 12.5px; }
-ol.howto { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+.toggle-row b { display: block; font-size: 15.5px; }
+.toggle-row small { color: var(--faint); font-size: 14px; }
+ol.howto { margin: 0; padding-left: 20px; color: var(--muted); font-size: 15.5px; }
 ol.howto li { margin: 3px 0; }
 ol.howto b { color: var(--text); font-weight: 600; }
 .scripts { display: grid; gap: 8px; }
 .script { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
 .script code { font: 13px/1.3 "Cascadia Code", Consolas, monospace; }
-.script span { color: var(--faint); font-size: 13px; flex: 1; }
+.script span { color: var(--faint); font-size: 14.5px; flex: 1; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; padding: 8px 0; }
+details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 15.5px; padding: 8px 0; }
 
 .log { position: fixed; left: 290px; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -8px 24px rgba(0,0,0,.2); }
 .log-head { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; user-select: none; }
@@ -197,16 +197,30 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-s
 .dot.run { background: var(--info); animation: pulse 1.2s infinite; }
 .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
 @keyframes pulse { 50% { opacity: .35; } }
-.log-head .status { font-weight: 600; font-size: 14px; }
-.log-head .last { color: var(--muted); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: "Cascadia Code", Consolas, monospace; }
-.log pre { margin: 0; max-height: 34vh; overflow: auto; padding: 0 20px 16px; font: 12.5px/1.55 "Cascadia Code", Consolas, monospace; color: var(--muted); white-space: pre-wrap; user-select: text; -webkit-user-select: text; cursor: text; }
+.log-head .status { font-weight: 600; font-size: 15.5px; }
+.log-head .last { color: var(--muted); font-size: 14.5px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: "Cascadia Code", Consolas, monospace; }
+.log pre { margin: 0; max-height: 34vh; overflow: auto; padding: 0 20px 16px; font: 13.5px/1.55 "Cascadia Code", Consolas, monospace; color: var(--muted); white-space: pre-wrap; user-select: text; -webkit-user-select: text; cursor: text; }
 .log.closed pre { display: none; }
-.toast { position: fixed; top: 70px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bad); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); max-width: 360px; font-size: 14px; display: none; z-index: 5; }
+.toast { position: fixed; top: 70px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bad); padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); max-width: 360px; font-size: 15.5px; display: none; z-index: 5; }
 .toast.good { border-left-color: var(--ok); }
 
 @media (max-width: 1000px) { .split { grid-template-columns: 1fr; } .player { position: static; max-width: 300px; } }
 .mobile-only { display: none; }
-.player-split { grid-template-columns: 1fr 320px; }
+.player-split { grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 520px); }
+.stack { min-width: 0; }
+.viewer { position: relative; background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; max-height: 64vh; margin: 0 auto; }
+#capRows { max-height: min(66vh, 760px); }
+details.how { margin: 0 0 8px; }
+details.how summary { cursor: pointer; color: var(--muted); }
+details.how p { margin: 6px 0 0; }
+/* quiet scroll bars everywhere */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--faint) 55%, transparent) transparent; }
+/* the projects list can be tucked away to give the work area the whole window */
+@media (min-width: 901px) {
+  body.noside .app { grid-template-columns: 1fr; }
+  body.noside aside { display: none; }
+  body.noside .log { left: 0; }
+}
 .marker-split { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
 .two.lists { grid-template-columns: 3fr 2fr; }
 @media (max-width: 1000px) { .player-split, .two.lists { grid-template-columns: 1fr; } }
@@ -220,6 +234,7 @@ canvas#ov, canvas#dt { touch-action: none; }
 .code { font: 700 30px/1 ui-monospace, "Cascadia Code", Consolas, monospace; letter-spacing: .25em; }
 @media (max-width: 900px) {
   .mobile-only { display: inline-block; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
   .kbd-hint { display: none; }
   .icon-btn .lbl { display: none; }
   .icon-btn { width: 38px; padding: 0; }
@@ -245,7 +260,7 @@ canvas#ov, canvas#dt { touch-action: none; }
     <div class="logo" aria-hidden="true"><span></span></div>
     <h1>Shorts Toolkit</h1><span class="ver" id="ver"></span>
     <div class="spacer"></div>
-    <button class="icon-btn mobile-only" id="projToggle" title="Projects">☰<span class="lbl"> Projects</span></button>
+    <button class="icon-btn" id="projToggle" title="Show or hide the projects list">☰<span class="lbl"> Projects</span></button>
     <button class="icon-btn pc-only" id="phoneBtn" title="Use the toolkit from your phone or tablet">📱<span class="lbl"> Phone</span></button>
     <button class="icon-btn" id="theme" title="Switch light / dark">◐<span class="lbl"> Theme</span></button>
   </header>
@@ -319,7 +334,12 @@ function renderProjects() {
   $$(".proj").forEach(b => b.onclick = () => { document.body.classList.remove("show-projects"); select(b.dataset.path); });
 }
 $("#search").oninput = renderProjects;
-$("#projToggle").onclick = () => document.body.classList.toggle("show-projects");
+$("#projToggle").onclick = () => {
+  if (innerWidth <= 900) return document.body.classList.toggle("show-projects");
+  store.set("side", document.body.classList.toggle("noside") ? "hidden" : "shown"); if (S.info) render();
+};
+// hidden by default on a normal-size window once a project is open: the work area gets the room
+function applySide() { document.body.classList.toggle("noside", (store.get("side", null) || (innerWidth < 1700 && S.current ? "hidden" : "shown")) === "hidden"); }
 $("#phoneBtn").onclick = () => openPhone();
 
 // ---- Phone & tablet (desktop only): switch the companion on, pair devices
@@ -345,7 +365,7 @@ async function openPhone() {
           <p class="hint" style="margin-top:12px">Scan the QR code or type the address, then enter the code. To install it like an app: iPhone — Share → <b>Add to Home Screen</b>; Android — ⋮ → <b>Add to Home screen</b>.</p>
         </div>
       </div>
-      <h4 style="margin:18px 0 6px;font-size:14px">Paired devices</h4>
+      <h4 style="margin:18px 0 6px;font-size:15.5px">Paired devices</h4>
       ${R.devices.length ? `<table><tbody>${R.devices.map(d => `<tr><td>${esc(d.name.replace(/\(.*?\)/g, "").slice(0, 60) || "device")}<div class="hint">paired ${ago(d.added)}${d.seen ? " · last used " + ago(d.seen) : ""}</div></td>
         <td style="text-align:right"><button class="btn sm danger" data-revoke="${d.id}">Remove</button></td></tr>`).join("")}</tbody></table>` : `<p class="hint">None yet.</p>`}
       <p class="hint" style="margin-top:14px">Away from home: with Tailscale on the phone, use the Tailscale address. For a full install on Android, run <code>tailscale serve --bg ${R.port}</code> on this PC to get an https address.</p>` : `<p class="hint">Switched off — nothing outside this PC can reach the toolkit.</p>`}
@@ -364,7 +384,7 @@ $("#addFolder").onclick = async () => { const r = await api("/api/browse", { kin
 
 async function select(path, keep) {
   if (!keep) { S.markers = null; S.sel = 0; T.tl = null; T.loadedFor = null; T.sel = null; T.undo = []; }
-  S.current = path; store.set("project", path); renderProjects();
+  S.current = path; store.set("project", path); renderProjects(); applySide();
   if (!keep) $("#main").innerHTML = `<div class="empty"><p>Reading project…</p></div>`;
   try { S.info = await api("/api/info?path=" + encodeURIComponent(path)); render(); }
   catch (e) { $("#main").innerHTML = `<div class="empty"><h2>Couldn't read that project</h2><p>${esc(e.message)}</p></div>`; }
@@ -463,7 +483,7 @@ function viewMarkers() {
   </div>` : ""}
   ${have ? `<div class="split player-split marker-split">
     <div class="card" style="padding:12px">
-      <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
+      <div class="viewer">
         <video id="src" playsinline preload="metadata" style="width:100%;height:100%;aspect-ratio:auto;border-radius:0"></video>
         <div id="srcMsg" class="hint" style="position:absolute;inset:0;display:grid;place-items:center;color:#aaa">${T.tl ? "" : "Loading…"}</div>
       </div>
@@ -472,11 +492,11 @@ function viewMarkers() {
     </div>
     <div class="card" style="padding:14px 16px">
       <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>${list.length} marker${list.length === 1 ? "" : "s"}</h3>
-        <p style="font-size:13px">${inShorts ? `${inShorts} already in your Shorts · ` : ""}click one to watch it</p></div></div>
+        <p style="font-size:14.5px">${inShorts ? `${inShorts} already in your Shorts · ` : ""}click one to watch it</p></div></div>
       <div class="scroll" style="max-height:420px"><table><tbody>
       ${list.map((m, i) => `<tr class="${S.mkSel === i ? "sel" : ""}" data-mkplay="${i}" style="cursor:pointer">
         <td style="width:62px"><div class="bar" style="width:40px"><i style="width:${m.score || 0}%;background:#f5c542"></i></div><div class="hint" style="white-space:nowrap">score ${m.score ?? "–"}</div></td>
-        <td><b>${tc(m.start)} → ${tc(m.end)}</b> <span class="muted" style="font-size:12px">#${i + 1}</span><div class="hint">${Math.round(m.end - m.start)}s${m.why ? " · " + esc(m.why) : ""}</div></td>
+        <td><b>${tc(m.start)} → ${tc(m.end)}</b> <span class="muted" style="font-size:13.5px">#${i + 1}</span><div class="hint">${Math.round(m.end - m.start)}s${m.why ? " · " + esc(m.why) : ""}</div></td>
         <td style="white-space:nowrap">${isShort(m) ? `<span class="badge ok">Short</span>` : `<button class="btn sm" data-mkshort="${i}">+ Short</button>`}
           <button class="btn sm icon" data-mkdel="${i}" title="Remove (won't be suggested again)">✕</button></td></tr>`).join("")}
       </tbody></table></div>
@@ -558,8 +578,9 @@ function viewShorts() {
   </div>
   ${S.markers ? `<div class="card">${markerPicker()}</div>` : ""}
   <div class="split player-split">
+   <div class="stack">
     <div class="card" style="padding:12px">
-      <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9">
+      <div class="viewer">
         <video id="src" playsinline preload="metadata" style="width:100%;height:100%;aspect-ratio:auto;border-radius:0"></video>
         <div id="srcMsg" class="hint" style="position:absolute;inset:0;display:grid;place-items:center;color:#aaa">${T.tl ? "" : "Analyse the video to use the player and timeline"}</div>
         <div id="capOver" class="capover" title="Click to fix this caption"></div>
@@ -572,8 +593,6 @@ function viewShorts() {
         <span class="hint kbd-hint">Space play · I / O set start / end · N / P markers · ← → step · Ctrl+Z undo</span>
       </div>
     </div>
-    <div class="card" id="selPanel" style="padding:14px 16px"></div>
-  </div>
   <div class="card" style="padding:12px 16px">
     ${T.tl ? `
     <canvas id="ov" style="width:100%;height:44px;display:block;cursor:pointer;border-radius:6px"></canvas>
@@ -591,6 +610,9 @@ function viewShorts() {
   <div class="two lists">
     <div class="card" id="shortsCard"></div>
     <div class="card" id="sugCard"></div>
+  </div>
+   </div>
+    <div class="card" id="selPanel" style="padding:14px 16px"></div>
   </div>`;
   wireShorts();
 }
@@ -646,7 +668,7 @@ function refreshShorts() {
       </tbody></table></div>` : `<p class="hint">No Shorts yet. Accept suggestions, import from markers, or press <b>I</b> on the timeline to start one at the playhead.</p>`}`;
   $("#sugCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Suggested <span class="muted" style="font-weight:500">(${sugs.length})</span></h3>
-      <p style="font-size:13px">Best moments first, snapped to pauses and markers.</p></div>
+      <p style="font-size:14.5px">Best moments first, snapped to pauses and markers.</p></div>
       <div class="row" style="gap:6px">${sugs.length ? `<button class="btn sm" id="acceptAll">Accept all</button>` : ""}
         ${T.tl ? `<button class="btn sm" id="moreSug" ${dis()} title="Find more, skipping what you've accepted or dismissed">+ More</button>` : ""}</div></div>
     ${!T.tl ? `<p class="hint">Analyse the video to get suggestions.</p>` : sugs.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
@@ -686,13 +708,13 @@ function panel() {
   const el = $("#selPanel"); if (!el) return;
   const R = S.info.results.renders || {};
   if (!T.sel || !selRange()) {
-    el.innerHTML = `<h3 style="margin:0 0 6px;font-size:16px">Nothing selected</h3><p class="hint">Click a Short or a suggestion — on the timeline or in the lists — to trim, preview and render it.</p>
+    el.innerHTML = `<h3 style="margin:0 0 6px;font-size:17.5px">Nothing selected</h3><p class="hint">Click a Short or a suggestion — on the timeline or in the lists — to trim, preview and render it.</p>
       <ol class="howto" style="margin-top:10px"><li><b>I</b> at the playhead starts a Short, <b>O</b> ends it</li><li>Drag its edges on the timeline — they snap to markers and pauses (hold <b>Alt</b> for free)</li><li>Double-click between two markers to make that segment a Short</li></ol>`;
     return;
   }
   if (T.sel.kind === "sug") {
     const s = sugList()[T.sel.i];
-    el.innerHTML = `<div class="hint">Suggested · score ${s.score}</div><h3 style="margin:2px 0 6px;font-size:16px">${tc(s.start)} → ${tc(s.end)}</h3>
+    el.innerHTML = `<div class="hint">Suggested · score ${s.score}</div><h3 style="margin:2px 0 6px;font-size:17.5px">${tc(s.start)} → ${tc(s.end)}</h3>
       <p style="margin:0 0 10px;color:var(--muted)">${Math.round(s.end - s.start)} s · ${esc(s.why)}</p>
       <div class="row"><button class="btn primary" id="spAccept">Accept</button><button class="btn" id="spPlay">▶ Play it</button></div>
       <p class="hint" style="margin-top:10px">Snapped to: ${esc(s.snapped)}</p>`;
@@ -708,7 +730,7 @@ function panel() {
   // ...and hold the caption editor's height while it reloads, or the page gets shorter and jumps up
   const ce0 = $("#capEdit"), holdH = ce0 && T.capData && T.capData.i === i ? ce0.offsetHeight : 0;
   el.innerHTML = `
-    <input class="text" id="spName" value="${esc(s.name)}" style="font-weight:650;font-size:15px;margin-bottom:10px">
+    <input class="text" id="spName" value="${esc(s.name)}" style="font-weight:650;font-size:16.5px;margin-bottom:10px">
     <div class="row" style="gap:8px">
       <label class="field">Start<input class="text time" id="spS" value="${tc(s.start)}"></label>
       <label class="field">End<input class="text time" id="spE" value="${tc(s.end)}"></label>
@@ -759,8 +781,8 @@ async function loadCapEdit(s) {
     if (x.end - x.start < 1) return toast("A Short needs to be at least 1 second long");
     saveShorts(list);
   };
-  const edge = w => si < 0 ? "" : `<div class="capedge"><span>Short ${w === "start" ? "starts" : "ends"}</span><b>${tc(s[w])}</b>${[[-1, "1 s earlier"], [-0.25, "¼ s earlier"], [0.25, "¼ s later"], [1, "1 s later"]]
-    .map(([d, l]) => `<button class="btn sm" data-edge="${w}" data-d="${d}">${l}</button>`).join("")}</div>`;
+  const edge = w => si < 0 ? "" : `<div class="capedge"><span>Short ${w === "start" ? "starts" : "ends"}</span><b>${tc(s[w])}</b>${[[-1, "−1 s", "1 second earlier"], [-0.25, "−¼", "A quarter second earlier"], [0.25, "+¼", "A quarter second later"], [1, "+1 s", "1 second later"]]
+    .map(([d, l, t]) => `<button class="btn sm" data-edge="${w}" data-d="${d}" title="${t}">${l}</button>`).join("")}</div>`;
   const outRow = (c, w) => `<div class="caprow out"><div style="display:flex;gap:6px;align-items:center">
       <button class="btn link sm" data-oseek="${st(c)}" style="min-width:58px;font-variant-numeric:tabular-nums" title="Hear it">${tc(st(c))}</button>
       <span class="outtxt" title="${esc(c.text)}">${esc(c.text)}</span>
@@ -772,7 +794,7 @@ async function loadCapEdit(s) {
     $$("[data-oseek]").forEach(b => b.onclick = () => { seek(Math.max(0, +b.dataset.oseek - 0.3)); playNow(); });
   };
   if (!caps.length && !miss.length) {
-    box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions</h4><p class="hint">${r.source === "none"
+    box.innerHTML = `<h4 style="margin:0 0 4px;font-size:15.5px">Captions</h4><p class="hint">${r.source === "none"
       ? "No captions yet — they're made from the speech the first time you place markers, analyse or render."
       : "No captions in this Short."}</p>${r.source === "none" ? "" : edge("start") + outside("start") + outside("end") + edge("end")}`;
     wireEdges();
@@ -818,11 +840,11 @@ async function loadCapEdit(s) {
   const mode = store.get("capMode", "list"), heardN = caps.filter(c => c.heard && !c.hidden).length;
   const again = (r.relistened || []).some(([a, b]) => a <= s.start + 0.6 && b >= s.end - 0.6);
   const vis = rows.filter(x => x.kind === "cap" && !x.c.hidden).map(x => x.c);    // the text box: one line per caption on screen
-  box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin:0 0 4px"><h4 style="margin:0;font-size:14px;flex:1">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
+  box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin:0 0 4px"><h4 style="margin:0;font-size:15.5px;flex:1">Captions <span class="hint" style="font-weight:500">· ${caps.length}${n ? ` · ${n} changed` : ""}</span></h4>
       <div class="row" style="gap:4px"><button class="btn sm${mode === "list" ? " primary" : ""}" data-capmode="list" title="One box per caption, with timing">List</button><button class="btn sm${mode === "text" ? " primary" : ""}" data-capmode="text" title="Type through the whole Short like a document">Text</button></div></div>
-    <p class="hint" style="margin:0 0 8px">${mode === "text"
+    <details class="how hint"><summary>How to fix captions</summary><p>${mode === "text"
       ? "One line per caption — type through it like a document. An empty line takes that caption out. Saves when you click away (or Ctrl+Enter). Click a time to hear it."
-      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing."} You can also click the caption on the video to fix it. Need more of the video? Move the Short's start or end right here — the captions just outside it are listed so you can pull them in. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
+      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing."} You can also click the caption on the video to fix it. Need more of the video? Move the Short's start or end right here — the captions just outside it are listed so you can pull them in. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p></details>
     <div class="banner" style="margin:0 0 8px;flex-wrap:wrap;gap:8px"><span style="flex:1 1 100%">${again
       ? (heardN ? `Heard again with the better model: <b>${heardN}</b> caption${heardN > 1 ? "s" : ""} sound${heardN > 1 ? "" : "s"} different${mode === "text" ? " (see List)" : " — “Heard:” under each"}.` : "Heard again with the better model — it agrees with every caption.")
       : "Missing words? Hear this Short again with a bigger, more accurate model (10–30 s)."}</span>
@@ -832,7 +854,7 @@ async function loadCapEdit(s) {
     ${edge("start")}${outside("start")}
     ${mode === "text"
       ? `<div class="captext"><div class="capgut" id="capGut">${vis.map((c, i) => `<button data-gl="${i}" title="Hear it">${tc(st(c))}</button>`).join("")}</div><textarea id="capTxt" wrap="off" spellcheck="true">${esc(vis.map(c => c.text).join("\n"))}</textarea></div>`
-      : `<div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`}
+      : `<div class="scroll" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`}
     ${outside("end")}${edge("end")}`;
   if (keepTop != null) { const sc = $("#capRows") || $("#capTxt"); if (sc) sc.scrollTop = kept && kept.end ? sc.scrollHeight : keepTop; }
   wireEdges();
@@ -1074,7 +1096,7 @@ function draw() {
     g.globalAlpha = 1; g.fillStyle = acc; g.globalAlpha = 0.55; const e = L.excite[i]; g.fillRect(x, base - 2 - e * 4, bw, 2); g.globalAlpha = 1;
   }
   if (span < 240) { g.fillStyle = fnt; for (const p of L.pauses) if (p > T.v0 && p < T.v1) g.fillRect(X(p), base - 3, 1, 3); }
-  g.font = "11px Segoe UI, sans-serif";
+  g.font = "12.5px Segoe UI, sans-serif";
   for (const m of L.markers) if (m.t >= T.v0 - 1 && m.t <= T.v1 + 1) {
     g.strokeStyle = mut; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(X(m.t) + .5, lane); g.lineTo(X(m.t) + .5, base); g.stroke(); g.globalAlpha = 1;
     if (m.dur > 0.5) { g.fillStyle = info; g.globalAlpha = 0.15; g.fillRect(X(m.t), lane, X(m.t + m.dur) - X(m.t), base - lane); g.globalAlpha = 1; }
@@ -1089,10 +1111,10 @@ function draw() {
   shortsList().forEach((s, i) => { if (s.end < T.v0 || s.start > T.v1) return; const sel = T.sel?.kind === "short" && T.sel.i === i, x0 = X(s.start), x1 = X(s.end), y = 3 + rows.row[i] * rh;
     g.fillStyle = acc; g.globalAlpha = sel ? 1 : 0.75; g.fillRect(x0, y, x1 - x0, rh - 1); g.globalAlpha = 0.08; g.fillRect(x0, lane, x1 - x0, base - lane); g.globalAlpha = 1;
     g.fillStyle = css("--accent-ink"); g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, rh - 1); g.clip();
-    g.font = `600 ${rh < 18 ? 10 : 12}px Segoe UI, sans-serif`; g.fillText(s.name, x0 + 6, y + rh / 2 + (rh < 18 ? 3.5 : 4.5)); g.restore();
+    g.font = `600 ${rh < 18 ? 11 : 13}px Segoe UI, sans-serif`; g.fillText(s.name, x0 + 6, y + rh / 2 + (rh < 18 ? 3.5 : 4.5)); g.restore();
     if (sel) { g.fillStyle = txt; g.fillRect(x0 - 1, y, 3, rh - 1); g.fillRect(x1 - 2, y, 3, rh - 1); } });
   const step = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find(s => span / s < W / 70) || 600;
-  g.fillStyle = fnt; g.font = "10.5px Segoe UI, sans-serif";
+  g.fillStyle = fnt; g.font = "12px Segoe UI, sans-serif";
   for (let t = Math.ceil(T.v0 / step) * step; t < T.v1; t += step) { g.fillRect(X(t), base, 1, 5); g.fillText(tc(t).replace(/\.0$/, ""), X(t) + 3, H - 5); }
   g.fillStyle = "#ff4d4d"; g.fillRect(X(T.play) - 1, 0, 2, base);
   const zl = $("#zLabel"); if (zl) zl.textContent = `${tc(T.v0).replace(/\.\d$/, "")} – ${tc(T.v1).replace(/\.\d$/, "")}`;
@@ -1284,7 +1306,7 @@ function viewScreams() {
       <details ${S.showSugg ? "open" : ""} id="sugg"><summary>Suggestions — off until you switch them on (${sugg.length})</summary>
         <div class="result"><div class="scroll"><table><thead><tr><th></th><th>At</th><th>Length</th><th>Loud</th><th>Becomes</th><th>Why</th><th>Letters</th><th>On</th></tr></thead><tbody>${sugg.map(row).join("")}</tbody></table></div></div>
       </details>` : ""}
-    <h4 style="margin:18px 0 8px;font-size:14px">Add a scream by hand</h4>
+    <h4 style="margin:18px 0 8px;font-size:15.5px">Add a scream by hand</h4>
     <div class="row">
       <label class="field">Starts<input class="text time" id="addS" placeholder="6:29.3"></label>
       <label class="field">Ends<input class="text time" id="addE" placeholder="6:30.8"></label>
@@ -1356,7 +1378,7 @@ function viewRender() {
       : `<p class="hint">No Shorts yet — pick some in step 2.</p>`}
     </div>
     <div class="player">${playing ? `<video data-keep controls playsinline src="${media(playing.path)}#t=0.01"></video>
-      <div class="row" style="margin-top:8px"><b style="flex:1;font-size:14px">${esc(cur.name)}</b><button class="btn link" data-folder="${esc(playing.path)}">Show file</button></div>`
+      <div class="row" style="margin-top:8px"><b style="flex:1;font-size:15.5px">${esc(cur.name)}</b><button class="btn link" data-folder="${esc(playing.path)}">Show file</button></div>`
       : `<div class="video-empty">Rendered Shorts play here</div>`}</div>
   </div>`;
   if (!list.length) return;
@@ -1401,7 +1423,7 @@ async function viewPost(opt = {}) {
   if (S.postSel == null || !P.shorts[S.postSel]?.rendered) S.postSel = rendered[0]?.i ?? null;
   const cur = S.postSel != null ? P.shorts[S.postSel] : null;
   const uploadForm = (pl) => (pl.upload || []).map(u => { const v = ((C.settings || {})[pl.id] || {})[u.key] ?? u.default, key = `${pl.id}|${u.key}`;
-    if (u.type === "bool") return `<label class="row" style="gap:6px;font-size:13.5px"><input type="checkbox" data-pset="${key}" ${v ? "checked" : ""}> ${esc(u.label)}</label>`;
+    if (u.type === "bool") return `<label class="row" style="gap:6px;font-size:15px"><input type="checkbox" data-pset="${key}" ${v ? "checked" : ""}> ${esc(u.label)}</label>`;
     if (u.type === "choice") return `<label class="field">${esc(u.label)}<select class="text" data-pset="${key}">${v == null ? `<option value="">— choose —</option>` : ""}${u.options.map(([k, l]) => `<option value="${esc(k)}" ${k === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>${u.help ? `<span class="hint">${esc(u.help)}</span>` : ""}</label>`;
     if (u.type === "file") return "";
     return `<label class="field">${esc(u.label)}<input class="text" data-pset="${key}" value="${esc(v ?? "")}"></label>`; }).join("");
@@ -1435,7 +1457,7 @@ async function viewPost(opt = {}) {
       <label class="field">Channel background <span class="hint">true for every Short (who's in it, schedule) — used sparingly, never as the opener</span><input class="text" id="pNotes" value="${esc(C.notes)}" placeholder="e.g. Me and two friends, new Shorts daily"></label></div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:10px 16px;margin-top:10px;align-items:end">
       <label class="field">Never mention <span class="hint">names/words kept out of every post, even quotes — e.g. friends' real names</span><input class="text" id="pAvoid" value="${esc(C.avoid || "")}" placeholder="e.g. Alex, Sam"></label>
-      <label class="row" style="gap:6px;font-size:14px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label>
+      <label class="row" style="gap:6px;font-size:15.5px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label>
       <label class="field">Base tags <span class="hint">top up every Short's YouTube tags to the 500-character max (the game name + variants are added automatically)</span><input class="text" id="pBase" value="${esc(C.base_tags || "")}" placeholder="e.g. poosic, co op horror, funny fails"></label>
       <label class="field" style="grid-column:1/-1">Titles I like <span class="hint">paste 3-10 titles in your own voice, one per line — the AI copies how they sound (the best fix for cringe)</span><textarea class="text" id="pExamples" rows="3" placeholder="e.g.&#10;bro really said trust me&#10;we are not good at this game&#10;he let go on purpose">${esc(C.examples || "")}</textarea></label>
       <label class="field">How much to write<select class="text" id="pDetail"><option value="quick" ${(C.detail || "quick") === "quick" ? "selected" : ""}>Quick — title, one line, hashtags, max tags (~10 s a Short)</option><option value="full" ${C.detail === "full" ? "selected" : ""}>Detailed — looks at frames, writes each platform (~95 s a Short)</option></select></label></div>
@@ -1443,7 +1465,7 @@ async function viewPost(opt = {}) {
     <details style="margin-top:10px"><summary class="hint">Upload settings (made for kids, AI label, TikTok privacy, category…) — used for every Short</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
       <div class="row" style="margin-top:10px"><button class="btn sm primary" id="pSetSave">Save upload settings</button></div></details>
-    <label class="row" style="margin-top:12px;gap:8px;font-size:14px"><input type="checkbox" id="pAuto" ${C.auto ? "checked" : ""}> Autopilot: after each render, write the posts and publish them to YouTube (step 8's settings, your posting times)</label>
+    <label class="row" style="margin-top:12px;gap:8px;font-size:15.5px"><input type="checkbox" id="pAuto" ${C.auto ? "checked" : ""}> Autopilot: after each render, write the posts and publish them to YouTube (step 8's settings, your posting times)</label>
     ${P.ai.up ? "" : `<div class="result" style="margin-top:12px;border-color:var(--warn)"><b>The local AI isn't running</b> — posts are written by it, so start it first.
       ${P.ai.can_start ? `<div class="row" style="margin-top:8px"><button class="btn primary" id="pAiStart">Start the AI</button><span class="hint">loads the 12B model (~7 GB); refused while the Omniplaylist is streaming or a game server is up</span></div>` : `<span class="hint">Start Ollama, then come back.</span>`}</div>`}
     <div class="toolbar" style="margin-top:12px">
@@ -1556,7 +1578,7 @@ async function viewPublish(refresh, opt = {}) {
   const counts = Y.shorts.reduce((a, x) => (a[x.youtube] = (a[x.youtube] || 0) + 1, a), {});
   const planned = {}; (S.ytRows.rows || []).forEach(r => planned[r.i] = r);
   const upForm = Y.upload.map(u => { const v = (set.settings || {})[u.key] ?? u.default, k = u.key;
-    if (u.type === "bool") return `<label class="row" style="gap:6px;font-size:13.5px"><input type="checkbox" data-yset="${k}" ${v ? "checked" : ""}> ${esc(u.label)}</label>`;
+    if (u.type === "bool") return `<label class="row" style="gap:6px;font-size:15px"><input type="checkbox" data-yset="${k}" ${v ? "checked" : ""}> ${esc(u.label)}</label>`;
     if (u.type === "choice") return `<label class="field">${esc(u.label)}<select class="text" data-yset="${k}">${u.options.map(([a, b]) => `<option value="${esc(a)}" ${a === v ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`;
     return `<label class="field">${esc(u.label)}<input class="text" data-yset="${k}" value="${esc(v ?? "")}"></label>`; }).join("");
   $("#view").innerHTML = `
@@ -1699,7 +1721,7 @@ function viewLaughs() {
         ${on.length ? `<div class="scroll"><table>${head}<tbody>${on.map(row).join("")}</tbody></table></div>` : `<p class="hint">None on.</p>`}</div>
         <details id="lsugg" ${S.showLSugg ? "open" : ""}><summary>Suggestions — off until you switch them on (${sugg.length})</summary>
           <div class="result"><div class="scroll"><table>${head}<tbody>${sugg.map(row).join("")}</tbody></table></div></div></details>`}
-    <h4 style="margin:18px 0 8px;font-size:14px">Add a laugh by hand</h4>
+    <h4 style="margin:18px 0 8px;font-size:15.5px">Add a laugh by hand</h4>
     <div class="row">
       <label class="field">Starts<input class="text time" id="laS" placeholder="15:04"></label>
       <label class="field">Ends<input class="text time" id="laE" placeholder="15:06.5"></label>
@@ -1784,7 +1806,7 @@ function captionStyleCard(L) {
   const sel = (key, label, opts, help) => `<div class="setting"><label>${label}</label><select class="text" data-lk="${key}">${opts.map(([v, l]) => `<option value="${esc(String(v))}" ${String(L[key]) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>${help ? `<p>${help}</p>` : ""}</div>`;
   const rng = (key, label, min, max, step, unit, help) => `<div class="setting"><label>${label} <span data-lkv="${key}">${L[key]}${unit}</span></label><input type="range" data-lk="${key}" data-unit="${unit}" min="${min}" max="${max}" step="${step}" value="${L[key]}">${help ? `<p>${help}</p>` : ""}</div>`;
   const tog = (key, label, help) => `<div class="toggle-row"><div><b>${label}</b><small>${help}</small></div><label class="switch"><input type="checkbox" data-lk="${key}" ${L[key] ? "checked" : ""}><span></span></label></div>`;
-  const col = (key, label) => `<label class="row" style="gap:8px;font-size:14px"><input type="color" data-lk="${key}" value="#${L[key] || "000000"}"> ${label}</label>`;
+  const col = (key, label) => `<label class="row" style="gap:8px;font-size:15.5px"><input type="color" data-lk="${key}" value="#${L[key] || "000000"}"> ${label}</label>`;
   const mine = Object.entries(O.mine || {});
   return `<div class="card">
       <div class="card-head"><div class="grow"><h3>Caption style</h3><p>Start from a preset, then change anything — the sample above the player updates as you go. Saved per project; applies to what you render from now on.</p></div></div>
@@ -1859,7 +1881,7 @@ function viewLook() {
   const sl = (id, label, val, min, max, step, fmt, help) => `<div class="setting"><label>${label} <span id="${id}V">${fmt(val)}</span></label>
     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><p>${help}</p></div>`;
   const tg = (id, label, val, help) => `<div class="toggle-row"><div><b>${label}</b><small>${help}</small></div><label class="switch"><input type="checkbox" id="${id}" ${val ? "checked" : ""}><span></span></label></div>`;
-  const col = (id, label, val) => `<label class="row" style="gap:8px;font-size:14px"><input type="color" id="${id}" value="#${val}"> ${label}</label>`;
+  const col = (id, label, val) => `<label class="row" style="gap:8px;font-size:15.5px"><input type="color" id="${id}" value="#${val}"> ${label}</label>`;
   $("#view").innerHTML = `
   <div class="split"><div>
     <div class="card">
@@ -1976,7 +1998,7 @@ function viewMakeCaptions() {
       <p>No captions in this sequence yet. Premiere's <b>Create captions</b> button can't be pressed by a script, so pick a way — either one ends the same: as soon as the saved project has captions, the toolkit ${autoNext ? "checks their timing and moves you to step 3" : "shows them here"}.</p></div></div>
     <div class="two">
       <div>
-        <h4 style="margin:0 0 8px;font-size:14px">Automatic — the toolkit drives Premiere</h4>
+        <h4 style="margin:0 0 8px;font-size:15.5px">Automatic — the toolkit drives Premiere</h4>
         <label class="field">Speech<select class="text" id="capEngine">
           <option value="adobe" ${engine === "adobe" ? "selected" : ""}>Adobe Speech to Text (inside Premiere)</option>
           <option value="whisper" ${engine === "whisper" ? "selected" : ""}>Toolkit speech (Whisper, on this PC)</option></select></label>
@@ -1993,7 +2015,7 @@ function viewMakeCaptions() {
         <p class="hint" style="margin:8px 0 0">The panels run inside Premiere (Window › Extensions / Plugins › Shorts Toolkit). The project must be open in Premiere; it gets <b>saved</b> when the captions go in.</p>
       </div>
       <div>
-        <h4 style="margin:0 0 8px;font-size:14px">By hand — you click, the toolkit watches</h4>
+        <h4 style="margin:0 0 8px;font-size:15.5px">By hand — you click, the toolkit watches</h4>
         <ol class="howto"><li>Premiere: <b>Window › Text</b> → <b>Transcript</b> → <b>Transcribe sequence</b>.</li>
           <li><b>Captions</b> → <b>Create captions</b> (your caption preset and style). No periods? Tick <b>Remove Punctuation</b> in that dialog.</li><li><b>Ctrl+S</b>.</li></ol>
         <div class="row" style="margin-top:10px">${W.on && W.for === S.current
@@ -2077,10 +2099,10 @@ function viewPremiere() {
       <button class="btn ${R.prepare ? "" : "primary"}" data-run="prepare" ${dis()}>Prepare for Premiere</button></div>
     ${R.prepare ? `<div class="result" style="margin-bottom:14px"><h4><span>Marked <b style="color:var(--text)">${R.prepare.loud}</b> loud lines and <b style="color:var(--text)">${R.prepare.scream}</b> screams</span><span>${ago(R.prepare.when)}</span></h4></div>` : ""}
     <div class="two">
-      <div><h4 style="margin:0 0 8px;font-size:14px">In Premiere</h4><ol class="howto">
+      <div><h4 style="margin:0 0 8px;font-size:15.5px">In Premiere</h4><ol class="howto">
         <li>Open this project and <b>save</b>.</li><li>Select captions → <b>Graphics and Titles → Upgrade Caption to Graphic</b>.</li>
         <li>Mark the Short with <b>I</b> / <b>O</b> (or select clips).</li><li>Press <b>Run in Premiere</b> next to <b>animate-captions.jsx</b> below.</li></ol></div>
-      <div><h4 style="margin:0 0 8px;font-size:14px">Render</h4><ol class="howto">
+      <div><h4 style="margin:0 0 8px;font-size:15.5px">Render</h4><ol class="howto">
         <li><b>Ctrl+M</b> → H.264, <b>Match Source – High Bitrate</b>.</li><li>Captions: <b>None</b>.</li><li><b>Send to Media Encoder</b> → <b>Start Queue ▶</b>.</li></ol></div>
     </div>
     <div class="scripts" style="margin-top:16px">

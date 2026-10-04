@@ -2,6 +2,26 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.24.0 - 2026-10-04
+
+**Bigger viewer, no dead space, larger text, no stray scroll bars.**
+
+- **The tab row had a scroll bar it didn't need** (two, in fact). The tabs overflowed their row by
+  one pixel. They now sit in a plain row that wraps onto a second line if the window is narrow.
+- **Empty space around everything.** The page was capped at 1040 px wide, the projects list always
+  took 290 px, and in step 3 the Short's panel was a narrow 320 px column next to a large empty
+  area under the player. Now: the page uses the whole window; the projects list tucks away
+  (**☰ Projects**, top right, brings it back - it remembers your choice, and stays open on very
+  wide windows); and in step 3 the player, timeline and both lists stack on the left while the
+  Short's panel and caption editor run down the right. At the default window size the viewer went
+  from 674x379 to 882x496 and caption boxes no longer cut off their text.
+- **Text was small.** Every text size is up about 10% (body 15 -> 16.5 px), timeline labels too.
+- The caption editor's long how-to paragraph folds into "How to fix captions"; the caption list
+  uses the height of the window instead of a fixed 380 px; the Short start/end buttons are short
+  enough for one row; scroll bars are thin and quiet; the project name and its facts share one line.
+- Checked by screenshot at the app's window size on steps 1, 3, 5 and 6, and the trim test
+  (page and lists stay put) still passes. Not yet checked in the app window itself.
+
 ## 0.23.0 - 2026-10-04
 
 **Faster everywhere with the same output, a one-press quick run, real documentation.**

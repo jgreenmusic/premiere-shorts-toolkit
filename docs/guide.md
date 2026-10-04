@@ -22,6 +22,7 @@ Every step of the app, in order. Each step has a **Next →** button; skip any y
 - **First run on a project** transcribes the audio: about 8 minutes per hour of video. After
   that it is cached and every step is quick.
 - Each project keeps its own settings, Shorts list and choices.
+- **☰ Projects** (top right) shows or hides the projects list, so the work area can use the whole window.
 
 ## 1 · Markers
 
