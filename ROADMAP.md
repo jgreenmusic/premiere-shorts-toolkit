@@ -44,10 +44,14 @@ scream suggestions.
 **Expect:** good on clear laughs; weaker on quiet chuckles under loud game audio or crosstalk
 (the model hears the full mix).
 
-## Premiere captions bridge (0.11.0) - next
+## Premiere captions bridge - working since 0.11.4, three things left
 
-- First real run inside Premiere: confirm both panels load, Adobe's transcript JSON is read, and
-  the caption track appears. If the transcript isn't read, `premiere-transcript-raw.json` shows its layout.
+Both panels load and markers are placed from the toolkit (first live run 0.11.3, Captions panel
+fixed in 0.11.4). Still open:
+
+- **Cut at markers** has never been run live from the panel.
+- Adobe's transcript JSON has not been read in a real run. If it isn't read,
+  `premiere-transcript-raw.json` shows its layout.
 - Premiere's own Text panel calls private APIs (`require("uxp").mediaCoreSpeechToText.AutoCaptioningAPI
   .segmentIntoCaptions` + `hSLScripting.CaptioningScriptAPI.createCaptionTrack`) - the real Create
   captions. The Speech panel already reports whether they're visible to it (`apis` in its check-in).
@@ -57,3 +61,23 @@ scream suggestions.
 ## General polish
 
 Collect issues here as they come up while making Shorts.
+
+Open as of 2026-10-04 (0.24.2):
+
+- **Phone video.** On an iPhone the app opens but the source video did not play (0.24.1 fixed how
+  video is served; not re-tested on the phone). If it still fails: make a small phone-size preview
+  per Short with ffmpeg on the PC.
+- **Not yet confirmed in the real window:** caption list keeping its place, trimming without the page
+  jumping, the Short starts/ends rows, the quick run button, the 0.24.0 layout. Steps 2, 4, 7 and 8
+  were not looked at after the layout change.
+- **Installer size** (~400 MB): the laugh model is 308 MB of it. Option: download it on first use.
+- **First transcription** takes about 8 minutes per hour of audio. Batched Whisper is untested for quality.
+- **GitHub release** is still 0.16.4.
+- **No license file** in the repo yet.
+- **Whisper loop cleanup lets one extra repeat through** when the looped phrase is two words
+  ("Help me! Help me! ..."): it is matched as a four-word phrase. A fix was tried on 2026-10-04 and
+  taken back out: on the six real transcripts it changed which repeats survive in both directions
+  and would have orphaned two saved caption edits (edits are keyed by a caption's start time).
+  Needs a step that re-keys saved edits before `clean_loops` may change.
+- **Tests** cover the caption logic only (`tests\test_logic.py`). Not covered: project reading,
+  rendering, the app's web routes, publishing.

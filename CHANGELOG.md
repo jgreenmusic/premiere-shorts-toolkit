@@ -2,6 +2,17 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## Unreleased - 2026-10-04 (no change to the app itself)
+
+- **First automated tests**: `tests\test_logic.py`, 30 checks of the caption logic that has broken
+  before (punctuation modes, Whisper loop cleanup, caption edits, missed words, "heard" fixes,
+  auto captions). Run with `.venv\Scripts\python.exe tests\test_logic.py`.
+- The tests found one flaw in the loop cleanup (a looped two-word phrase keeps one extra repeat).
+  The fix was **not** shipped: checked against every real transcript, it would have orphaned two
+  saved caption edits. It is written up in ROADMAP.md and marked as a known limitation in the tests.
+- Removed three test screenshots that were committed to the repo root by mistake in 0.21.0.
+- ROADMAP.md brought up to date.
+
 ## 0.24.1 - 2026-10-04
 
 - **First real phone test (iPhone, Safari): the app opened, the video would not play.** The cause
