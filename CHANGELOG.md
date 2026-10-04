@@ -2,6 +2,20 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.26.0 - 2026-10-04
+
+- **Empty space put to use.** On a big window several steps left large blank areas while the
+  things you needed were below the fold.
+  - **Step 3:** the right-hand column was empty under the selected Short, and the Your Shorts list
+    was out of sight below the timeline. Your Shorts now sits at the top of that column, with the
+    Short you open (and its captions) straight under it - pick, trim and fix captions without
+    scrolling. With nothing open the list takes the whole column; with a Short open its rows go
+    to one line each. Suggestions are under the timeline, full width.
+  - **Step 1:** the two cards at the top sit side by side instead of stacked, so the video and
+    the marker list start higher; the marker list is now exactly as tall as the video.
+  - **Step 6:** the list of Shorts uses the height of the window (it stopped at 520 px).
+  - **Step 7:** every box runs the full width (three stopped short of the edge).
+
 ## 0.25.0 - 2026-10-04
 
 - **The Your Shorts list shows where you left off.** Coming back to a project there was no way to

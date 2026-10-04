@@ -224,8 +224,23 @@ details.how p { margin: 6px 0 0; }
   body.noside .log { left: 0; }
 }
 .marker-split { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
-.two.lists { grid-template-columns: 3fr 2fr; }
-@media (max-width: 1000px) { .player-split, .two.lists { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .player-split { grid-template-columns: 1fr; } }
+/* step 3: the right column is the list of Shorts, then the one that is open */
+.side { min-width: 0; }
+#shortsCard .scroll { max-height: clamp(170px, 27vh, 380px); }
+#shortsCard.tall .scroll { max-height: max(260px, calc(100vh - 560px)); }
+#shortsCard:not(.tall) td > div.hint { display: none; }   /* a Short is open below: one line per row, its times are in the panel */
+#shortsCard:not(.tall) td { padding-top: 6px; padding-bottom: 6px; }
+#shortsCard { padding: 14px 16px; }
+/* step 1: a list that is exactly as tall as the video beside it */
+.marker-split { align-items: stretch; }
+.fillcard { display: flex; flex-direction: column; }
+.fillcard .scroll { flex: 1 1 0; height: 0; min-height: 300px; max-height: none; }
+.pair > .card { margin-bottom: 16px; }
+.pair .card-head { flex-wrap: wrap; }
+.pair .card-head .grow { flex: 1 1 340px; }
+@media (min-width: 1200px) { .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; } }
+@media (max-width: 1000px) { .fillcard .scroll { height: auto; max-height: 420px; flex: none; } }
 body.remote .pc-only, body.remote [data-folder], body.remote [data-open], body.remote [data-script],
 body.remote #browseProject, body.remote #browseClip, body.remote #addFolder, body.remote #mkPremiere, body.remote #toPremiere, body.remote #pickVideo { display: none !important; }
 canvas#ov, canvas#dt { touch-action: none; }
@@ -459,6 +474,7 @@ function viewMarkers() {
   const I = S.info, list = mkList(), st = oldLen(store.get("mkSettings", { count: 10, min: 15, max: 30 }));
   const have = list.length > 0, inShorts = list.filter(isShort).length;
   $("#view").innerHTML = `
+  <div class="${have && !I.clip ? "pair" : ""}">
   <div class="card">
     <div class="card-head"><div class="grow"><h3>Markers for your Shorts</h3>
       <p>The toolkit listens to the whole ${I.clip ? "clip" : "sequence"} and marks the best moments — loud, busy stretches, screams, laughs — each one a range that starts and ends in a pause, so no Short begins mid-word. Want more? <b>+ More suggestions</b> always finds more, skipping the ones you have or removed.</p></div></div>
@@ -483,6 +499,7 @@ function viewMarkers() {
       <span class="hint">Your own markers are kept. Placing again replaces only the toolkit's. Ctrl+Z in Premiere undoes cuts.</span>
     </div>
   </div>` : ""}
+  </div>
   ${have ? `<div class="split player-split marker-split">
     <div class="card" style="padding:12px">
       <div class="viewer">
@@ -492,10 +509,10 @@ function viewMarkers() {
       <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="pPlay">▶ Play</button>
         <span id="pTime" style="font-variant-numeric:tabular-nums;font-weight:600;margin-left:6px">0:00.0</span></div>
     </div>
-    <div class="card" style="padding:14px 16px">
+    <div class="card fillcard" style="padding:14px 16px">
       <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>${list.length} marker${list.length === 1 ? "" : "s"}</h3>
         <p style="font-size:14.5px">${inShorts ? `${inShorts} already in your Shorts · ` : ""}click one to watch it</p></div></div>
-      <div class="scroll" style="max-height:420px"><table><tbody>
+      <div class="scroll"><table><tbody>
       ${list.map((m, i) => `<tr class="${S.mkSel === i ? "sel" : ""}" data-mkplay="${i}" style="cursor:pointer">
         <td style="width:62px"><div class="bar" style="width:40px"><i style="width:${m.score || 0}%;background:#f5c542"></i></div><div class="hint" style="white-space:nowrap">score ${m.score ?? "–"}</div></td>
         <td><b>${tc(m.start)} → ${tc(m.end)}</b> <span class="muted" style="font-size:13.5px">#${i + 1}</span><div class="hint">${Math.round(m.end - m.start)}s${m.why ? " · " + esc(m.why) : ""}</div></td>
@@ -626,12 +643,12 @@ function viewShorts() {
         <p class="hint" style="margin:6px 0 12px">Analysing scores every second (loudness, talking, screams, laughs) — about a few seconds once the speech is cached, longer the first time.</p>
         <button class="btn primary" id="analyse2" ${dis()}>Analyse video</button></div>`}
   </div>
-  <div class="two lists">
-    <div class="card" id="shortsCard"></div>
-    <div class="card" id="sugCard"></div>
-  </div>
+  <div class="card" id="sugCard"></div>
    </div>
+   <div class="side">
+    <div class="card" id="shortsCard"></div>
     <div class="card" id="selPanel" style="padding:14px 16px"></div>
+   </div>
   </div>`;
   wireShorts();
 }
@@ -679,7 +696,7 @@ function refreshShorts() {
   $("#shortsCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Your Shorts <span class="muted" style="font-weight:500">(${list.length})</span></h3></div>
       ${list.length ? `<span class="hint">Render them in step 6</span>` : ""}</div>
-    ${list.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
+    ${list.length ? `<div class="scroll"><table><tbody>
       ${list.map((s, i) => `<tr class="${T.sel?.kind === "short" && T.sel.i === i ? "sel" : ""} ${i === lastW ? "here" : ""}" data-pick="short,${i}" style="cursor:pointer">
         <td style="width:18px"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent)"></span></td>
         <td><b>${esc(s.name)}</b><div class="hint">${tc(s.start)} → ${tc(s.end)} · ${Math.round(s.end - s.start)}s</div></td>
@@ -731,6 +748,7 @@ function select2(sel, jump) {
 
 function panel() {
   const el = $("#selPanel"); if (!el) return;
+  const sc = $("#shortsCard"); if (sc) sc.classList.toggle("tall", !T.sel || !selRange());   // nothing open below it: the list takes the column
   const R = S.info.results.renders || {};
   if (!T.sel || !selRange()) {
     el.innerHTML = `<h3 style="margin:0 0 6px;font-size:17.5px">Nothing selected</h3><p class="hint">Click a Short or a suggestion — on the timeline or in the lists — to trim, preview and render it.</p>
@@ -1405,7 +1423,7 @@ function viewRender() {
         <label class="row hint" style="gap:6px">Quality <select class="text" id="rQual" style="width:auto">${QUALITY.map(([k, l]) => `<option value="${k}" ${store.get("preset", "medium") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       </div>
       <div class="result" id="rProg" style="display:none;margin-bottom:12px"></div>
-      <div class="scroll" style="max-height:520px"><table><thead><tr><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="scroll" style="max-height:max(320px, calc(100vh - 480px))"><table><thead><tr><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
         ${list.map((s, i) => `<tr class="${i === S.renderSel ? "sel" : ""}" data-rsel="${i}" style="cursor:pointer">
           <td><b>${esc(s.name)}</b><div class="hint">${tc(s.start)} → ${tc(s.end)}</div></td><td class="muted">${Math.round(s.end - s.start)}s</td>
           <td>${R[s.name] ? `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>` : `<span class="badge">Not yet</span>`}</td>
@@ -1495,9 +1513,9 @@ async function viewPost(opt = {}) {
     <div style="display:grid;grid-template-columns:1fr auto;gap:10px 16px;margin-top:10px;align-items:end">
       <label class="field">Never mention <span class="hint">names/words kept out of every post, even quotes — e.g. friends' real names</span><input class="text" id="pAvoid" value="${esc(C.avoid || "")}" placeholder="e.g. Alex, Sam"></label>
       <label class="row" style="gap:6px;font-size:15.5px;padding-bottom:8px"><input type="checkbox" id="pClean" ${C.clean ? "checked" : ""}> Keep it clean (no swearing)</label>
-      <label class="field">Base tags <span class="hint">top up every Short's YouTube tags to the 500-character max (the game name + variants are added automatically)</span><input class="text" id="pBase" value="${esc(C.base_tags || "")}" placeholder="e.g. poosic, co op horror, funny fails"></label>
+      <label class="field" style="grid-column:1/-1">Base tags <span class="hint">top up every Short's YouTube tags to the 500-character max (the game name + variants are added automatically)</span><input class="text" id="pBase" value="${esc(C.base_tags || "")}" placeholder="e.g. poosic, co op horror, funny fails"></label>
       <label class="field" style="grid-column:1/-1">Titles I like <span class="hint">paste 3-10 titles in your own voice, one per line — the AI copies how they sound (the best fix for cringe)</span><textarea class="text" id="pExamples" rows="3" placeholder="e.g.&#10;bro really said trust me&#10;we are not good at this game&#10;he let go on purpose">${esc(C.examples || "")}</textarea></label>
-      <label class="field">How much to write<select class="text" id="pDetail"><option value="quick" ${(C.detail || "quick") === "quick" ? "selected" : ""}>Quick — title, one line, hashtags, max tags (~10 s a Short)</option><option value="full" ${C.detail === "full" ? "selected" : ""}>Detailed — looks at frames, writes each platform (~95 s a Short)</option></select></label></div>
+      <label class="field" style="grid-column:1/-1">How much to write<select class="text" id="pDetail"><option value="quick" ${(C.detail || "quick") === "quick" ? "selected" : ""}>Quick — title, one line, hashtags, max tags (~10 s a Short)</option><option value="full" ${C.detail === "full" ? "selected" : ""}>Detailed — looks at frames, writes each platform (~95 s a Short)</option></select></label></div>
     <div class="row" style="margin-top:10px;gap:6px">${plats.map(pl => `<button class="btn sm ${on.includes(pl.id) ? "primary" : ""}" data-pplat="${pl.id}">${esc(pl.name)}</button>`).join("")}</div>
     <details style="margin-top:10px"><summary class="hint">Upload settings (made for kids, AI label, TikTok privacy, category…) — used for every Short</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px">${on.map(pid => { const pl = plats.find(x => x.id === pid); return pl ? `<div><b>${esc(pl.name)}</b><div style="display:grid;gap:8px;margin-top:6px">${uploadForm(pl) || `<span class="hint">nothing to set</span>`}</div></div>` : ""; }).join("")}</div>
