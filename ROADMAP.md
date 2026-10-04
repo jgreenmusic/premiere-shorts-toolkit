@@ -68,8 +68,7 @@ Open as of 2026-10-04 (0.24.2):
   video is served; not re-tested on the phone). If it still fails: make a small phone-size preview
   per Short with ffmpeg on the PC.
 - **Not yet confirmed in the real window:** caption list keeping its place, trimming without the page
-  jumping, the Short starts/ends rows, the quick run button, the 0.24.0 layout. Steps 2, 4, 7 and 8
-  were not looked at after the layout change.
+  jumping, the Short starts/ends rows, the quick run button, the 0.24.0 layout.
 - **Installer size** (~400 MB): the laugh model is 308 MB of it. Option: download it on first use.
 - **First transcription** takes about 8 minutes per hour of audio. Batched Whisper is untested for quality.
 - **GitHub release** is still 0.16.4.
@@ -79,5 +78,7 @@ Open as of 2026-10-04 (0.24.2):
   taken back out: on the six real transcripts it changed which repeats survive in both directions
   and would have orphaned two saved caption edits (edits are keyed by a caption's start time).
   Needs a step that re-keys saved edits before `clean_loops` may change.
-- **Tests** cover the caption logic only (`tests\test_logic.py`). Not covered: project reading,
-  rendering, the app's web routes, publishing.
+- **Tests** (`check.cmd`) cover the caption logic, the app's pages, video serving, step 8's status
+  and one whole run from a video file to a finished Short. Not covered: reading a real Premiere
+  project (needs a small project file that is safe to publish), the Premiere panels, writing posts,
+  and anything that talks to YouTube or TikTok.

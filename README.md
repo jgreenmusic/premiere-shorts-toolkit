@@ -52,6 +52,7 @@ Each step has a **Next →** button. The bar at the bottom shows what is running
 | [Premiere](docs/premiere.md) | The two Premiere panels and the scripts |
 | [Command line](docs/commands.md) | Every button as a terminal command |
 | [How it works](docs/how-it-works.md) | Files it saves, code map, speed, building it, limits |
+| [Adding to it](docs/extending.md) | Add a command, button, setting or step; check it; put out a version |
 | [Changelog](CHANGELOG.md) | Each problem found in real use and what changed |
 | [Roadmap](ROADMAP.md) | Agreed but not built yet |
 

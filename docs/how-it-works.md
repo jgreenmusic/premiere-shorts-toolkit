@@ -109,8 +109,8 @@ python -m venv .venv
   It is a separate repository that is not public; the installer includes it.
 - **Installer:** `packaging\build-windows.cmd`. Needs PyInstaller, Inno Setup, the ffmpeg
   "essentials" build in `build\ffmpeg\`, and `models\panns_sed.onnx` from `tools\export_panns_onnx.py`.
-- **When you change something:** bump `__version__` in `shorts.py` and `AppVersion` in
-  `packaging\installer.iss`, and add a `CHANGELOG.md` entry saying what went wrong and what changed.
+- **When you change something:** see [Adding to the toolkit](extending.md) - where each kind of
+  change goes, `check.cmd` to test it, and the steps for a new version.
 
 ## Limits
 

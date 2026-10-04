@@ -2,7 +2,25 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
-## Unreleased - 2026-10-04 (no change to the app itself)
+## 0.24.2 - 2026-10-04
+
+- **Step 8 showed Shorts as "uploading…" for ever.** Every Short the toolkit had uploaded itself
+  stayed on "uploading…" - a week later, with seven of them already public. YouTube keeps no file
+  name for a video uploaded this way, and the file name was the only thing the toolkit matched on.
+  It now also finds the video by the id YouTube gave back at upload, so each Short shows its real
+  state: scheduled, public, private. A video that was uploaded but is not in the channel list yet
+  shows "uploaded" and is never uploaded a second time.
+- **Checked on the real channel:** Shorts uploaded and scheduled by the toolkit do go public at
+  their time by themselves (the first seven did, on the minute).
+- **One command checks everything: `check.cmd`.** New `tests\test_app.py` (14 checks): every file
+  loads, every command answers, every button maps to a real command, the version is the same
+  everywhere, the app's pages answer, video is served correctly to phones, and a test video goes
+  in and a finished 1080x1920 Short comes out. About ten seconds, touches none of your projects.
+- **New page: [Adding to the toolkit](docs/extending.md)** - how to add a command, a button, a
+  setting, a step, a look or a Premiere script, how to check it, and how to put out a version.
+- Steps 2, 4, 7 and 8 looked at after the 0.24.0 layout change: nothing out of place.
+
+## 2026-10-04 (no change to the app itself)
 
 - **First automated tests**: `tests\test_logic.py`, 30 checks of the caption logic that has broken
   before (punctuation modes, Whisper loop cleanup, caption edits, missed words, "heard" fixes,

@@ -1522,7 +1522,7 @@ async function viewPost(opt = {}) {
 }
 // ---- Publish (step 8): every Short, where it is on YouTube, and one button that does the right thing
 const YT_LBL = { draft: ["draft on YouTube", "warn"], scheduled: ["scheduled", "ok"], public: ["public", "ok"], private: ["private on YouTube", ""],
-  unlisted: ["unlisted", ""], queued: ["uploading…", "warn"], not_uploaded: ["not on YouTube yet", ""], unknown: ["—", ""] };
+  unlisted: ["unlisted", ""], queued: ["uploading…", "warn"], sent: ["uploaded", "ok"], not_uploaded: ["not on YouTube yet", ""], unknown: ["—", ""] };
 const fmtWhen = w => w ? new Date(w).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 // ---- TikTok (step 8): every rendered Short -> your TikTok drafts at your TikTok times; you finish it on the phone
 const TT_LBL = { not_sent: ["not sent", ""], draft: ["queued", "warn"], scheduled: ["queued", "warn"], retry: ["retrying", "warn"],

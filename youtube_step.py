@@ -35,6 +35,7 @@ def state(project_path, shorts, videos, uploads=None):
     on_yt = {}
     for u in uploads or []:
         on_yt.setdefault(_norm(u["file_name"]), u)          # newest first: the latest upload of that file wins
+    by_id = {u["id"]: u for u in uploads or []}
     jobs = [j for j in E["publish"].jobs() if j["platform"] == YT]
     out = []
     for i, s, v in shorts:
@@ -43,6 +44,9 @@ def state(project_path, shorts, videos, uploads=None):
         u = on_yt.get(_norm(v))
         job = next((j for j in reversed(jobs) if os.path.normcase(j["file"]) == os.path.normcase(v)
                     and j["status"] not in ("failed", "cancelled")), None)
+        sent = job is not None and job["status"] in E["publish"].DONE
+        if not u and sent:                 # YouTube keeps no file name for a video the toolkit uploaded: find it by its id
+            u = by_id.get((job.get("result") or {}).get("id"))
         if u:
             if u.get("publish_at"):
                 where = "scheduled"
@@ -53,7 +57,7 @@ def state(project_path, shorts, videos, uploads=None):
             else:
                 where = u["privacy"]               # private/unlisted and already filled in
         elif job:
-            where = "queued"
+            where = "sent" if sent else "queued"   # sent = uploaded, but not (yet) in the channel list
         else:
             where = "not_uploaded" if uploads is not None else "unknown"
         out.append(dict(i=i, name=s["name"], video=v, rendered=os.path.exists(v), written=bool(post),
@@ -117,6 +121,8 @@ def plan(project_path, items, uploads, mode="plan", start=None, every_hours=24, 
             rows.append(dict(it, action="skip", why="already %s on YouTube" % it["youtube"]))
         elif it["youtube"] == "queued" and not redo:
             rows.append(dict(it, action="skip", why="already in the upload queue"))
+        elif it["youtube"] == "sent" and not redo:
+            rows.append(dict(it, action="skip", why="already uploaded"))
         else:
             rows.append(dict(it, action="fill" if it["video_id"] else "upload"))
             doable.append(rows[-1])
