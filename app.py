@@ -495,6 +495,39 @@ def command(action, o):
     raise ValueError("unknown action %s" % action)
 
 
+def after_render(path, idx):
+    """What follows a render: nothing, or - with Autopilot on for this project - write the posts,
+    then publish them like step 8 would."""
+    import config
+    if not (config.load(base_of(path) + "_captions").get("post") or {}).get("auto"):
+        return None
+
+    def after(code):
+        if code == 0:
+            run_job("Writing posts (autopilot)", command("post", dict(path=path, indexes=idx)),
+                    lambda c: c == 0 and autopilot_publish(path, idx))
+    return after
+
+
+def markers_to_shorts(path):
+    """Step 1's "Turn all into Shorts", for the quick run: every marker that isn't a Short yet
+    becomes one. Returns the new Shorts' places in the list."""
+    import config
+    from shorts import write_marker_csv
+    outdir = base_of(path) + "_captions"
+    cfg = config.load(outdir)
+    shorts, new = list(cfg.get("shorts") or []), []
+    for m in cfg.get("markers") or []:
+        if any(abs(x["start"] - m["start"]) < 1 and abs(x["end"] - m["end"]) < 1 for x in shorts):
+            continue
+        new.append(len(shorts))
+        shorts.append(dict(name=re.sub(r"^Marker", "Short", m["name"]), start=m["start"], end=m["end"]))
+    if new:
+        cfg = config.update(outdir, {"shorts": shorts})
+        write_marker_csv(outdir, cfg["shorts"])
+    return new
+
+
 def run_job(title, argv, after=None):
     with LOCK:
         if not JOB["done"]:
@@ -750,9 +783,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"error": "no such font"}, 404)
                 return self.send_file(fp, "font/ttf")
             if u.path == "/api/captions":
+                import config
                 import pipeline
                 f = lambda k: float(q[k]) if q.get(k) not in (None, "") else None
-                return self.send_json(pipeline.caption_list(q["path"], f("start"), f("end")))
+                seq = pick(project(q["path"]), config.load(base_of(q["path"]) + "_captions"))    # cached until the project is saved again
+                return self.send_json(pipeline.caption_list(q["path"], f("start"), f("end"), seq))
             if u.path == "/api/job":
                 start = int(q.get("from", 0))
                 with LOCK:
@@ -928,17 +963,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"ok": True})
                 return self.send_json({"error": "not found"}, 404)
             if u.path == "/api/run":
-                after = None
-                if b["action"] == "make":
-                    import config
-                    if (config.load(base_of(b["path"]) + "_captions").get("post") or {}).get("auto"):
-                        idx = b.get("indexes") or ([b["index"]] if b.get("index") is not None else None)
+                after, action = None, b["action"]
+                if action == "make":
+                    after = after_render(b["path"], b.get("indexes") or ([b["index"]] if b.get("index") is not None else None))
+                if action == "quick":              # one press: markers -> each new one a Short -> render those
+                    action = "markers"
 
-                        def after(code, p=b["path"], idx=idx):
-                            if code == 0:          # autopilot: write the posts, then publish them like step 8 would
-                                run_job("Writing posts (autopilot)", command("post", dict(path=p, indexes=idx)),
-                                        lambda c: c == 0 and autopilot_publish(p, idx))
-                jid = run_job(b.get("title", b["action"]), command(b["action"], b), after)
+                    def after(code, p=b["path"], preset=b.get("preset", "medium")):
+                        idx = markers_to_shorts(p) if code == 0 else []
+                        if idx:
+                            run_job("Rendering %d new Short%s (quick run)" % (len(idx), "" if len(idx) == 1 else "s"),
+                                    command("make", dict(path=p, preset=preset, indexes=idx)), after_render(p, idx))
+                jid = run_job(b.get("title", action), command(action, b), after)
                 return self.send_json({"id": jid} if jid else {"error": "Something is already running."},
                                       200 if jid else 409)
             if u.path == "/api/browse":

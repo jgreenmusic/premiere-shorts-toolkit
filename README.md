@@ -39,6 +39,9 @@ inside. The first analysis downloads the speech model once (~500 MB).
 4. **3 · Shorts** → click a Short, trim it, fix its captions.
 5. **6 · Render** → **Render all**.
 
+In a hurry: **1 · Markers** → **⚡ Find, add & render** does steps 3 and 5 above in one press.
+You can still trim, fix captions and render again afterwards.
+
 Each step has a **Next →** button. The bar at the bottom shows what is running.
 
 ## Documentation

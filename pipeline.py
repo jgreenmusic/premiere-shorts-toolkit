@@ -45,14 +45,16 @@ def with_toolkit_markers(markers, cfg):
     return sorted(out, key=lambda m: m.start_s)
 
 
-def caption_list(project_path, start=None, end=None):
+def caption_list(project_path, start=None, end=None, seq=None):
     """Captions as the app shows them for editing - fast: no audio. Premiere's own, or the
-    toolkit's made from the cached transcript (the same ones a render uses)."""
+    toolkit's made from the cached transcript (the same ones a render uses).
+    seq: the already-read sequence, if the caller has one (reading a big project takes ~0.4 s)."""
     import glob
     import json
     base, outdir = outdir_for(project_path)
     cfg = config.load(outdir)
-    seq = pick_sequence(open_project(project_path), cfg.get("sequence"))
+    if seq is None:
+        seq = pick_sequence(open_project(project_path), cfg.get("sequence"))
     if seq.captions:
         caps, source = seq.captions, "premiere"
     else:
@@ -152,7 +154,7 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
     seq.markers = with_toolkit_markers(own_markers, cfg)
     log("Sequence %r: %d captions, %d video / %d audio clips" % (seq.name, len(seq.captions), len(seq.video), len(seq.audio)))
     log("[audio] rebuilding the sequence audio")
-    audio = cap.timeline_audio(seq, log=log)
+    audio = cap.timeline_audio(seq, log=log, cache_dir=outdir)
     ctx = SimpleNamespace(path=project_path, base=base, outdir=outdir, cfg=cfg, proj=proj, seq=seq, audio=audio,
                           own_markers=own_markers)
     if not need_words:

@@ -444,6 +444,7 @@ function viewMarkers() {
       <button class="btn primary" id="mkMore" ${dis()}>${have ? "+ More suggestions" : "Find Shorts &amp; place markers"}</button>
       <label class="row hint" style="gap:6px">${have ? "Add" : "Place"} <input class="text time" id="mkCount" style="width:52px" value="${st.count}"> markers of
         <input class="text time" id="mkMin" style="width:52px" value="${st.min}">–<input class="text time" id="mkMax" style="width:52px" value="${st.max}"> s</label>
+      <button class="btn" id="mkQuick" ${dis()} title="One press: find the moments, make each new one a Short, and render those. Nothing is skipped for good - every Short can still be trimmed, captioned and rendered again in the steps after.">⚡ Find, add &amp; render</button>
       <span style="flex:1"></span>
       ${have ? `<button class="btn" id="mkAll" ${inShorts === list.length ? "disabled" : ""} title="Add every marker to your Shorts list">Turn all into Shorts</button>` : ""}
       ${have ? `<button class="btn link" id="mkReset" ${dis()} title="Remove every suggested marker and pick again from scratch">Start over</button>` : ""}
@@ -488,6 +489,11 @@ function viewMarkers() {
     store.set("mkSettings", o); run("markers", { ...o, replace });
   };
   $("#mkMore").onclick = () => more(false);
+  $("#mkQuick").onclick = () => {
+    const o = { count: Math.max(1, +$("#mkCount").value || 10), min: +$("#mkMin").value || 15, max: +$("#mkMax").value || 30 };
+    if (o.max <= o.min) return toast("The longest length must be more than the shortest.");
+    store.set("mkSettings", o); run("quick", o);
+  };
   if ($("#mkMore2")) $("#mkMore2").onclick = () => more(false);
   if ($("#mkReset")) $("#mkReset").onclick = () => more(true);
   if ($("#mkPremiere")) $("#mkPremiere").onclick = e => runInPremiere("suggested-markers.jsx", e.currentTarget);
@@ -2126,8 +2132,9 @@ const TITLES = { markers: "Finding the best moments", timeline: "Analysing the v
 async function run(action, data = {}) {
   if (S.busy) return;
   const body = { action, title: TITLES[action], path: S.current };
-  if (action === "timeline" || action === "markers") { Object.assign(body, { count: data.count, min: data.min, max: data.max, replace: !!data.replace }); }
-  S.mkBefore = action === "markers" ? (data.replace ? 0 : (S.info.config.markers || []).length) : null;
+  if (action === "timeline" || action === "markers" || action === "quick") { Object.assign(body, { count: data.count, min: data.min, max: data.max, replace: !!data.replace }); }
+  if (action === "quick") { body.preset = store.get("preset", "medium"); body.title = "Finding the best moments (quick run)"; }
+  S.mkBefore = action === "markers" || action === "quick" ? (data.replace ? 0 : (S.info.config.markers || []).length) : null;
   if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; S.pvFile = null; }
   if (action === "make") {
     body.preset = store.get("preset", "medium");
@@ -2178,6 +2185,11 @@ async function poll(from) {
     toast(n > 0 ? `Placed ${n} new marker${n === 1 ? "" : "s"}` : "No more good moments at that length — try a different length, or remove markers you don't want.", n > 0);
   }
   S.mkBefore = null;
+  followJob(); setTimeout(followJob, 1500);        // a job that starts by itself (quick run's render, autopilot) shows up like any other
+}
+async function followJob() {
+  if (S.busy) return;
+  try { const n = await api("/api/job?from=0"); if (!n.done && !S.busy) { S.busy = true; render(); openLog(true); poll(0); } } catch (e) {}
 }
 function setStatus(kind, text) { $("#dot").className = "dot " + kind; $("#status").textContent = text; }
 function openLog(open) { $("#log").classList.toggle("closed", !open); $("#toggleHint").textContent = open ? "Hide log ▾" : "Show log ▴"; }

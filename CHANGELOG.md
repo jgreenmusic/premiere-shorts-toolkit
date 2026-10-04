@@ -2,8 +2,34 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
-## Unreleased
+## 0.23.0 - 2026-10-04
 
+**Faster everywhere with the same output, a one-press quick run, real documentation.**
+
+Measured on the 2 h 10 min project (5,008 captions) before changing anything, so the work went
+where the time actually was.
+
+- **Every caption edit took ~0.4 s to show.** The caption list re-read the whole Premiere project
+  (all 5,008 captions) on each save. It now uses the copy the app already keeps until the project
+  is saved again: **410 ms -> 9 ms**.
+- **Every command spent ~9 s before doing anything** - a preview, one render, markers, anything.
+  6.4 s of that was decoding the whole recording's sound again, 0.7 s hashing it three times, 1.3 s
+  a slow scan for wordless screams. Now the decoded sound is kept beside the project
+  (`<project>_captions\audio-*.f32`, ~230 MB per hour, replaced when the edit changes, safe to
+  delete), hashed once, and the scan only looks at captions near each sound: **9.1 s -> 1.6 s**.
+  A single 30 s render went from 18.7 s to 10.4 s. The kept sound is bit-for-bit the fresh decode
+  and the caption events for the whole video are identical before and after (checked by hash).
+- **Rendering several Shorts at once: measured, not built.** One render already uses the whole
+  CPU: 6 Shorts took 58 s one at a time and 56 s three at a time.
+- **⚡ Find, add & render** (step 1): one press finds the moments, makes each new one a Short and
+  renders just those. Nothing is removed - every step and control is still there for trimming,
+  captions and rendering again, and Autopilot carries on to posts and publishing if it is on.
+  Tested on a project copy: 2 markers -> 2 Shorts -> 2 videos in 21 s.
+- **Jobs that start by themselves were invisible.** After a render, Autopilot's "writing posts"
+  and "publishing" ran with no progress bar. The app now picks up any job that starts on its own.
+- Not changed: the installer is still ~417 MB. 308 MB of it is the laugh model and 105 MB is
+  ffmpeg, and it is already at maximum compression. Making it smaller means downloading the laugh
+  model on first use, which was not done without being asked.
 - **The README still described version 0.9** (six steps, an old installer name) and there was no
   other documentation. Rewritten as a short front page plus four pages in `docs/`: guide,
   Premiere, command line, how it works.

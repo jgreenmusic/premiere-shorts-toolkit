@@ -31,6 +31,7 @@ Finds the best moments in the whole video.
 |---|---|
 | **Find Shorts & place markers** | Marks loud, busy stretches, screams and laughs. Each marker starts and ends in a pause. |
 | **+ More suggestions** | Adds more. Never repeats a marker, a Short, or one you removed. |
+| **⚡ Find, add & render** | The short way: finds the moments, makes each new one a Short and renders those, in one press. Every Short can still be trimmed, captioned and rendered again in the later steps. With Autopilot on, posts and publishing follow. |
 | **Turn all into Shorts** | Every marker becomes a Short. Or do it one at a time. |
 | **Start over** | Removes the markers it placed. |
 | **1 · Place markers in Premiere** | Puts them on your Premiere timeline as yellow range markers. |

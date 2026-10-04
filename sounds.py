@@ -77,7 +77,7 @@ def infer(audio):
 
 def detect(seq, cache_dir, audio16, log=print):
     """{class name: np.array of per-frame probability} for CLASSES, or None if unavailable."""
-    key = hashlib.sha1(audio16.tobytes()).hexdigest()[:16]
+    key = cap.audio_key(audio16)
     cache = os.path.join(cache_dir, "sounds-%s.npz" % key)
     if os.path.exists(cache):
         d = np.load(cache)

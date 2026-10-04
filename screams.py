@@ -232,13 +232,15 @@ def find_bursts(captions, regions, words, audio):
     (also laughs and groans - so these are only SUGGESTED, off until you switch them on)."""
     import bisect
     spans = [(c.start_s, c.end_s) for c in captions if c.text]
+    span_s, span_e = np.array([x[0] for x in spans], dtype=float), np.array([x[1] for x in spans], dtype=float)
     word_starts = [w[0] for w in words]
     base = np.median([peak_level(audio, r[0], r[1]) for r in regions if r[1] - r[0] > 0.3] or [0]) or 1.0
     out = []
     for a, b in regions:
         if b - a < BURST_MIN:
             continue
-        covered = sum(max(0.0, min(b, e) - max(a, s)) for s, e in spans) / (b - a)
+        near = np.nonzero((span_e > a) & (span_s < b))[0]         # only captions touching this burst (same sum, 30x faster)
+        covered = sum(max(0.0, min(b, spans[k][1]) - max(a, spans[k][0])) for k in near) / (b - a)
         i, j = bisect.bisect_left(word_starts, a), bisect.bisect_left(word_starts, b)
         real_words = [w for w in words[i:j] if not template_for(w[2])]
         if covered > 0.3 or len(real_words) > 1:

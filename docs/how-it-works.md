@@ -17,6 +17,7 @@ Next to your project (or video file):
 | `<project>_captions\` | The working folder. Safe to delete — you lose this project's choices and it re-analyses. |
 | `…\toolkit.json` | Everything you chose: Shorts list, markers, look, caption edits, scream and laugh choices, post settings. Plain text. |
 | `…\words-*.json`, `voice-*.json`, `sounds-*.npz` | Cached transcript, voice regions and sound events. This is why the second run is fast. |
+| `…\audio-*.f32` | The recording's decoded sound (about 230 MB per hour of video), so each command starts in about a second instead of decoding it again. Safe to delete; it is rebuilt when needed. |
 | `…\relisten.json` | What the bigger model heard for the Shorts you pressed **Listen again** on. |
 | `…\preview-*.mp4` | Look previews. Old ones are removed after a day. |
 | `<project>_shorts\` | Your rendered Shorts. |
@@ -58,10 +59,15 @@ Measured on a Ryzen 9 9950X, CPU only.
 | First transcription (Whisper `small`) | ~8 min per hour of video, once per project |
 | Laugh detection | ~25 s per hour of video, once per project |
 | **Listen again** (one 35 s Short) | ~15 s (the model downloads once, ~1.6 GB) |
-| Rendering a 30 s Short | ~8 s |
+| Starting any command on a 2 h project | ~1.5 s (first time after an edit: ~9 s) |
+| Rendering a 30 s Short | ~9 s |
+| Reloading a Short's captions after an edit | ~10 ms |
 | Writing posts (quick mode) | ~9 s per Short |
 
 Everything after the first analysis reads from the cache.
+
+Rendering uses the whole CPU already: running several renders at once was measured and is no
+faster (6 Shorts: 58 s one at a time, 56 s three at a time), so they run one after another.
 
 ## Code map
 

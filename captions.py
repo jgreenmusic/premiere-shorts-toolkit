@@ -16,9 +16,34 @@ RATE = 16000  # Whisper wants 16 kHz mono
 
 
 # -- 1. timeline audio --------------------------------------------------------
-def timeline_audio(seq, log=print, rate=RATE, window=None):
+_KEYS = {}               # id(array) -> (weakref, content hash) for audio whose hash is already known
+
+
+def audio_key(audio):
+    """Content hash of the timeline audio - names the cached transcript, voice and sound files.
+    Hashing 2 h of audio takes ~0.25 s and three steps ask for it, so it is worked out once."""
+    k = _KEYS.get(id(audio))
+    if k and k[0]() is audio:
+        return k[1]
+    key = hashlib.sha1(audio.tobytes()).hexdigest()[:16]
+    _remember_key(audio, key)
+    return key
+
+
+def _remember_key(audio, key):
+    import weakref
+    try:
+        _KEYS[id(audio)] = (weakref.ref(audio), key)
+    except TypeError:
+        pass
+
+
+def timeline_audio(seq, log=print, rate=RATE, window=None, cache_dir=None):
     """Mix every audio clip into one mono array laid out on the sequence timeline.
-    window=(start s, end s): only that stretch (index 0 = window start) - for one Short."""
+    window=(start s, end s): only that stretch (index 0 = window start) - for one Short.
+    cache_dir: keep the decoded audio there (audio-*.f32, ~230 MB per hour) so the next command
+    reads it back instead of decoding the whole recording again (6 s for 2 h of video). It is
+    the exact same samples; a different edit or a changed source file makes a new one."""
     items = sorted(seq.audio, key=lambda a: a.start)
     if window:
         w0, w1 = int(window[0] * TICKS), int(window[1] * TICKS)
@@ -47,7 +72,25 @@ def timeline_audio(seq, log=print, rate=RATE, window=None):
             r["end"] = min(r["end"], w1)
         runs = [dict(r, start=r["start"] - w0, end=r["end"] - w0) for r in runs if r["end"] > r["start"]]
     total = (w1 - w0 if window else max(a.end for a in items)) / TICKS
-    buf = np.zeros(int(total * rate) + rate, dtype=np.float32)
+    size = int(total * rate) + rate
+    cache = None
+    if cache_dir and not window:
+        sig = hashlib.sha1(json.dumps([[r["path"], os.path.getsize(r["path"]), os.stat(r["path"]).st_mtime_ns, r["track"],
+                                        r["start"], r["end"], r["src_in"], r["src_out"]] for r in runs] + [rate, size]
+                                      ).encode()).hexdigest()[:16]
+        cache = os.path.join(cache_dir, "audio-%s.f32" % sig)
+        try:
+            if os.path.getsize(cache) == size * 4:
+                with open(cache + ".key", encoding="utf-8") as f:
+                    key = f.read().strip()
+                buf = np.fromfile(cache, dtype=np.float32)
+                if len(buf) == size and len(key) == 16:
+                    _remember_key(buf, key)
+                    log("  using the decoded audio kept from last time (%s of timeline)" % fmt(total))
+                    return buf
+        except OSError:
+            pass
+    buf = np.zeros(size, dtype=np.float32)
     log("  decoding %d audio run(s) (%s of timeline)" % (len(runs), fmt(total)))
     for r in runs:
         dur = (r["end"] - r["start"]) / TICKS
@@ -59,6 +102,17 @@ def timeline_audio(seq, log=print, rate=RATE, window=None):
         i = int(round(r["start"] / TICKS * rate))
         n = min(len(x), len(buf) - i)
         buf[i:i + n] += x[:n]
+    if cache:                                    # keep it for next time; never a reason to fail
+        try:
+            import glob
+            for old in glob.glob(os.path.join(cache_dir, "audio-*.f32")) + glob.glob(os.path.join(cache_dir, "audio-*.f32.key")):
+                os.remove(old)                   # one per project: the edit changed, the old one is no use
+            buf.tofile(cache + ".part")
+            os.replace(cache + ".part", cache)
+            with open(cache + ".key", "w", encoding="utf-8") as f:
+                f.write(audio_key(buf))
+        except OSError:
+            pass
     return buf
 
 
@@ -67,7 +121,7 @@ def transcribe(audio, cache_dir, model="small", log=print, vad=True):
     """faster-whisper word timestamps, cached by audio content + model. vad=False hears
     speech under loud game sound that the voice filter throws away (used for re-listens:
     on one Short it found 11 lines where the filtered pass found 1)."""
-    key = hashlib.sha1(audio.tobytes()).hexdigest()[:16] + "-" + model + ("" if vad else "-novad")
+    key = audio_key(audio) + "-" + model + ("" if vad else "-novad")
     cache = os.path.join(cache_dir, "words-%s.json" % key)
     if os.path.exists(cache):
         log("  using cached transcript %s" % os.path.basename(cache))
@@ -456,7 +510,7 @@ def voice_regions(audio, cache_dir, log=print):
     """Where someone is vocalising, from the Silero voice detector bundled with
     faster-whisper. Much finer than Whisper's word ends (which are packed end to
     end), and it follows a drawn-out 'Ohhhh' to where the sound actually stops."""
-    key = hashlib.sha1(audio.tobytes()).hexdigest()[:16]
+    key = audio_key(audio)
     cache = os.path.join(cache_dir, "voice-%s.json" % key)
     if os.path.exists(cache):
         with open(cache, encoding="utf-8") as f:
