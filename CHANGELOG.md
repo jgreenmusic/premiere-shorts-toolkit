@@ -2,6 +2,23 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.22.0 - 2026-10-04
+
+**Make a Short longer or shorter from the caption editor.**
+
+- **While fixing captions there was no way to take in a bit more of the video.** The Short's start
+  and end could only be moved on the timeline or in the Start/End boxes above, and the caption
+  list only showed what was already inside the Short - so you couldn't see what you'd be adding.
+  Now the caption editor has **Short starts / Short ends** rows (1 s or ¼ s earlier / later) and
+  lists the two captions **just before** and **just after** the Short, greyed out. Click their time
+  to hear them; **Start here** / **End here** stretches the Short to take that caption in, and it
+  joins the list ready to fix. Works in List and Text mode. Ctrl+Z undoes it like any other trim.
+- **Moving a Short's start or end threw the caption list back to the top** (the side panel is
+  redrawn). It now keeps its place, and stays at the bottom when you were at the bottom.
+- Checked in a headless browser on a copy of a project: Start here, End here, 1 s earlier and
+  Text mode all moved the Short, the list grew/shrank to match and kept its scroll. Not yet
+  checked in the app window.
+
 ## 0.21.0 - 2026-10-01
 
 **Easier caption fixing: listen again with a better model, type the whole Short as text, or

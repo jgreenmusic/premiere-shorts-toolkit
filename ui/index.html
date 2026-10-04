@@ -77,6 +77,10 @@ main { overflow-y: auto; padding: 26px 32px 120px; }
 .caprow.sel { background: var(--accent-soft); border-radius: 8px; padding: 3px 4px; }
 .captime { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); padding: 4px 0 2px 64px; }
 .captime b { color: var(--text); font-variant-numeric: tabular-nums; }
+.caprow.out { opacity: .7; }
+.caprow.out .outtxt { flex: 1; min-width: 0; padding: 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.capedge { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); margin: 6px 0; }
+.capedge b { color: var(--text); font-variant-numeric: tabular-nums; margin-right: 6px; }
 .heard { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); padding: 2px 0 2px 64px; }
 .heard b { color: var(--text); font-weight: 600; }
 .captext { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; max-height: 380px; }
@@ -686,6 +690,10 @@ function panel() {
     return;
   }
   const i = T.sel.i, s = shortsList()[i], r = R[s.name];
+  // this redraw wipes the caption list: remember where it was scrolled to (moving the Short's start or end lands here)
+  const sc0 = $("#capRows") || $("#capTxt");
+  if (sc0 && T.capData && T.capData.i === i) T.capKeep = { i, top: sc0.scrollTop, end: sc0.scrollTop > 0 && sc0.scrollTop + sc0.clientHeight >= sc0.scrollHeight - 4 };
+  else if (sc0 || !T.capKeep || T.capKeep.i !== i) T.capKeep = null;
   el.innerHTML = `
     <input class="text" id="spName" value="${esc(s.name)}" style="font-weight:650;font-size:15px;margin-bottom:10px">
     <div class="row" style="gap:8px">
@@ -720,18 +728,43 @@ function panel() {
 // Saved per project in toolkit.json "caption_edits"; used by every render and preview.
 async function loadCapEdit(s) {
   const box = $("#capEdit"); if (!box) return;
-  let r; try { r = await api(`/api/captions?path=${encodeURIComponent(S.current)}&start=${s.start}&end=${s.end}`); }
+  const CTX = 15;                                           // also fetch the captions just outside the Short, to grow it onto them
+  let r; try { r = await api(`/api/captions?path=${encodeURIComponent(S.current)}&start=${Math.max(0, s.start - CTX)}&end=${s.end + CTX}`); }
   catch (e) { box.innerHTML = `<p class="hint">Couldn't read the captions: ${esc(e.message)}</p>`; return; }
   if ($("#capEdit") !== box) return;                        // another Short was picked meanwhile
-  const caps = r.captions, miss = r.missing || [];
+  const st = c => c.new_start != null ? c.new_start : c.start, en = c => c.new_end != null ? c.new_end : c.end;
+  const isBefore = c => en(c) <= s.start + 0.05, isAfter = c => st(c) >= s.end - 0.05;
+  const caps = r.captions.filter(c => !isBefore(c) && !isAfter(c)), miss = (r.missing || []).filter(m => m.end > s.start && m.start < s.end);
+  const before = r.captions.filter(c => isBefore(c) && !c.hidden).slice(-2), after = r.captions.filter(c => isAfter(c) && !isBefore(c) && !c.hidden).slice(0, 2);
+  // move this Short's start or end from here, so the captions around it can be pulled in without going back to the timeline
+  const si = T.sel && T.sel.kind === "short" ? T.sel.i : -1;
+  const moveEdge = (w, val) => {
+    const list = structuredClone(shortsList()), x = list[si];
+    if (!x) return;
+    x[w] = +Math.max(0, T.tl ? Math.min(T.tl.duration, val) : val).toFixed(2);
+    if (x.end - x.start < 1) return toast("A Short needs to be at least 1 second long");
+    saveShorts(list);
+  };
+  const edge = w => si < 0 ? "" : `<div class="capedge"><span>Short ${w === "start" ? "starts" : "ends"}</span><b>${tc(s[w])}</b>${[[-1, "1 s earlier"], [-0.25, "¼ s earlier"], [0.25, "¼ s later"], [1, "1 s later"]]
+    .map(([d, l]) => `<button class="btn sm" data-edge="${w}" data-d="${d}">${l}</button>`).join("")}</div>`;
+  const outRow = (c, w) => `<div class="caprow out"><div style="display:flex;gap:6px;align-items:center">
+      <button class="btn link sm" data-oseek="${st(c)}" style="min-width:58px;font-variant-numeric:tabular-nums" title="Hear it">${tc(st(c))}</button>
+      <span class="outtxt" title="${esc(c.text)}">${esc(c.text)}</span>
+      <button class="btn sm" data-edgeto="${w}" data-v="${w === "start" ? st(c) - 0.15 : en(c) + 0.15}" title="${w === "start" ? "Start the Short at this caption" : "End the Short after this caption"}">${w === "start" ? "Start here" : "End here"}</button></div></div>`;
+  const outside = w => { const l = w === "start" ? before : after; return si < 0 || !l.length ? "" : `<div class="hint" style="margin:2px 0">${w === "start" ? "Just before this Short" : "Just after this Short"}</div>${l.map(c => outRow(c, w)).join("")}`; };
+  const wireEdges = () => {
+    $$("[data-edge]").forEach(b => b.onclick = () => moveEdge(b.dataset.edge, s[b.dataset.edge] + +b.dataset.d));
+    $$("[data-edgeto]").forEach(b => b.onclick = () => moveEdge(b.dataset.edgeto, +b.dataset.v));
+    $$("[data-oseek]").forEach(b => b.onclick = () => { seek(Math.max(0, +b.dataset.oseek - 0.3)); playNow(); });
+  };
   if (!caps.length && !miss.length) {
     box.innerHTML = `<h4 style="margin:0 0 4px;font-size:14px">Captions</h4><p class="hint">${r.source === "none"
       ? "No captions yet — they're made from the speech the first time you place markers, analyse or render."
-      : "No captions in this Short."}</p>`;
+      : "No captions in this Short."}</p>${r.source === "none" ? "" : edge("start") + outside("start") + outside("end") + edge("end")}`;
+    wireEdges();
     return;
   }
   const C = S.info.config, adds = C.caption_adds || [];
-  const st = c => c.new_start != null ? c.new_start : c.start, en = c => c.new_end != null ? c.new_end : c.end;
   const rows = [...caps.map((c, k) => ({ kind: "cap", c, k, t: st(c) })), ...miss.map((m, k) => ({ kind: "miss", m, k, t: m.start }))].sort((a, b) => a.t - b.t);
   const n = caps.filter(c => c.hidden || c.text !== c.orig || c.new_start != null || c.new_end != null || c.added).length;
   const timing = c => {
@@ -758,7 +791,9 @@ async function loadCapEdit(s) {
         <button class="btn sm" data-mskip="${k}" title="Not needed">✕</button>
       </div></div>`;
   // every save rebuilds the list: keep where you were scrolled to, the line you're in, and anything typed meanwhile
-  const old = $("#capRows") || $("#capTxt"), keepTop = old ? old.scrollTop : null, ae = document.activeElement;
+  const old = $("#capRows") || $("#capTxt"), kept = !old && T.capKeep && T.capKeep.i === si ? T.capKeep : null, ae = document.activeElement;
+  const keepTop = old ? old.scrollTop : kept ? kept.top : null;
+  T.capKeep = null;
   let keepFocus = null;
   if (ae && ae.id === "capTxt") keepFocus = { sel: "#capTxt", value: ae.value !== ae.defaultValue ? ae.value : null, a: ae.selectionStart, b: ae.selectionEnd };
   else if (ae && ae.tagName === "INPUT" && box.contains(ae)) {
@@ -773,17 +808,20 @@ async function loadCapEdit(s) {
       <div class="row" style="gap:4px"><button class="btn sm${mode === "list" ? " primary" : ""}" data-capmode="list" title="One box per caption, with timing">List</button><button class="btn sm${mode === "text" ? " primary" : ""}" data-capmode="text" title="Type through the whole Short like a document">Text</button></div></div>
     <p class="hint" style="margin:0 0 8px">${mode === "text"
       ? "One line per caption — type through it like a document. An empty line takes that caption out. Saves when you click away (or Ctrl+Enter). Click a time to hear it."
-      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing."} You can also click the caption on the video to fix it. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
+      : "Click a time to hear it. Type to fix the words (Enter = next line), ✕ takes a caption out, click into a line to fix its timing."} You can also click the caption on the video to fix it. Need more of the video? Move the Short's start or end right here — the captions just outside it are listed so you can pull them in. Used when you render${r.source === "premiere" ? " — your Premiere project isn't changed" : ""}.</p>
     <div class="banner" style="margin:0 0 8px;flex-wrap:wrap;gap:8px"><span style="flex:1 1 100%">${again
       ? (heardN ? `Heard again with the better model: <b>${heardN}</b> caption${heardN > 1 ? "s" : ""} sound${heardN > 1 ? "" : "s"} different${mode === "text" ? " (see List)" : " — “Heard:” under each"}.` : "Heard again with the better model — it agrees with every caption.")
       : "Missing words? Hear this Short again with a bigger, more accurate model (10–30 s)."}</span>
       ${heardN && mode === "list" ? `<button class="btn sm primary" id="hAll">Use all ${heardN}</button>` : ""}<button class="btn sm${again ? "" : " primary"}" id="relisten" ${S.busy ? "disabled" : ""}>🎧 Listen again</button></div>
     ${miss.length ? `<div class="banner" style="margin:0 0 8px;flex-wrap:wrap;gap:8px"><span style="flex:1 1 100%"><b>${miss.length}</b> line${miss.length > 1 ? "s" : ""} heard with no caption${mode === "list" ? " (dashed). Check with the time button, ✓ to add." : ": " + miss.map(m => "“" + esc(m.text) + "”").join(", ")}</span><button class="btn sm primary" id="mAll">Add all ${miss.length}</button></div>` : ""}
     <div class="row" style="gap:6px;margin:0 0 6px"><button class="btn sm" id="capAddHere" title="A new caption where the player is">+ Caption at the playhead</button></div>
+    ${edge("start")}${outside("start")}
     ${mode === "text"
       ? `<div class="captext"><div class="capgut" id="capGut">${vis.map((c, i) => `<button data-gl="${i}" title="Hear it">${tc(st(c))}</button>`).join("")}</div><textarea id="capTxt" wrap="off" spellcheck="true">${esc(vis.map(c => c.text).join("\n"))}</textarea></div>`
-      : `<div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`}`;
-  if (keepTop != null) { const sc = $("#capRows") || $("#capTxt"); if (sc) sc.scrollTop = keepTop; }
+      : `<div class="scroll" style="max-height:380px" id="capRows">${rows.map(x => x.kind === "cap" ? capRow(x.c, x.k) : missRow(x.m, x.k)).join("")}</div>`}
+    ${outside("end")}${edge("end")}`;
+  if (keepTop != null) { const sc = $("#capRows") || $("#capTxt"); if (sc) sc.scrollTop = kept && kept.end ? sc.scrollHeight : keepTop; }
+  wireEdges();
   const back = keepFocus && box.querySelector(keepFocus.sel);
   if (back && !back.disabled) {
     back.focus({ preventScroll: true });
@@ -817,7 +855,7 @@ async function loadCapEdit(s) {
     if (v === c.orig && c.new_start == null && c.new_end == null) return save(k, null);
     return save(k, { text: v === c.orig ? null : v, hide: false });
   };
-  T.capData = { box, s, caps, st, en, setText };              // for clicking the caption on the video
+  T.capData = { box, s, caps, st, en, setText, i: si };              // for clicking the caption on the video
   $$("[data-capmode]").forEach(b => b.onclick = () => { store.set("capMode", b.dataset.capmode); loadCapEdit(s); });
   $("#relisten").onclick = () => run("relisten", { start: s.start, end: s.end });
   $$("[data-huse]").forEach(b => b.onclick = () => setText(+b.dataset.huse, caps[+b.dataset.huse].heard));
