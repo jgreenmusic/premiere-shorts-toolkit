@@ -99,6 +99,8 @@ def caption_list(project_path, start=None, end=None, seq=None):
     if seq is None:
         seq = pick_sequence(open_project(project_path), cfg.get("sequence"))
     fit = {}
+    if not config.speech_on(cfg):                 # music with captions off: a render shows none either
+        return dict(source="none", captions=[], missing=[], relistened=[])
     if seq.captions:
         caps, source = seq.captions, "premiere"
         fit = fit_times(project_path, seq, outdir, cfg)
@@ -205,6 +207,10 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
                           own_markers=own_markers)
     if not need_words:
         return ctx
+    if not config.speech_on(cfg):                 # music with captions off: nothing is transcribed
+        ctx.words, ctx.regions, ctx.fit, ctx.sounds = [], [], {}, None
+        ctx.captions, ctx.matches, ctx.auto = [], [], False
+        return ctx
     log("[speech] words and voice")
     raw = cap.transcribe(audio, outdir, model=model, log=log)
     ctx.regions = cap.voice_regions(audio, outdir, log=log)
@@ -212,8 +218,10 @@ def load(project_path, sequence=None, model="small", log=print, need_words=True)
     ctx.fit = fit_times(project_path, seq, outdir, cfg, raw, ctx.regions)
     if ctx.fit:
         log("  %d captions fitted to the speech (step 2 setting)" % len(ctx.fit))
-    import sounds
-    ctx.sounds = sounds.detect(seq, outdir, audio, log=log)      # None if not installed
+    ctx.sounds = None
+    if config.reactions_on(cfg):
+        import sounds
+        ctx.sounds = sounds.detect(seq, outdir, audio, log=log)      # None if not installed
     if seq.captions:
         ctx.captions, ctx.auto = seq.captions, False
         ctx.matches = cap.align(seq.captions, ctx.words)

@@ -68,6 +68,19 @@ def layout_filter(src_w, src_h, blur_trim):
             % (bw, bh, bw, bh, W, H, fg_w, fg_h, crop))
 
 
+def fade_filter(cfg, dur):
+    """Music: a Short's sound fades in / out (project settings) so a cut never clicks or stops
+    dead. Everything else: untouched."""
+    import config
+    if config.kind(cfg) != "music":
+        return "anull"
+    m = cfg.get("music") or {}
+    fi = max(0.0, min(float(m.get("fade_in") or 0), dur / 2))
+    fo = max(0.0, min(float(m.get("fade_out") or 0), dur / 2))
+    parts = (["afade=t=in:st=0:d=%.3f" % fi] if fi else []) + (["afade=t=out:st=%.3f:d=%.3f" % (dur - fo, fo)] if fo else [])
+    return ",".join(parts) or "anull"
+
+
 def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
     seq = ctx.seq
     vid = _pieces(seq.video, a, b)
@@ -111,6 +124,7 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
         fl += bleep.audio_filter("[amix]", "[acat]", sp, bl.get("sound"), b - a)
         if sp:
             log("  bleeping %d word(s)" % len(sp))
+        fl.append("[acat]%s[aout]" % fade_filter(ctx.cfg, b - a))
 
     # captions for this range, times shifted to start at 0
     ass = os.path.join(work, "short.ass")
@@ -126,7 +140,7 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
         f.write(";\n".join(fl))
     cmd = ["ffmpeg", "-v", "error", "-stats", "-y"] + inputs + [
         "-/filter_complex", "graph.txt", "-map", "[vout]"]
-    cmd += (["-map", "[acat]", "-c:a", "aac", "-b:a", "320k"] if alabels else [])
+    cmd += (["-map", "[aout]", "-c:a", "aac", "-b:a", "320k"] if alabels else [])
     cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p",
             "-movflags", "+faststart", "-t", "%.4f" % (b - a), os.path.abspath(part)]
     log("  rendering %s (%.1fs, %d video piece(s), %d audio clip(s))"

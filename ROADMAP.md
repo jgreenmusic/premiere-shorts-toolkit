@@ -2,6 +2,24 @@
 
 Ideas agreed on but not built yet. Newest first.
 
+## Music streams - built in 0.28.0, what is still open
+
+Music mode (the **What is it?** chooser) picks and cuts by beats, bars and changes in the music.
+It was tuned on twelve 30-second song excerpts joined into one recording (with a talk break) and
+on two electroacoustic pieces - **never on a real music stream recording.** Expect to adjust:
+
+- **Thresholds** in `music.py` (`PULSE`, the 35 dB gap, the 8-second section window, the talk
+  rule in `where_music`) once real recordings show where they are wrong.
+- **Talk over music** (chatting while something plays) reads as music and can be suggested.
+- **Bars in threes** or changing metre: no bar count, cuts fall on beats and changes.
+- **Framing.** The whole picture over a blurred fill, as for gameplay. A crop that follows the
+  performer or the hands, or a camera + screen split, is not built.
+- **Posts for a music Short** with captions off are written from the subject and notes, with an
+  empty transcript handed to the writer - not yet run with the AI model.
+- **Lyrics** come from the same speech model as talking; nothing is tuned for singing.
+- **More kinds.** Podcast / talking-head (pick by what is said, with the local AI reading the
+  transcript) is the next one; `docs/extending.md` says where a kind plugs in.
+
 ## macOS build (with Ada) and Linux build (once Alvin is rebuilt)
 
 The code is portable (Python, pywebview, onnxruntime, faster-whisper, ffmpeg all exist on both);

@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.27.1"
+__version__ = "0.28.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -89,7 +89,10 @@ def load_ctx(args, need_words=True):
 
 
 def scream_plan(ctx, args=None):
+    import config
     import screams as sc
+    if not config.reactions_on(ctx.cfg):          # music: a held note is not a scream
+        return []
     cfg = dict(ctx.cfg["screams"])
     if args is not None and getattr(args, "loud", None) is not None:
         cfg["loud"] = args.loud
@@ -193,7 +196,13 @@ def write_suggested_csv(outdir, markers):
 
 def analyse(ctx, args):
     """The per-second picture of the video (screams, laughs, loud lines, excitement)."""
+    import config
     import timeline
+    if config.kind(ctx.cfg) == "music":
+        import music
+        ctx.music = music.listen(ctx)
+        print("[timeline] scoring every second of the music")
+        return music.summary(ctx, ctx.music)
     plan = scream_plan(ctx, args)
     lplan = laugh_plan(ctx, plan)
     print("[timeline] scoring every second")
@@ -206,15 +215,44 @@ def taken(cfg):
             + [tuple(d) for d in cfg.get("dismissed", [])])
 
 
+def suggest(ctx, summ, count, length):
+    """The best Shorts not yet taken - by the rules of the project's kind (talk or music)."""
+    if summ.get("kind") == "music":
+        import music
+        return music.suggest(summ, ctx.music, count=count, length=length, avoid=taken(ctx.cfg))
+    import timeline
+    return timeline.suggest(summ, count=count, length=length, avoid=taken(ctx.cfg))
+
+
 def save_timeline(ctx, summ, args):
     import json
-    import timeline
-    summ["suggestions"] = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=taken(ctx.cfg))
+    summ["suggestions"] = suggest(ctx, summ, args.count, (args.min, args.max))
     summ["settings"] = dict(count=args.count, min=args.min, max=args.max)
     with open(os.path.join(ctx.outdir, "timeline.json"), "w", encoding="utf-8") as f:
         json.dump(summ, f)
     write_marker_csv(ctx.outdir, ctx.cfg["shorts"])
     return summ
+
+
+def cmd_kind(args):
+    """What kind of recording this is - it decides how Shorts are picked and which steps apply."""
+    import config
+    import pipeline
+    base, outdir = pipeline.outdir_for(args.project)
+    cfg = config.load(outdir)
+    patch = {}
+    if args.kind:
+        patch["kind"] = args.kind
+    if args.captions:
+        patch["music"] = {"captions": args.captions == "on"}
+    if patch:
+        cfg = config.update(outdir, patch)
+    k = config.kind(cfg)
+    print("%s - %s" % (config.KINDS[k]["label"], config.KINDS[k]["about"]))
+    if k == "music":
+        print("Captions for singing or talking: %s" % ("on" if cfg["music"]["captions"] else "off"))
+    if patch.get("kind"):
+        print("Run  markers  again to pick moments by these rules.")
 
 
 def cmd_timeline(args):
@@ -273,7 +311,7 @@ def cmd_markers(args):
         print("Starting over: removing %d suggested marker(s)" % len(cfg["markers"]))
         cfg["markers"] = []
     summ = analyse(ctx, args)
-    found = timeline.suggest(summ, count=args.count, length=(args.min, args.max), avoid=taken(cfg))
+    found = suggest(ctx, summ, args.count, (args.min, args.max))
     n0 = len(cfg["markers"])
     for s in found:
         cfg["markers"].append(dict(start=s["start"], end=s["end"], score=s["score"], why=s["why"]))
@@ -450,6 +488,10 @@ def cmd_post(args):
         if r.get("posts") and k not in redo:
             written[k] = posting.plain(r["posts"])
     notes_by_short = pc.get("short_notes") or {}
+    # music with captions off: an empty transcript is handed over, so the words are never guessed
+    # from the sound - the post is written from What it is, the notes and the Short's own note
+    import config
+    no_speech = not config.speech_on(ctx.cfg)
     for n, (i, s, video) in enumerate(todo, 1):
         print("[%d/%d] %s" % (n, len(todo), s["name"]))
         tr, nseg = posting.transcript_file(args.project, float(s["start"]), float(s["end"]))
@@ -458,7 +500,7 @@ def cmd_post(args):
         try:
             print("  %d caption lines as the transcript; angle: %s; writing %s" % (nseg, angle, ", ".join(plats)))
             try:
-                res = posting.write(video, tr if nseg else None, pc.get("subject", ""), notes_by_short.get(s["name"], ""), plats,
+                res = posting.write(video, tr if nseg or no_speech else None, pc.get("subject", ""), notes_by_short.get(s["name"], ""), plats,
                                     fresh=args.fresh, background=pc.get("notes", ""),
                                     siblings=[p for k, p in written.items() if k != me], angle=angle,
                                     avoid=pc.get("avoid", ""), clean=bool(pc.get("clean")),
@@ -908,6 +950,12 @@ def main():
     mk.add_argument("--replace", action="store_true", help="start over: remove the markers placed before")
     mk.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     mk.set_defaults(func=cmd_markers)
+
+    kd = sub.add_parser("kind", help="say what the recording is: gaming (talk, screams, laughs) or music")
+    kd.add_argument("project", help="saved .prproj file, or any video clip")
+    kd.add_argument("kind", nargs="?", choices=["gaming", "music"], help="leave out to see the current one")
+    kd.add_argument("--captions", choices=["on", "off"], help="music only: caption the singing / talking (default off)")
+    kd.set_defaults(func=cmd_kind)
 
     tl = sub.add_parser("timeline", help="whole-video picture + predicted best Shorts (for the app)")
     common(tl)

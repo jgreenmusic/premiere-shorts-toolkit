@@ -75,19 +75,22 @@ def infer(audio):
     return out
 
 
-def detect(seq, cache_dir, audio16, log=print):
-    """{class name: np.array of per-frame probability} for CLASSES, or None if unavailable."""
+def detect(seq, cache_dir, audio16, log=print, classes=None, tag="sounds", what="for laughs"):
+    """{class name: np.array of per-frame probability} for CLASSES, or None if unavailable.
+    classes / tag: another set of AudioSet classes kept in its own cache file (music mode)."""
+    index = classes or CLASS_INDEX
+    names = list(index)
     key = cap.audio_key(audio16)
-    cache = os.path.join(cache_dir, "sounds-%s.npz" % key)
+    cache = os.path.join(cache_dir, "%s-%s.npz" % (tag, key))
     if os.path.exists(cache):
         d = np.load(cache)
-        return {c: d[c].astype(np.float32) for c in CLASSES}
+        return {c: d[c].astype(np.float32) for c in names}
     if not available():
-        log("  (laugh detection off: models/panns_sed.onnx is missing)")
+        log("  (sound-event model off: models/panns_sed.onnx is missing)")
         return None
-    log("  listening for laughs (sound-event model)")
+    log("  listening %s (sound-event model)" % what)
     audio = cap.timeline_audio(seq, log=lambda *a: None, rate=RATE)
-    ix = [CLASS_INDEX[c] for c in CLASSES]
+    ix = [index[c] for c in names]
     chunk = 60 * RATE
     parts = []
     for i in range(0, len(audio), chunk):
@@ -98,7 +101,7 @@ def detect(seq, cache_dir, audio16, log=print):
             continue
         parts.append(infer(seg)[:frames, ix])
     fw = np.concatenate(parts)
-    out = {c: fw[:, j] for j, c in enumerate(CLASSES)}
+    out = {c: fw[:, j] for j, c in enumerate(names)}
     os.makedirs(cache_dir, exist_ok=True)
     np.savez_compressed(cache, **{c: v.astype(np.float16) for c, v in out.items()})
     return out

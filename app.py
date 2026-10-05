@@ -154,6 +154,8 @@ def project_info(path):
     from clip import is_clip
     return dict(path=path, outdir=outdir, shorts_dir=base_of(path) + "_shorts", config=cfg,
                 sequence=cur.name, clip=is_clip(path),
+                kind=config.kind(cfg), speech=config.speech_on(cfg), reactions=config.reactions_on(cfg),
+                kinds=[dict(id=k, label=v["label"], about=v["about"]) for k, v in config.KINDS.items()],
                 sequences=[dict(name=s.name, captions=len(s.captions), video=len(s.video), audio=len(s.audio),
                                 markers=len(s.markers), seconds=round(s.end_s, 1)) for s in seqs],
                 results=results(outdir, base_of(path) + "_shorts", cfg))

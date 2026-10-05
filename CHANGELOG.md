@@ -2,6 +2,32 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.28.0 - 2026-10-05
+
+- **Shorts from music streams.** Until now the toolkit only knew gaming footage: it looked for
+  shouting, screams and laughs, and cut in pauses in the talking. On music that picks the wrong
+  moments and cuts mid-phrase. Each project now has a **What is it?** chooser at the top:
+  **Gaming / talking** (everything as before) or **Music stream**.
+- In a music project:
+  - Moments are picked where the music is **fullest or something comes in**, not where it is
+    merely loudest.
+  - A Short **starts on a beat or on a change in the music**, and when there is a steady pulse it
+    runs a **whole number of four-beat bars**. Music with no pulse (drones, textures, free
+    playing) is cut at changes in the sound and at the quietest nearby moment instead.
+  - A Short never opens on silence and never runs through the gap between two pieces.
+  - **Talking between pieces is left out** (needs the sound model that also finds laughs).
+  - The sound **fades out** at the end (0.35 s; you can change it, and add a fade in).
+  - **Nothing is transcribed** - speech-to-text makes up words over music - so the first run
+    takes seconds, not minutes. Tick **Captions for singing or talking** in step 1 if you want
+    them; the Captions step comes back.
+  - The steps that don't apply (Captions, Screams & laughs) are hidden and the rest renumbered.
+  - Dragging a Short's edge on the timeline snaps to beats.
+- From a terminal: `shorts.py kind <project> music`.
+- Tested on twelve songs joined into one recording with a talk break, and on two electroacoustic
+  pieces. **Not yet tried on a real music stream recording** - see the roadmap for what that
+  may show.
+- Existing projects are untouched: they stay Gaming / talking.
+
 ## 0.27.1 - 2026-10-04
 
 - **"I can't nudge how long a caption is any more."** Two things were in the way:

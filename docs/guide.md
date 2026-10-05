@@ -3,6 +3,7 @@
 Every step of the app, in order. Each step has a **Next →** button; skip any you don't need.
 
 - [Before you start](#before-you-start)
+- [Music streams](#music-streams)
 - [1 · Markers](#1--markers)
 - [2 · Captions](#2--captions)
 - [3 · Shorts](#3--shorts) — including the [caption editor](#caption-editor)
@@ -23,6 +24,42 @@ Every step of the app, in order. Each step has a **Next →** button; skip any y
   that it is cached and every step is quick.
 - Each project keeps its own settings, Shorts list and choices.
 - **☰ Projects** (top right) shows or hides the projects list, so the work area can use the whole window.
+
+## Music streams
+
+At the top of every project is **What is it?** Leave it on **Gaming / talking** for anything
+with people talking and reacting. Choose **Music stream** for a set, a performance or a stream
+that is mostly music. The choice is saved with the project; change it any time, then press
+**Find Shorts** (or **Re-analyse**) again so the moments are picked by the new rules.
+
+What changes in a music project:
+
+| | Gaming / talking | Music stream |
+|---|---|---|
+| Moments picked | Loud, busy talk, screams, laughs | Where the music is fullest or something comes in |
+| A Short starts | In a pause in the talking | On a beat, on a change in the music, or on the first note after a gap |
+| A Short ends | In a pause | On a bar line when there is a steady pulse (counted in fours); otherwise at a change or the quietest nearby moment |
+| Talking between pieces | — | Left out |
+| Sound at the end | Hard cut | Fades out (0.35 s) |
+| Captions | Yes | Off, unless you tick **Captions for singing or talking** |
+| Steps | 1–8 | Captions and Screams & laughs are hidden; the rest are renumbered |
+| Usual length | 15–30 s | 20–45 s |
+
+The three music controls are in step 1:
+
+| Control | What it does |
+|---|---|
+| **Captions for singing or talking** | Off: nothing is transcribed (speech-to-text invents words over music), so the first run takes seconds. On: singing and talking are captioned like any other project and the Captions step comes back. Read them before you render — lyrics are often misheard. |
+| **Fade out** | Seconds the sound takes to fade at the end of each Short. `0` = a hard cut. |
+| **Fade in** | `0` = the Short starts right on the beat, which suits most music. Raise it for music that swells in. |
+
+Good to know:
+
+- Bars are counted in **fours**. Music in three, or with a changing pulse, is still cut on beats and changes — only the "whole bars" length is skipped.
+- The marker list says why each one was picked: *something big comes in*, *2 changes*, *16 bars*.
+- On the step 3 timeline the small ticks are beats and changes; a Short's edges snap to them (hold **Alt** for free).
+- **Other people's music** (covers, DJ sets) can get a copyright claim on YouTube or TikTok. The toolkit cannot check or prevent that.
+- Posts (step 7) for a music Short with captions off are written from **What it is**, your notes and the Short's own note — fill those in, there is no transcript to go on.
 
 ## 1 · Markers
 

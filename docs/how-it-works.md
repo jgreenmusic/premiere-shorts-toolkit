@@ -17,6 +17,7 @@ Next to your project (or video file):
 | `<project>_captions\` | The working folder. Safe to delete — you lose this project's choices and it re-analyses. |
 | `…\toolkit.json` | Everything you chose: Shorts list, markers, look, caption edits, scream and laugh choices, post settings. Plain text. |
 | `…\words-*.json`, `voice-*.json`, `sounds-*.npz` | Cached transcript, voice regions and sound events. This is why the second run is fast. |
+| `…\music-*.npz`, `musicev-*.npz` | Music projects: the beats/loudness/spectrum it measured, and where the sound model heard plain talking. |
 | `…\audio-*.f32` | The recording's decoded sound (about 230 MB per hour of video), so each command starts in about a second instead of decoding it again. Safe to delete; it is rebuilt when needed. |
 | `…\fit.json` | Fitted caption times for a project with Premiere captions. Rebuilt when the project is saved again. |
 | `…\relisten.json` | What the bigger model heard for the Shorts you pressed **Listen again** on. |
@@ -43,6 +44,7 @@ synced copy, in which only caption start and end numbers differ; it is read back
 | **Speech** | faster-whisper (`small`) gives a time for every word; the Silero voice detector bundled with it says where there is a voice at all. Repetition loops the model invents are removed. |
 | **Listen again** | Whisper `large-v3-turbo` on just one Short, without the voice filter (the filter discards speech under loud game audio). |
 | **Finding moments** | Every second is scored for loudness, talking, word rate, screams and laughs. A suggestion is built around a payoff about two thirds in, and snapped to a marker or a pause. |
+| **Music** | No speech model. From the sound itself: *beats* are sudden arrivals of new sound (spectral flux, 50 times a second); *changes* are where the eight seconds after sound different from the eight before; *gaps* are a second or more at least 35 dB under the loud parts. A second scores high when it is loud, busy, or something just came in. The pulse is found from how regularly the beats repeat; when it is clear, a Short is made a whole number of four-beat bars long. The sound-event model marks plain talking (reads "speech", not "music") so it is left out. |
 | **Screams** | Drawn-out interjections in the captions, or wordless voice bursts, measured for how long and how loud the voice really is. Letters grow with the voice. |
 | **Laughs** | A sound-event model (PANNs Cnn14, AudioSet classes Laughter, Giggle, Snicker, Belly laugh, Chuckle) every 10 ms. Syllables are counted from the laugh's own loudness pulses. |
 | **Captions on screen** | An `.ass` subtitle file (pop-in, word highlight, loud lines), burned in by ffmpeg/libass with bundled fonts. |
@@ -81,6 +83,7 @@ faster (6 Shorts: 58 s one at a time, 56 s three at a time), so they run one aft
 | `prproj.py`, `clip.py` | Read a Premiere project / treat a video file as one |
 | `captions.py` | Caption timing, your caption edits, missed words, loop cleanup |
 | `timeline.py` | Per-second picture of the video and suggested Shorts |
+| `music.py` | The same for a music project: beats, bars, changes, gaps, and the Shorts cut on them |
 | `screams.py`, `laughs.py`, `sounds.py` | Scream captions, laugh captions, the sound-event model |
 | `style.py`, `previews.py`, `bleep.py` | Caption look and presets, look previews, censor mode |
 | `render.py` | Building a finished Short with ffmpeg |
@@ -121,6 +124,7 @@ python -m venv .venv
 - Scream suggestions can be groans or game audio — that is why they start switched off.
 - The sound model does not hear gamer yelling as "Screaming", and can miss quiet chuckles under loud game audio.
 - Posts quote what the model heard, including misheard lines. Read them before publishing.
+- Music: bars are counted in fours; a pulse is only trusted when it is clear (about three songs in four in testing), otherwise cuts fall on beats and changes. The sound model does not call electroacoustic or experimental music "music" at all — which is why talking is ruled out rather than music ruled in.
 - Windows only for now. macOS and Linux builds are on the [roadmap](../ROADMAP.md).
 
 ## When something goes wrong

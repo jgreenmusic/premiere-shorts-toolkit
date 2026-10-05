@@ -9,6 +9,7 @@ plain Python, one HTML page and two `.cmd` files — no special tools.
 - [Add a setting](#add-a-setting)
 - [Add a whole step (a new tab)](#add-a-whole-step-a-new-tab)
 - [Add something the page reads or saves](#add-something-the-page-reads-or-saves)
+- [Add a kind of recording](#add-a-kind-of-recording)
 - [Add a caption look or a font](#add-a-caption-look-or-a-font)
 - [Add a Premiere script](#add-a-premiere-script)
 - [Check your change](#check-your-change)
@@ -100,6 +101,20 @@ For answers that are quick (no background job), add an address in `app.py`:
 Anything that should only work on the PC itself (not from a paired phone): add it to `PC_ONLY`, or
 check `not self.remote`.
 
+## Add a kind of recording
+
+"Gaming / talking" and "Music stream" are entries in `KINDS` in `config.py`. To add one (a
+podcast, say):
+
+1. Add it to `KINDS`: a `label`, an `about` line, `speech` (transcribe and caption?) and
+   `reactions` (screams and laughs?). It appears in the app's **What is it?** chooser by itself,
+   and the steps it switches off are hidden.
+2. If it should pick moments differently, write `summary()` and `suggest()` for it the way
+   `music.py` does (same shape as `timeline.py`'s), and send it there in `analyse()` and
+   `suggest()` in `shorts.py`.
+3. Add it to the `choices` of the `kind` command in `shorts.py`.
+4. Add a test next to `tests\test_music.py`.
+
 ## Add a caption look or a font
 
 - **Look:** add a line to `PRESETS` in `style.py` (name, one-line description, the settings that
@@ -124,6 +139,7 @@ It runs every test (about ten seconds) and says `ALL GOOD` or shows what failed:
 | File | Checks |
 |---|---|
 | `tests\test_logic.py` | The caption logic: punctuation, repeated-phrase cleanup, your caption edits, missed words. |
+| `tests\test_music.py` | Music mode on made-up music with known answers: tempo, beats, gaps, changes, bar-length Shorts, talking left out, the fade, and a music video in → finished Short out with nothing transcribed. |
 | `tests\test_app.py` | Every file loads, every command answers `-h`, every button maps to a real command, the version matches everywhere, the server's pages answer, video is served correctly to phones, and a test video becomes a finished 1080×1920 Short. |
 
 Neither touches your projects or your settings. Add a test next to the thing you added; the

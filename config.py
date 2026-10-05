@@ -9,6 +9,13 @@ import os
 
 DEFAULTS = {
     "sequence": None,             # which sequence to use (None = the one with captions / the first)
+    "kind": "gaming",             # what the recording is: gaming (talk, screams, laughs) or music (KINDS below)
+    "music": {                    # only used when kind is "music" (music.py)
+        "captions": False,        # False = no speech-to-text at all: it invents words over music. True = caption
+                                  # the singing / talking like any other project (steps 2 and 5 come back)
+        "fade_in": 0.0,           # seconds of fade at the start of a Short's sound (0 = starts on the beat)
+        "fade_out": 0.35,         # ...and at its end, so a cut never clicks or stops dead
+    },
     "fit_timing": True,           # Premiere captions: move the ones that are off and hold each for as long as
                                   # its words are voiced, in everything the toolkit renders (step 2)
     "look": {
@@ -81,6 +88,32 @@ DEFAULTS = {
     "caption_dismissed": [],      # starts (s) of "missing words" suggestions you dismissed
     "caption_heard_skip": [],     # caption keys whose "heard" suggestion (re-listen) you turned down
 }
+
+
+# What each kind of recording switches on. Add a kind here and the app's chooser shows it.
+KINDS = {
+    "gaming": dict(label="Gaming / talking", speech=True, reactions=True,
+                   about="Picks loud, busy moments, screams and laughs. Shorts start and end in a pause in the talking."),
+    "music": dict(label="Music stream", speech=False, reactions=False,
+                  about="Picks where the music is fullest or something comes in. Shorts start on a beat or a change "
+                        "in the music and end on a bar line, with a short fade. No captions unless you ask for them."),
+}
+
+
+def kind(cfg):
+    k = cfg.get("kind")
+    return k if k in KINDS else "gaming"
+
+
+def speech_on(cfg):
+    """Does this project use speech-to-text and captions?"""
+    k = kind(cfg)
+    return KINDS[k]["speech"] or bool(k == "music" and (cfg.get("music") or {}).get("captions"))
+
+
+def reactions_on(cfg):
+    """Screams and laughs (step 4)?"""
+    return KINDS[kind(cfg)]["reactions"]
 
 
 def path_for(outdir):

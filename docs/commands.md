@@ -12,6 +12,7 @@ project has several. Add `-h` to any command for all its options. Times are `6:1
 
 | Command | Does |
 |---|---|
+| `kind <project> [gaming\|music] [--captions on\|off]` | Say what the recording is. `music` picks by beats, bars and changes in the music, and transcribes nothing unless `--captions on`. Leave the kind out to see the current one. |
 | `markers <project> [--count 10] [--min 15] [--max 30] [--replace]` | Step 1: place markers on the best moments. Run again for more. |
 | `timeline <project> [--count 12] [--min 15] [--max 30]` | Analyse the whole video and suggest Shorts. |
 | `shorts <project>` | List the project's Shorts. |

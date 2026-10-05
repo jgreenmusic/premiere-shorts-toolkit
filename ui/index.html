@@ -321,7 +321,7 @@ const parseTc = t => String(t).trim().split(":").reduce((a, p) => a * 60 + parse
 const short = (s, n = 34) => s.length <= n ? s : s.slice(0, 14) + "…" + s.slice(-(n - 15));
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 // 0.17.0 moved the default Short length from 20-45 s to 15-30 s; untouched old defaults follow it
-const oldLen = o => (o && o.min == 20 && o.max == 45 ? { ...o, min: 15, max: 30 } : o);
+const oldLen = o => (o && o.min == 20 && o.max == 45 && !isMusic() ? { ...o, min: 15, max: 30 } : o);   // 20-45 was the old gaming default; it IS the music default
 const UI_ERRORS = [];   // error pop-ups vanish after 5 s - keep them for Copy log
 function toast(msg, good) { if (!good) { UI_ERRORS.push(new Date().toLocaleTimeString() + "  " + msg); UI_ERRORS.splice(0, UI_ERRORS.length - 30); } const t = $("#toast"); t.textContent = msg; t.className = "toast" + (good ? " good" : ""); t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
 const media = p => "/media?path=" + encodeURIComponent(p);
@@ -419,6 +419,19 @@ const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shor
 const NEXT = { markers: ["captions", "Next: captions"], captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
   look: ["render", "Next: render"], render: ["post", "Next: write the posts"], post: ["publish", "Next: publish to YouTube"] };
 
+// What kind of recording the project is (config.KINDS) decides which steps exist: a music project
+// has no screams & laughs, and no captions step unless captions are switched on. The steps that
+// are left are numbered again, and "Next" skips the missing ones.
+const isMusic = () => S.info && S.info.kind === "music";
+const tabsFor = I => { let n = 0; return TABS.filter(([k]) => !(k === "captions" && !I.speech) && !(k === "screams" && !I.reactions))
+  .map(([k, l]) => [k, /^\d/.test(l) ? `${++n} · ${l.replace(/^\d+ · /, "")}` : l]); };
+const nextFor = (I, tab) => { const shown = tabsFor(I).map(t => t[0]); let nx = NEXT[tab];
+  while (nx && !shown.includes(nx[0])) nx = NEXT[nx[0]]; return nx; };
+const lenDefault = () => isMusic() ? { count: 10, min: 20, max: 45 } : { count: 10, min: 15, max: 30 };
+const lenKey = () => isMusic() ? "mkSettingsMusic" : "mkSettings";
+// suggestions on screen that were picked by the other kind's rules
+const staleKind = () => T.tl && (T.tl.kind || "gaming") !== S.info.kind;
+
 // A redraw used to jump to the top and reload the video on every click. snapshot() before,
 // restore() after: scroll positions come back and a video with the same file is kept as is.
 function snapshot() {
@@ -439,7 +452,9 @@ function render(fresh) {                     // fresh = a different tab/project:
 function renderInner() {
   const I = S.info, C = I.config, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
-  const next = I.clip && S.tab === "markers" ? ["shorts", "Next: pick your Shorts"] : NEXT[S.tab];   // a clip has no Premiere captions to fix
+  const tabs = tabsFor(I);
+  if (!tabs.some(t => t[0] === S.tab)) S.tab = "markers";      // the step you were on doesn't exist for this kind
+  const next = I.clip && S.tab === "markers" ? ["shorts", "Next: pick your Shorts"] : nextFor(I, S.tab);   // a clip has no Premiere captions to fix
   const counts = { markers: (C.markers || []).length, shorts: C.shorts.length, screams: (I.results.screams?.items || []).filter(x => x.on).length
     + (I.results.laughs?.items || []).filter(x => x.on).length,
     render: C.shorts.length ? `${Object.keys(I.results.renders || {}).length}/${C.shorts.length}` : 0 };
@@ -448,17 +463,21 @@ function renderInner() {
     <h2>${esc(name)}</h2>
     <div class="meta">
       <span class="pill"><b>${seq.seconds ? hms(seq.seconds) : "—"}</b> long</span>
-      <span class="pill"><b>${(seq.captions || 0).toLocaleString()}</b> captions${seq.captions ? "" : " — made from speech"}</span>
+      ${I.speech ? `<span class="pill"><b>${(seq.captions || 0).toLocaleString()}</b> captions${seq.captions ? "" : " — made from speech"}</span>` : `<span class="pill">no captions</span>`}
       <span class="pill"><b>${(seq.markers || 0) + (C.markers || []).length}</b> markers</span>
       <span class="pill">${I.clip ? "Video clip" : /_captions-synced/.test(name) ? "Synced copy" : "Original"}</span>
     </div></div>
+    <label class="field" style="min-width:190px" title="${esc((I.kinds.find(k => k.id === I.kind) || {}).about || "")}">What is it?
+      <select class="text" id="kindPick">${I.kinds.map(k => `<option value="${k.id}" ${k.id === I.kind ? "selected" : ""}>${esc(k.label)}</option>`).join("")}</select></label>
     ${I.sequences.length > 1 ? `<label class="field" style="min-width:220px">Sequence
       <select class="text" id="seqPick">${I.sequences.map(s => `<option ${s.name === I.sequence ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>` : ""}
   </div>
-  <nav class="tabs">${TABS.map(([k, l]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-tab="${k}">${l}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("")}</nav>
+  <nav class="tabs">${tabs.map(([k, l]) => `<button class="tab ${S.tab === k ? "on" : ""}" data-tab="${k}">${l}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("")}</nav>
   <div id="view"></div>`;
   $$("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set("tab", S.tab); render(true); });
   const sp = $("#seqPick"); if (sp) sp.onchange = () => saveCfg({ sequence: sp.value }).then(() => select(S.current, true));
+  const kp = $("#kindPick"); kp.onchange = () => saveCfg({ kind: kp.value }, false).then(() => select(S.current, true))
+    .then(() => toast((I.kinds.find(k => k.id === kp.value) || {}).about || "", true));
   if ((S.tab === "shorts" || S.tab === "markers") && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
   ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, post: viewPost, publish: viewPublish, premiere: viewPremiere })[S.tab]();
   if (next) {
@@ -473,13 +492,17 @@ const dis = () => S.busy ? "disabled" : "";
 const mkList = () => S.info.config.markers || [];
 const isShort = m => shortsList().some(x => Math.abs(x.start - m.start) < 1 && Math.abs(x.end - m.end) < 1);
 function viewMarkers() {
-  const I = S.info, list = mkList(), st = oldLen(store.get("mkSettings", { count: 10, min: 15, max: 30 }));
+  const I = S.info, list = mkList(), st = oldLen(store.get(lenKey(), lenDefault())), M = I.config.music || {};
   const have = list.length > 0, inShorts = list.filter(isShort).length;
   $("#view").innerHTML = `
   <div class="${have && !I.clip ? "pair" : ""}">
   <div class="card">
     <div class="card-head"><div class="grow"><h3>Markers for your Shorts</h3>
-      <p>The toolkit listens to the whole ${I.clip ? "clip" : "sequence"} and marks the best moments — loud, busy stretches, screams, laughs — each one a range that starts and ends in a pause, so no Short begins mid-word. Want more? <b>+ More suggestions</b> always finds more, skipping the ones you have or removed.</p></div></div>
+      <p>${isMusic()
+        ? `The toolkit listens to the whole ${I.clip ? "clip" : "sequence"} and marks where the music is fullest or something comes in. Each range starts on a beat or a change in the music and — when there is a steady pulse — runs a whole number of bars, so nothing is cut mid-phrase. Talking between pieces is left out.`
+        : `The toolkit listens to the whole ${I.clip ? "clip" : "sequence"} and marks the best moments — loud, busy stretches, screams, laughs — each one a range that starts and ends in a pause, so no Short begins mid-word.`}
+        Want more? <b>+ More suggestions</b> always finds more, skipping the ones you have or removed.</p></div></div>
+    ${staleKind() ? `<p class="hint" style="margin:0 0 10px"><b>These were picked by the ${T.tl.kind === "music" ? "music" : "gaming"} rules.</b> Press <b>${have ? "+ More suggestions" : "Find Shorts"}</b> to pick by the ${isMusic() ? "music" : "gaming"} rules — or <b>Start over</b> to replace them.</p>` : ""}
     <div class="toolbar" style="margin:0">
       <button class="btn primary" id="mkMore" ${dis()}>${have ? "+ More suggestions" : "Find Shorts &amp; place markers"}</button>
       <label class="row hint" style="gap:6px">${have ? "Add" : "Place"} <input class="text time" id="mkCount" style="width:52px" value="${st.count}"> markers of
@@ -489,7 +512,12 @@ function viewMarkers() {
       ${have ? `<button class="btn" id="mkAll" ${inShorts === list.length ? "disabled" : ""} title="Add every marker to your Shorts list">Turn all into Shorts</button>` : ""}
       ${have ? `<button class="btn link" id="mkReset" ${dis()} title="Remove every suggested marker and pick again from scratch">Start over</button>` : ""}
     </div>
-    ${have ? "" : `<p class="hint" style="margin:12px 0 0">The first run on a new video transcribes the speech — a few minutes for an hour of footage. After that it takes seconds.</p>`}
+    ${isMusic() ? `<div class="row" style="margin-top:12px;gap:18px;flex-wrap:wrap">
+      <label class="row" style="gap:8px" title="Off: nothing is transcribed - speech-to-text makes up words over music. On: singing and talking are captioned like any other project, and the Captions step comes back."><input type="checkbox" id="muCaps" ${M.captions ? "checked" : ""}> Captions for singing or talking</label>
+      <label class="row hint" style="gap:6px" title="How long a Short's sound takes to fade away at the end. 0 = a hard cut.">Fade out <input class="text time" id="muOut" style="width:56px" value="${M.fade_out ?? 0.35}"> s</label>
+      <label class="row hint" style="gap:6px" title="0 = the Short starts right on the beat (best for most music). Raise it for music that swells in.">Fade in <input class="text time" id="muIn" style="width:56px" value="${M.fade_in ?? 0}"> s</label>
+    </div>` : ""}
+    ${have ? "" : `<p class="hint" style="margin:12px 0 0">${I.speech ? "The first run on a new video transcribes the speech — a few minutes for an hour of footage. After that it takes seconds." : "The first run listens to the whole recording once. Nothing is transcribed, so it is quick."}</p>`}
   </div>
   ${have && !I.clip ? `<div class="card">
     <div class="card-head"><div class="grow"><h3>In Premiere</h3>
@@ -527,14 +555,20 @@ function viewMarkers() {
   const more = replace => {
     const o = { count: Math.max(1, +$("#mkCount").value || 10), min: +$("#mkMin").value || 15, max: +$("#mkMax").value || 30 };
     if (o.max <= o.min) return toast("The longest length must be more than the shortest.");
-    store.set("mkSettings", o); run("markers", { ...o, replace });
+    store.set(lenKey(), o); run("markers", { ...o, replace });
   };
   $("#mkMore").onclick = () => more(false);
   $("#mkQuick").onclick = () => {
     const o = { count: Math.max(1, +$("#mkCount").value || 10), min: +$("#mkMin").value || 15, max: +$("#mkMax").value || 30 };
     if (o.max <= o.min) return toast("The longest length must be more than the shortest.");
-    store.set("mkSettings", o); run("quick", o);
+    store.set(lenKey(), o); run("quick", o);
   };
+  if ($("#muCaps")) {
+    $("#muCaps").onchange = e => saveCfg({ music: { captions: e.target.checked } }, false).then(() => select(S.current, true));
+    const sec = el => Math.max(0, Math.min(5, parseFloat(el.value) || 0));
+    $("#muOut").onchange = e => saveCfg({ music: { fade_out: sec(e.target) } }, false);
+    $("#muIn").onchange = e => saveCfg({ music: { fade_in: sec(e.target) } }, false);
+  }
   if ($("#mkMore2")) $("#mkMore2").onclick = () => more(false);
   if ($("#mkReset")) $("#mkReset").onclick = () => more(true);
   if ($("#mkPremiere")) $("#mkPremiere").onclick = e => runInPremiere("suggested-markers.jsx", e.currentTarget);
@@ -607,7 +641,7 @@ function viewShorts() {
     <div class="toolbar" style="margin:0">
       <button class="btn primary" id="analyse" ${dis()} title="Score every second and suggest the best Shorts">${T.tl ? "Re-analyse" : "Analyse video"}</button>
       <label class="row hint" style="gap:6px">Suggest <input class="text time" id="sgCount" style="width:52px" value="${T.tl?.settings?.count ?? 12}"> Shorts of
-        <input class="text time" id="sgMin" style="width:52px" value="${oldLen(T.tl?.settings || {}).min ?? 15}">–<input class="text time" id="sgMax" style="width:52px" value="${oldLen(T.tl?.settings || {}).max ?? 30}"> s</label>
+        <input class="text time" id="sgMin" style="width:52px" value="${oldLen(T.tl?.settings || {}).min ?? lenDefault().min}">–<input class="text time" id="sgMax" style="width:52px" value="${oldLen(T.tl?.settings || {}).max ?? lenDefault().max}"> s</label>
       <span style="flex:1"></span>
       <button class="btn" id="importMarkers">Import from markers</button>
       <button class="btn" id="addShort">+ Add Short</button>
@@ -656,7 +690,7 @@ function viewShorts() {
 }
 
 function wireShorts() {
-  const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || 15, max: +$("#sgMax").value || 30 });
+  const go = () => run("timeline", { count: +$("#sgCount").value || 12, min: +$("#sgMin").value || lenDefault().min, max: +$("#sgMax").value || lenDefault().max });
   $("#analyse").onclick = go; const a2 = $("#analyse2"); if (a2) a2.onclick = go;
   $("#addShort").onclick = () => { const s = T.tl ? T.play : (shortsList().at(-1)?.end || 0); addShort(s, s + 30); };
   if ($("#toPremiere")) $("#toPremiere").onclick = e => runInPremiere("shorts-to-markers.jsx", e.currentTarget);
@@ -707,7 +741,7 @@ function refreshShorts() {
       </tbody></table></div>` : `<p class="hint">No Shorts yet. Accept suggestions, import from markers, or press <b>I</b> on the timeline to start one at the playhead.</p>`}`;
   $("#sugCard").innerHTML = `
     <div class="card-head" style="margin-bottom:8px"><div class="grow"><h3>Suggested <span class="muted" style="font-weight:500">(${sugs.length})</span></h3>
-      <p style="font-size:14.5px">Best moments first, snapped to pauses and markers.</p></div>
+      <p style="font-size:14.5px">${staleKind() ? `<b>Picked by the ${T.tl.kind === "music" ? "music" : "gaming"} rules</b> — press Re-analyse.` : isMusic() ? "Best moments first, cut on beats, bars and changes in the music." : "Best moments first, snapped to pauses and markers."}</p></div>
       <div class="row" style="gap:6px">${sugs.length ? `<button class="btn sm" id="acceptAll">Accept all</button>` : ""}
         ${T.tl ? `<button class="btn sm" id="moreSug" ${dis()} title="Find more, skipping what you've accepted or dismissed">+ More</button>` : ""}</div></div>
     ${!T.tl ? `<p class="hint">Analyse the video to get suggestions.</p>` : sugs.length ? `<div class="scroll" style="max-height:340px"><table><tbody>
@@ -725,7 +759,7 @@ function refreshShorts() {
   });
   const ms = $("#moreSug"); if (ms) ms.onclick = () => {
     const st = oldLen(T.tl.settings || {});
-    run("timeline", { count: sugList().length + 8, min: st.min || 15, max: st.max || 30 });
+    run("timeline", { count: sugList().length + 8, min: st.min || lenDefault().min, max: st.max || lenDefault().max });
   };
   const aa = $("#acceptAll"); if (aa) aa.onclick = () => {
     const list = [...shortsList(), ...sugs.map((s, k) => ({ name: `Best ${String(shortsList().length + k + 1).padStart(2, "0")} – ${tc(s.start).replace(/\.\d$/, "")}`, start: s.start, end: s.end }))];
@@ -754,7 +788,7 @@ function panel() {
   const R = S.info.results.renders || {};
   if (!T.sel || !selRange()) {
     el.innerHTML = `<h3 style="margin:0 0 6px;font-size:17.5px">Nothing selected</h3><p class="hint">Click a Short or a suggestion — on the timeline or in the lists — to trim, preview and render it.</p>
-      <ol class="howto" style="margin-top:10px"><li><b>I</b> at the playhead starts a Short, <b>O</b> ends it</li><li>Drag its edges on the timeline — they snap to markers and pauses (hold <b>Alt</b> for free)</li><li>Double-click between two markers to make that segment a Short</li></ol>`;
+      <ol class="howto" style="margin-top:10px"><li><b>I</b> at the playhead starts a Short, <b>O</b> ends it</li><li>Drag its edges on the timeline — they snap to markers and ${isMusic() ? "beats" : "pauses"} (hold <b>Alt</b> for free)</li><li>Double-click between two markers to make that segment a Short</li></ol>`;
     return;
   }
   if (T.sel.kind === "sug") {
@@ -839,7 +873,8 @@ async function loadCapEdit(s) {
     $$("[data-oseek]").forEach(b => b.onclick = () => { seek(Math.max(0, +b.dataset.oseek - 0.3)); playNow(); });
   };
   if (!caps.length && !miss.length) {
-    box.innerHTML = `<h4 style="margin:0 0 4px;font-size:15.5px">Captions</h4><p class="hint">${r.source === "none"
+    box.innerHTML = `<h4 style="margin:0 0 4px;font-size:15.5px">Captions</h4><p class="hint">${!S.info.speech ? "Captions are off for this music project. If there is singing or talking you want on screen, tick <b>Captions for singing or talking</b> in step 1."
+      : r.source === "none"
       ? "No captions yet — they're made from the speech the first time you place markers, analyse or render."
       : "No captions in this Short."}</p>${r.source === "none" ? "" : edge("start") + outside("start") + outside("end") + edge("end")}`;
     wireEdges();
@@ -1944,9 +1979,9 @@ function viewLook() {
   $("#view").innerHTML = `
   <div class="split"><div>
     <div class="card">
-      <div class="card-head"><div class="grow"><h3>Layout</h3><p>How the gameplay sits in the vertical frame.</p></div></div>
+      <div class="card-head"><div class="grow"><h3>Layout</h3><p>How the ${isMusic() ? "picture" : "gameplay"} sits in the vertical frame.${I.speech ? "" : " Captions are off for this music project, so the caption settings below are not used."}</p></div></div>
       <div class="settings">
-        ${sl("trim", "Gameplay size", Y.blur_trim, 0, 1, 0.05, v => Math.round(v * 100) + "%", "0% = whole gameplay with tall blur bands. Higher = bigger gameplay, smaller bands, sides cropped.")}
+        ${sl("trim", isMusic() ? "Picture size" : "Gameplay size", Y.blur_trim, 0, 1, 0.05, v => Math.round(v * 100) + "%", "0% = the whole picture with tall blur bands. Higher = bigger picture, smaller bands, sides cropped.")}
       </div>
     </div>
     ${captionStyleCard(L)}

@@ -24,6 +24,11 @@ Windows app. Everything runs on your own PC.
 
 Steps 1, 3 and 6 are enough to get a video out. The rest is optional.
 
+**Not only gaming.** Each project says what it is: **Gaming / talking** or **Music stream**. A
+music project is cut on beats, bars and changes in the music instead of pauses in the talking,
+fades out at the end, and transcribes nothing unless you ask - see the
+[Guide](docs/guide.md#music-streams).
+
 ## Install
 
 Download **`ShortsToolkit-Setup-<version>.exe`** from

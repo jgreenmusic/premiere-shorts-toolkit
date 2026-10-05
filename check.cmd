@@ -7,8 +7,10 @@ set FAILED=0
 .venv\Scripts\python.exe tests\test_logic.py || set FAILED=1
 if /i "%~1"=="quick" (
   .venv\Scripts\python.exe tests\test_app.py QuickParts QuickPublish QuickServer || set FAILED=1
+  .venv\Scripts\python.exe tests\test_music.py QuickListening QuickSuggestions QuickSettings || set FAILED=1
 ) else (
   .venv\Scripts\python.exe tests\test_app.py || set FAILED=1
+  .venv\Scripts\python.exe tests\test_music.py || set FAILED=1
 )
 echo.
 if "%FAILED%"=="1" (
