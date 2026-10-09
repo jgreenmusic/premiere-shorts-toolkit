@@ -1,0 +1,27 @@
+Shorts Toolkit
+Copyright (c) 2026 Julian Green. All rights reserved.
+
+This is not open-source software. The source code is public so that it can be
+read, and so that the app can be downloaded and installed.
+
+You may:
+
+  - download a released version of the app, install it, and use it on your
+    own computers, under the terms in TERMS.md;
+  - read the source code.
+
+You may not, without written permission from the author:
+
+  - copy, modify or redistribute the source code or the app, in whole or in
+    part;
+  - sell it, rent it, or offer it as part of another product or service.
+
+Viewing and forking this repository on GitHub, as GitHub's Terms of Service
+allow, is not affected. A fork gives no rights beyond the ones above.
+
+Third-party components that ship with the app (the fonts in fonts/, and the
+libraries it is built on) remain under their own licences.
+
+The software is provided "as is", without warranty of any kind. See TERMS.md.
+
+To ask for permission: https://github.com/jgreenmusic/premiere-shorts-toolkit/issues
