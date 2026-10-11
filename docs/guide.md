@@ -12,6 +12,7 @@ Every step of the app, in order. Each step has a **Next →** button; skip any y
 - [6 · Render](#6--render)
 - [7 · Posts](#7--posts)
 - [8 · Publish](#8--publish)
+- [Shorts Auto Run](#shorts-auto-run) — every step in one go, then your review and sign-off
 - [Phone & tablet](#phone--tablet)
 - [Keyboard](#keyboard)
 
@@ -202,6 +203,94 @@ Shorts already uploaded as drafts are filled in and scheduled, not uploaded agai
 **Autopilot** (per project): after a render, write the posts and schedule them without asking.
 
 **📊 Channel report** shows how your uploads are doing.
+
+## Shorts Auto Run
+
+A second window that does every step above by itself and then waits for you. Open it from its own
+shortcut (**Shorts Auto Run**), or press **⚡ Auto Run** at the top of the toolkit to hand it the
+project you have open. It works on the same project files as the toolkit - they are two windows
+onto one project, not two copies.
+
+It edits your recording - picks moments, cuts, captions, renders. It never makes up picture or
+sound. The one thing written for you is the text of the posts (step 7's titles, descriptions and
+tags, by the AI on your own PC); untick **Posts** to leave that out.
+
+### Start a run
+
+Pick a project at the top (or **Open clip…**) and choose:
+
+| Setting | What it does |
+|---|---|
+| **What is it?** | Gaming / talking or Music stream - the same choice as in the toolkit. |
+| **Moments** | **Find** so many new moments of such a length, or **Don't look for new ones** to carry the Shorts you already made through the rest. Tick **…and also take the Shorts already in the project** to do both. |
+| **Look** | Keep the project's look, or switch to a preset for this run. |
+| **Render** | Speed against file size. |
+| **Posts** | Write titles, descriptions and tags. Needs the local AI; it can start it by itself. |
+
+Press **⚡ Start the run**. The steps tick off one by one; **Show the log** shows the same output
+the toolkit's log bar does. **Stop** stops it where it is - **Continue from there** picks it up again.
+A run on a new recording takes as long as the same steps by hand: the first transcription is the
+slow part (about 8 minutes per hour of video).
+
+What a run does at each step:
+
+| Step | Automatically |
+|---|---|
+| Moments | Places markers on the best moments (step 1's **Find Shorts**). |
+| Captions | Premiere captions: checks their timing against the speech; renders fit the ones that are off. No Premiere captions: they are written from the speech. |
+| Shorts | Every moment found in this run becomes a Short. |
+| Screams & laughs | Finds them; the confident ones are on, the rest are left as suggestions. |
+| Look | Uses the look you chose. |
+| Render | Renders every Short that has no up-to-date video. |
+| Posts | Writes the posts for every rendered Short that has none. |
+| Publish | Asks YouTube where each Short stands and works out the plan. **Sends nothing.** |
+
+### Review and sign off
+
+When the run stops you get one card per step, in order:
+
+- what the step made (the moments, the Shorts, the videos to watch with what each one says, the
+  posts to read, the publish plan with dates);
+- **Edit** - the toolkit's own page for that step, opened inside the window. Everything works as
+  it does in the toolkit and is saved as you go. **Done — back to the review** closes it.
+  **In Toolkit ↗** shows the same step in the Shorts Toolkit window instead, if you prefer two windows;
+- **Looks good** - your sign-off for that step. **Sign off all** does every step at once.
+
+A sign-off only counts for what you looked at. Change something afterwards - in either window - and
+that step says **changed since you signed off** and wants looking at again.
+
+### Change something, then carry it through
+
+After any edit the review shows **Your changes aren't in the videos yet**, listing the Shorts
+that changed and why (start or end moved, captions changed, screams or laughs changed, look
+changed, the timeline changed). Untick any you want left alone and press **Apply my edits**:
+
+- only those Shorts are rendered again;
+- only the posts whose captions or length changed are written again;
+- the publish plan is worked out again.
+
+A new Short you add in the toolkit joins the run the same way.
+
+### Publish
+
+The last card, **Final sign-off**, stays locked until every step is signed off and no edits are
+waiting. **Publish** shows the list one more time. The plan is checked against your channel again
+at that moment - if anything moved (a time got taken, a Short is already up) nothing is sent and
+you see the new plan first. With TikTok connected you can tick **Also send them to my TikTok drafts**.
+
+Posting times, the YouTube login and the upload settings are the toolkit's own (step 8) - **Edit**
+on the Publish card opens them.
+
+### Good to know
+
+- The two windows never work at the same time: while one renders or writes, the other waits
+  and says so.
+- A step that could not be done does not stop the run unless nothing can follow it. **Posts**
+  says **needs you** if the local AI is off, **Publish** if YouTube is not connected or has no
+  posting times; fix it and press **Try again** / **Check again**.
+- Closing the window during a run stops the run. Open it again and press **Continue from there**.
+- The toolkit's own **Autopilot** tick (steps 7 and 8) is a different thing: it publishes after
+  every render without a review. Auto Run never does that.
 
 ## Phone & tablet
 

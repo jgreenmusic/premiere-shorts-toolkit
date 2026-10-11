@@ -1,7 +1,8 @@
 # PyInstaller recipe for the Windows app.   Build:  packaging\build-windows.cmd
 #
 # Two programs share one folder of libraries:
-#   Shorts Toolkit.exe  - the app window (no console)
+#   Shorts Toolkit.exe  - the app window (no console); started with --autorun it is the
+#                         Shorts Auto Run window instead (the installer makes that shortcut)
 #   shorts-cli.exe      - the same engine on the command line; the window runs its
 #                         background jobs through it
 # Bundled: the UI, fonts, Premiere scripts, the laugh model (models/panns_sed.onnx),
@@ -40,6 +41,7 @@ for pkg in ("faster_whisper", "ctranslate2", "onnxruntime", "av", "tokenizers", 
     hidden += h
 hidden += ["app", "shorts", "captions", "prproj", "pipeline", "config", "screams", "laughs", "sounds",
            "style", "render", "timeline", "music", "bleep", "runtime", "remote", "posting", "youtube_step", "clr",
+           "autorun", "stale", "peer", "tiktok_step", "previews", "clip", "bridge", "premiere_install",
            # the Post Studio engine
            "poststudio", "generate", "llm", "quick", "store", "publish", "publish.accounts", "publish.net", "publish.youtube", "publish.stats",
            "publish.tiktok", "publish.meta", "publish.postiz", "publish.studio", "analyzers", "analyzers.probe",

@@ -2,6 +2,26 @@
 
 Ideas agreed on but not built yet. Newest first.
 
+## Auto Run - built in 0.29.0, what is still open
+
+Shorts Auto Run does every step in one go and holds the result for review and sign-off. It is a
+second window on purpose for now; the agreed next step is **one program**.
+
+- **One environment.** Fold Auto Run into the toolkit's own window (a "Run it all" mode beside
+  the tabs, the review as a ninth tab). The engine (`autorun.py`) and the page (`ui\auto.html`)
+  are already served by the toolkit's server, and editing already uses the toolkit's own page, so
+  this is a layout job, not a rewrite.
+- **Never run on a real recording.** Tested on computer speech and made-up music only. The first
+  real run will show whether the default of ten moments, the automatic scream and laugh choices
+  and the look are a good starting point, or whether the set-up needs more choices.
+- **Publishing from Auto Run has only run against a stand-in.** The plan and the upload are the
+  toolkit's own step 8 code, which has published for real - but the path through Auto Run's
+  Publish button has not.
+- **The toolkit does not show "changed since rendered" yet.** `stale.py` knows it; step 6 still
+  says only "Rendered".
+- **Editing inside the window cannot reach Premiere.** The Premiere panels talk to the Shorts
+  Toolkit window; use **In Toolkit** for the Premiere buttons.
+
 ## Music streams - built in 0.28.0, what is still open
 
 Music mode (the **What is it?** chooser) picks and cuts by beats, bars and changes in the music.

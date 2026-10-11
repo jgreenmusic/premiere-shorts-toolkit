@@ -2,6 +2,43 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.29.0 - 2026-10-11
+
+- **Shorts Auto Run: every step in one go, then your review.** Making Shorts meant walking
+  through eight tabs by hand for every recording. Auto Run is a second window (its own shortcut,
+  or **⚡ Auto Run** at the top of the toolkit) that does all of it from one press: finds the
+  moments, checks or writes the captions, makes the Shorts, finds screams and laughs, applies the
+  look, renders, writes the posts and works out the publish plan. Then it stops.
+- **Review and sign-off, step by step.** After a run each step has a card: what it made, the
+  videos to watch (with what each one says), the posts to read, the plan with dates. **Looks
+  good** signs a step off. A sign-off only counts for what you looked at: change something
+  afterwards and the step asks to be looked at again.
+- **Nothing is published without the last sign-off.** Publish stays locked until every step is
+  signed off and no edits are waiting. The plan is checked against the channel again at that
+  moment; if anything moved, nothing is sent and the new plan is shown first.
+- **Edit at any step.** **Edit** opens the toolkit's own page for that step inside the Auto Run
+  window - the same controls, saved as you go. **In Toolkit ↗** shows the step in the Shorts
+  Toolkit window instead. The two windows work on the same project files.
+- **Apply my edits.** After a change the review lists the Shorts it touched and why (start or end
+  moved, captions changed, screams or laughs changed, look changed, the timeline changed). One
+  press renders only those again, rewrites only the posts whose captions or length changed, and
+  works the plan out again.
+- **The toolkit now writes down what each render was made from** (`renders.json` in the working
+  folder). That is how a change is noticed. Videos rendered by older versions show as "rendered
+  earlier" and are never called out of date.
+- **The two windows never work at the same time.** While one is rendering or writing, the other
+  refuses to start a job and says what it is waiting for.
+- A run can start from the Shorts you already made (**Don't look for new ones**), so a project
+  you trimmed and captioned by hand can be handed over for render, posts and the plan.
+- Found while testing: asking for more moments after trimming a Short would have turned that
+  Short's old marker into a second, untrimmed Short. Auto Run only makes Shorts from the moments
+  its own run found.
+- A project named when the toolkit is started now opens even if it is not in the projects list
+  (before, the first project in the list was opened instead).
+- Tested on computer speech and made-up music, and publishing against a stand-in.
+  **Not yet run on a real recording, and its Publish button has not sent a real upload** - see the
+  roadmap.
+
 ## 0.28.0 - 2026-10-05
 
 - **Shorts from music streams.** Until now the toolkit only knew gaming footage: it looked for

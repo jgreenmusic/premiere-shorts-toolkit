@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shorts Auto Run</title>
+<style>
+:root {
+  --bg: #0e1014; --surface: #161a20; --surface-2: #1c2129; --border: #262c36;
+  --text: #e8eaed; --muted: #98a2ae; --faint: #6b7480;
+  --accent: #f5c542; --accent-ink: #1a1400; --accent-soft: rgba(245,197,66,.12);
+  --ok: #3fb950; --warn: #e3a02b; --bad: #f85149; --info: #58a6ff; --on-info: #0b1220;
+  --radius: 14px; --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f0f2f5; --border: #e1e5ea;
+  --text: #15181d; --muted: #5b6470; --faint: #8a93a0;
+  --accent: #c9960e; --accent-ink: #ffffff; --accent-soft: rgba(201,150,14,.12);
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --info: #0969da; --on-info: #fff;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.05);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 18px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+.app { display: grid; grid-template-rows: 60px 1fr; height: 100vh; }
+header { display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--surface); min-width: 0; }
+.logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); font-weight: 800; flex: none; }
+header h1 { font-size: 19px; font-weight: 650; margin: 0; white-space: nowrap; }
+header .ver { color: var(--faint); font-size: 14.5px; }
+header .spacer { flex: 1; }
+header select { max-width: 420px; min-width: 0; }
+main { overflow-y: auto; padding: 20px 24px 80px; }
+.wrap { max-width: 1500px; margin: 0 auto; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px; }
+.card h2 { font-size: 24px; margin: 0 0 4px; font-weight: 650; letter-spacing: -.01em; }
+.card h3 { font-size: 20px; margin: 0; font-weight: 650; }
+.card p { margin: 4px 0 0; }
+.muted { color: var(--muted); }
+.hint { font-size: 15px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.grow { flex: 1; min-width: 0; }
+.btn { border: 1px solid var(--border); background: var(--surface-2); border-radius: 10px; padding: 8px 14px; cursor: pointer; font-weight: 550; white-space: nowrap; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.big { padding: 12px 22px; font-size: 19px; }
+.btn.ok { background: rgba(63,185,80,.14); border-color: var(--ok); color: var(--ok); }
+.btn.danger:hover { color: var(--bad); border-color: var(--bad); }
+.btn.link { background: none; border: 0; padding: 4px 6px; color: var(--muted); font-weight: 500; text-decoration: underline; }
+.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+input.text, select.text { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; }
+input.num { width: 84px; }
+input:focus, select:focus { border-color: var(--accent); outline: none; }
+input[type=checkbox], input[type=radio] { width: 19px; height: 19px; accent-color: var(--accent); flex: none; }
+label.opt { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 5px 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 15px; color: var(--muted); }
+.pill b { color: var(--text); font-weight: 600; }
+.badge { font-size: 14px; font-weight: 700; padding: 2px 9px; border-radius: 7px; background: var(--surface-2); color: var(--muted); white-space: nowrap; vertical-align: middle; }
+.badge.ok { background: rgba(63,185,80,.14); color: var(--ok); }
+.badge.warn { background: rgba(227,160,43,.15); color: var(--warn); }
+.badge.bad { background: rgba(248,81,73,.15); color: var(--bad); }
+.badge.info { background: rgba(88,166,255,.15); color: var(--info); }
+table { width: 100%; border-collapse: collapse; font-size: 16.5px; }
+th { text-align: left; font-weight: 600; color: var(--muted); font-size: 14.5px; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.scroll { max-height: 420px; overflow: auto; }
+.empty { text-align: center; color: var(--muted); padding: 90px 20px; }
+.empty h2 { color: var(--text); font-size: 24px; margin-bottom: 6px; }
+
+/* set-up */
+.setup { display: grid; grid-template-columns: 210px 1fr; gap: 6px 18px; align-items: start; margin-top: 14px; }
+.setup > .k { color: var(--muted); padding-top: 8px; font-weight: 600; }
+.setup > .v { padding: 3px 0 10px; border-bottom: 1px solid var(--border); }
+.setup > .v:last-of-type { border-bottom: 0; }
+
+/* the steps */
+.steps { list-style: none; margin: 14px 0 0; padding: 0; }
+.steps li { display: grid; grid-template-columns: 38px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.steps li:last-child { border-bottom: 0; }
+.ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 16px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+.ico.done { background: rgba(63,185,80,.16); border-color: var(--ok); color: var(--ok); }
+.ico.running { background: rgba(88,166,255,.16); border-color: var(--info); color: var(--info); animation: pulse 1.2s infinite; }
+.ico.failed { background: rgba(248,81,73,.16); border-color: var(--bad); color: var(--bad); }
+.ico.needs, .ico.stopped { background: rgba(227,160,43,.16); border-color: var(--warn); color: var(--warn); }
+.ico.ready { background: rgba(88,166,255,.16); border-color: var(--info); color: var(--info); }
+@keyframes pulse { 50% { opacity: .4; } }
+.steps .name { font-weight: 600; }
+.steps .now { font-size: 15.5px; color: var(--muted); font-variant-numeric: tabular-nums; word-break: break-word; }
+.bar { height: 8px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin-top: 6px; max-width: 520px; }
+.bar i { display: block; height: 100%; background: var(--info); border-radius: 6px; transition: width .4s; }
+pre.log { margin: 12px 0 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; max-height: 300px; overflow: auto; font: 14px/1.45 Consolas, monospace; white-space: pre-wrap; }
+
+/* review */
+.banner { border-left: 4px solid var(--warn); }
+.banner.bad { border-left-color: var(--bad); }
+.banner.info { border-left-color: var(--info); }
+.stage { border-left: 4px solid var(--border); }
+.stage.signed { border-left-color: var(--ok); }
+.stage.attn { border-left-color: var(--warn); }
+.stage-head { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.stage-head .num { width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; font-weight: 700; flex: none; }
+.stage.signed .num { background: rgba(63,185,80,.16); border-color: var(--ok); color: var(--ok); }
+.stage-head .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--muted); font-size: 16px; user-select: none; }
+summary:hover { color: var(--text); }
+details > .body { margin-top: 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-width: 0; }
+.tile video, .tile .novid { width: 100%; aspect-ratio: 9 / 16; border-radius: 8px; background: #000; display: block; }
+.tile .novid { display: grid; place-items: center; color: var(--faint); font-size: 15px; text-align: center; padding: 10px; }
+.tile .nm { font-weight: 600; margin-top: 8px; word-break: break-word; }
+.tile .says { font-size: 15px; color: var(--muted); margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.tile .says.all { display: block; }
+.post { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.post:last-child { border-bottom: 0; }
+.post .ttl { font-weight: 650; font-size: 19px; }
+.post .fld { margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
+.post .fld span { color: var(--muted); font-size: 15px; }
+.sw { display: inline-block; width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border); vertical-align: -3px; }
+.final { border: 2px solid var(--accent); }
+.toast { position: fixed; top: 74px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--bad); padding: 11px 15px; border-radius: 10px; box-shadow: var(--shadow); max-width: 420px; font-size: 16.5px; display: none; z-index: 30; }
+.toast.good { border-left-color: var(--ok); }
+.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: grid; place-items: center; z-index: 20; padding: 16px; }
+.modal { width: 100%; max-width: 620px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow); }
+/* a step of the toolkit, opened here for editing */
+#editor { position: fixed; inset: 0; z-index: 15; display: none; grid-template-rows: auto 1fr; background: var(--bg); }
+#editor.on { display: grid; }
+#editor .edbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 10px 18px; background: var(--accent-soft); border-bottom: 2px solid var(--accent); }
+#editor iframe { width: 100%; height: 100%; border: 0; }
+@media (max-width: 900px) { .setup { grid-template-columns: 1fr; } .setup > .k { padding-top: 0; } header h1 { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo" aria-hidden="true">⚡</div>
+    <h1>Shorts Auto Run</h1><span class="ver" id="ver"></span>
+    <div class="spacer"></div>
+    <select class="text" id="proj" aria-label="Project"></select>
+    <button class="btn" id="openProject">Open project…</button>
+    <button class="btn" id="openClip" title="Any recording or video file - no Premiere project needed">Open clip…</button>
+    <button class="btn" id="toToolkit" title="Show this project in the Shorts Toolkit window">Open the Toolkit</button>
+    <button class="btn" id="theme" title="Switch light / dark">◐</button>
+  </header>
+  <main><div class="wrap" id="main">
+    <div class="empty"><h2>Pick a recording</h2><p>Choose a project at the top, or press <b>Open clip…</b> for any video file.</p></div>
+  </div></main>
+</div>
+<div id="editor"><div class="edbar"><b id="edTitle"></b><span class="hint grow">This is the toolkit's own page for this step. Everything you change is saved as you go.</span>
+  <button class="btn primary" data-act="edit-done">Done — back to the review</button></div><iframe id="edFrame" title="Shorts Toolkit"></iframe></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const api = async (url, body) => {
+  const r = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json", "X-Shorts-Toolkit": "1" }, body: JSON.stringify(body) } : {});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const tc = s => { s = Math.max(0, +s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(Math.floor(s % 60)).padStart(2, "0"); return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + x; };
+const hms = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h} h ${m} min` : m ? `${m} min ${s % 60} s` : `${s} s`; };
+const clock = t => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const day = iso => iso ? new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+const media = (p, v) => "/media?path=" + encodeURIComponent(p) + (v ? "&v=" + Math.round(v) : "");
+const q = () => "?path=" + encodeURIComponent(A.path);
+function toast(msg, good) { const t = $("#toast"); t.textContent = msg; t.className = "toast" + (good ? " good" : ""); t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", good ? 4000 : 9000); }
+
+const setTheme = t => { document.documentElement.dataset.theme = t; store.set("theme", t); };
+setTheme(store.get("theme", "dark"));
+$("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+
+// A: everything the page knows.  st = the light state (asked for every 1.5 s), rv = the review (asked for when st.rev changes)
+const A = { path: null, projects: [], st: null, rv: null, rev: null, opts: null, setup: false, open: {}, log: false, said: {}, wait: false };
+const STATE = { done: ["done", "ok"], skipped: ["skipped", ""], needs: ["needs you", "warn"], failed: ["failed", "bad"], stopped: ["stopped", "warn"],
+  ready: ["ready for sign-off", "info"], running: ["working…", "info"], todo: ["not done", ""], na: ["", ""] };
+const ICON = { done: "✓", skipped: "–", needs: "!", failed: "✕", stopped: "■", ready: "●", running: "●", todo: "", na: "" };
+
+// only touch the page where something changed: videos keep playing, scroll stays put
+const SHOWN = {};
+function put(id, html) {
+  if (SHOWN[id] === html) return false;
+  SHOWN[id] = html;
+  const el = document.getElementById(id);
+  if (!el) return false;
+  el.innerHTML = html;
+  el.querySelectorAll("details[data-d]").forEach(d => {
+    d.open = A.open[d.dataset.d] ?? d.dataset.def === "1";
+    d.ontoggle = () => { A.open[d.dataset.d] = d.open; };
+  });
+  return true;
+}
+function frame(ids) {                          // the page's skeleton for a mode; rebuilt only when the mode changes
+  const key = ids.join(",");
+  if (A.frame === key) return;
+  A.frame = key;
+  for (const k of Object.keys(SHOWN)) delete SHOWN[k];
+  $("#main").innerHTML = ids.map(i => `<div id="${i}"></div>`).join("");
+  $("main").scrollTop = 0;
+}
+
+// ---------------------------------------------------------------- projects
+async function loadProjects() {
+  const s = await api("/api/state");
+  A.projects = s.projects;
+  $("#ver").textContent = "v" + s.version;
+  const known = A.projects.some(p => p.path === A.path);
+  $("#proj").innerHTML = `<option value="">${A.projects.length ? "Choose a project…" : "No projects yet"}</option>` +
+    (A.path && !known ? `<option value="${esc(A.path)}" selected>${esc(A.path.split(/[\\/]/).pop())}</option>` : "") +
+    A.projects.map(p => `<option value="${esc(p.path)}" ${p.path === A.path ? "selected" : ""}>${esc(p.name)}${p.clip ? "  (clip)" : ""}</option>`).join("");
+}
+$("#proj").onchange = e => { if (e.target.value) pick(e.target.value); };
+$("#openProject").onclick = async () => { try { const r = await api("/api/browse", { kind: "project" }); if (r.path) pick(r.path); } catch (e) { toast(e.message); } };
+$("#openClip").onclick = async () => { try { const r = await api("/api/browse", { kind: "clip" }); if (r.path) pick(r.path); } catch (e) { toast(e.message); } };
+$("#toToolkit").onclick = () => toolkit(null);
+async function toolkit(tab) {
+  if (!A.path) return toast("Pick a project first.");
+  try { const r = await api("/api/auto/toolkit", { path: A.path, tab }); toast(r.started ? "Opening the Shorts Toolkit…" : "Shown in the Shorts Toolkit window", true); }
+  catch (e) { toast(e.message); }
+}
+window.gotoProject = path => { if (path) pick(path); };       // the toolkit's "Auto Run" button lands here
+
+async function pick(path, setup) {
+  A.path = path; store.set("auto-project", path);
+  A.st = A.rv = A.rev = A.opts = null; A.setup = !!setup; A.frame = null; A.form = null;
+  $("#main").innerHTML = `<div class="empty"><p>Reading the project…</p></div>`;
+  await loadProjects().catch(() => {});
+  try {
+    [A.opts, A.st] = await Promise.all([api("/api/auto/options" + q()), api("/api/auto/state" + q())]);
+    await draw();
+  } catch (e) { $("#main").innerHTML = `<div class="empty"><h2>Couldn't read that project</h2><p>${esc(e.message)}</p></div>`; A.st = null; }
+}
+
+// ---------------------------------------------------------------- the loop
+async function tick() {
+  if (!A.path || !A.opts || A.wait) return;
+  try { A.st = await api("/api/auto/state" + q()); } catch (e) { return; }
+  await draw();
+}
+setInterval(tick, 1500);
+
+async function draw() {
+  const st = A.st; if (!st) return;
+  const run = st.run;
+  const mode = !run || A.setup ? "setup" : run.status === "running" ? "run" : "review";
+  if (mode === "setup") { frame(["setup"]); if (!SHOWN.setup) drawSetup(); setupStatus(); return; }
+  if (mode === "run") { frame(["running", "runlog"]); drawRun(); return; }
+  frame(["top", "alerts", "stages", "final"]);
+  if (A.rev !== st.rev || !A.rv) {
+    try { A.rv = await api("/api/auto/review" + q()); A.rev = st.rev; } catch (e) { toast(e.message); return; }
+  }
+  drawReview();
+}
+
+// ---------------------------------------------------------------- set-up
+function drawSetup() {
+  const O = A.opts, d = O.defaults, st = A.st;
+  const f = A.form = A.form || { find: O.shorts ? store.get("auto-find", true) : true, count: d.count, min: d.min, max: d.max, include_existing: false,
+    look: "", preset: d.preset, posts: d.posts, start_ai: d.start_ai };
+  put("setup", `
+  <div class="card">
+    <h2>${esc(st.name)}</h2>
+    <div class="row" style="margin-top:6px">
+      <span class="pill"><b>${hms(O.seconds)}</b> long</span>
+      <span class="pill"><b>${O.shorts}</b> Short${O.shorts === 1 ? "" : "s"} in it already</span>
+      ${O.premiere_captions ? `<span class="pill"><b>${O.premiere_captions.toLocaleString()}</b> Premiere captions</span>` : ""}
+      ${st.run ? `<button class="btn link" data-act="back">← Back to the last run's review</button>` : ""}
+    </div>
+    <p class="muted" style="margin-top:12px">One press edits your recording through every step of the toolkit: it picks the moments, cuts them, captions them and renders them. <b>It only ever uses what you recorded — no picture or sound is made up.</b> Then it stops and shows you each step to check, change and sign off. <b>Nothing is published until you sign off.</b></p>
+    <div class="setup">
+      <div class="k">What is it?</div>
+      <div class="v"><select class="text" id="fKind">${O.kinds.map(k => `<option value="${k.id}" ${k.id === O.kind ? "selected" : ""}>${esc(k.label)}</option>`).join("")}</select>
+        <div class="hint" style="margin-top:4px">${esc((O.kinds.find(k => k.id === O.kind) || {}).about || "")}</div></div>
+
+      <div class="k">Moments</div>
+      <div class="v">
+        <label class="opt"><input type="radio" name="find" value="1" ${f.find ? "checked" : ""}> Find
+          <input class="text num" id="fCount" type="number" min="1" max="60" value="${f.count}"> new moments, each
+          <input class="text num" id="fMin" type="number" min="3" max="170" value="${f.min}"> to
+          <input class="text num" id="fMax" type="number" min="5" max="180" value="${f.max}"> seconds long</label>
+        ${O.shorts ? `<label class="opt" style="padding-left:29px"><input type="checkbox" id="fIncl" ${f.include_existing ? "checked" : ""}> …and also take the ${plural(O.shorts, "Short")} already in the project through the rest of the steps</label>
+        <label class="opt"><input type="radio" name="find" value="" ${f.find ? "" : "checked"}> Don't look for new ones — carry on with the ${plural(O.shorts, "Short")} already in the project</label>` : ""}
+      </div>
+
+      <div class="k">Look</div>
+      <div class="v"><select class="text" id="fLook"><option value="">Keep this project's look (${esc(O.look)})</option>
+        ${O.my_looks.length ? `<optgroup label="My presets">${O.my_looks.map(n => `<option ${f.look === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</optgroup>` : ""}
+        <optgroup label="Ready-made">${O.looks.map(n => `<option ${f.look === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</optgroup></select></div>
+
+      <div class="k">Render</div>
+      <div class="v"><select class="text" id="fPreset">${[["veryfast", "Fastest (bigger files)"], ["fast", "Fast"], ["medium", "Normal"], ["slow", "Slow (smallest files)"]]
+        .map(([v, l]) => `<option value="${v}" ${f.preset === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+
+      <div class="k">Posts</div>
+      <div class="v"><label class="opt"><input type="checkbox" id="fPosts" ${f.posts ? "checked" : ""}> Write each Short's title, description and tags <span class="hint">— text only, written by the AI on this PC from the Short's captions. Untick to write them yourself.</span></label>
+        <label class="opt" style="padding-left:29px"><input type="checkbox" id="fAi" ${f.start_ai ? "checked" : ""}> Start the local AI by itself if it is off</label>
+        <div class="hint" id="aiLine"></div></div>
+
+      <div class="k">Publish</div>
+      <div class="v"><div>Works out when each Short would go out, and waits for your sign-off.</div><div class="hint" id="ytLine"></div></div>
+    </div>
+    <div class="row" style="margin-top:18px"><button class="btn primary big" data-act="start" id="startBtn">⚡ Start the run</button><span class="hint" id="startWhy"></span></div>
+  </div>`);
+}
+function setupStatus() {
+  const O = A.opts, st = A.st;
+  const ai = $("#aiLine"); if (!ai) return;
+  ai.textContent = !O.posting.ok ? "Posts can't be written on this PC: " + (O.posting.error || "the Post Studio engine is missing") + "."
+    : O.ai.up ? "The local AI is running." : "The local AI is off right now.";
+  const y = O.youtube;
+  $("#ytLine").textContent = !y ? "" : !y.connected ? "YouTube isn't connected on this PC yet — the run still does everything up to Posts."
+    : `YouTube: ${y.who || "connected"}. ${y.times ? "Posting times: " + y.times + "." : "No posting times set yet — set them in the toolkit's Publish step."}`;
+  const why = st.other ? `The Shorts Toolkit is busy (${st.other}) — wait for it to finish.` : st.elsewhere ? "A run is going on another project." : !st.job.done ? "Something is still running — wait for it to finish." : "";
+  $("#startBtn").disabled = !!why; $("#startWhy").textContent = why;
+}
+function readForm() {
+  const f = A.form;
+  const r = $("input[name=find]:checked");
+  f.find = r ? !!r.value : true; store.set("auto-find", f.find);
+  f.count = +$("#fCount").value || 10; f.min = +$("#fMin").value || 15; f.max = +$("#fMax").value || 30;
+  f.include_existing = !!($("#fIncl") && $("#fIncl").checked);
+  f.look = $("#fLook").value; f.preset = $("#fPreset").value; f.posts = $("#fPosts").checked; f.start_ai = $("#fAi").checked;
+  return f;
+}
+
+// ---------------------------------------------------------------- running
+function stepRow(s, n, st) {
+  const live = s.state === "running", j = st.job;
+  let now = esc(s.note || "");
+  if (live && !j.done) {
+    const secs = Math.max(0, Math.round(Date.now() / 1000 - j.started));
+    now = `${esc(j.title)} · ${secs < 60 ? secs + " s" : Math.floor(secs / 60) + " min " + secs % 60 + " s"}${j.paused ? " · paused" : ""}` +
+      (j.last ? `<br>${esc(j.last.slice(0, 160))}` : "") + (j.step ? `<div class="bar"><i style="width:${Math.round(100 * (j.step[0] - 0.5) / j.step[1])}%"></i></div>` : "");
+  }
+  return `<li><div class="ico ${s.state}">${ICON[s.state] || n}</div><div><div class="name">${n} · ${esc(s.label)}
+    ${s.state !== "todo" && s.state !== "running" && STATE[s.state][0] ? `<span class="badge ${STATE[s.state][1]}">${STATE[s.state][0]}</span>` : ""}</div><div class="now">${now}</div></div></li>`;
+}
+function drawRun() {
+  const st = A.st; let n = 0;
+  put("running", `<div class="card">
+    <div class="row"><div class="grow"><h2>${esc(st.name)}</h2><p class="muted">Working through the steps. You can leave this window open and come back — it stops by itself at the review.</p></div>
+      <button class="btn danger" data-act="stop">■ Stop</button></div>
+    <ul class="steps">${st.stages.filter(s => s.applies).map(s => stepRow(s, ++n, st)).join("")}</ul>
+  </div>`);
+  put("runlog", `<div class="card"><button class="btn link" data-act="log">${A.log ? "Hide the log" : "Show the log"}</button>${A.log ? `<pre class="log" id="logText"></pre>` : ""}</div>`);
+  if (A.log) api("/api/job?from=0").then(j => {
+    const p = $("#logText"); if (!p) return;
+    const text = j.lines.join("\n"); if (p.textContent === text) return;
+    const end = !p.textContent || p.scrollTop + p.clientHeight >= p.scrollHeight - 30;
+    p.textContent = text; if (end) p.scrollTop = p.scrollHeight;
+  }).catch(() => {});
+}
+
+// ---------------------------------------------------------------- review
+const numbered = st => { let n = 0; return st.stages.filter(s => s.applies).map(s => ({ ...s, n: ++n })); };
+function drawReview() {
+  const st = A.st, rv = A.rv, run = st.run, stages = numbered(st);
+  const toSign = stages.filter(s => s.sign);
+  const nSigned = toSign.filter(s => s.signed).length;
+  const pend = st.pending, nPend = pend.render.length + pend.post.length;
+  const busy = !st.job.done || !!st.other || st.elsewhere;
+
+  put("top", `<div class="card"><div class="row">
+    <div class="grow"><h2>${esc(st.name)}</h2>
+      <p class="muted">Run ${run.id}${run.finished ? " finished " + clock(run.finished) : ""} · ${plural(run.count, "Short")} · <b style="color:var(--text)">${nSigned} of ${toSign.length} steps signed off</b>${run.status === "published" ? " · published" : ""}</p></div>
+    ${nSigned < toSign.length ? `<button class="btn" data-act="sign-all" title="Sign off every step at once — only after you have looked at them">Sign off all</button>` : ""}
+    <button class="btn" data-act="new">New run…</button></div></div>`);
+
+  let alerts = "";
+  if (st.other) alerts += `<div class="card banner info"><b>The Shorts Toolkit is busy</b> (${esc(st.other)}). Auto Run waits until it is done.</div>`;
+  if (run.status === "failed" || run.status === "stopped") {
+    const at = stages.find(s => s.id === run.queue[0]) || stages.find(s => s.state === "failed" || s.state === "stopped");
+    alerts += `<div class="card banner ${run.status === "failed" ? "bad" : ""}"><div class="row"><div class="grow"><h3>The run ${run.status === "failed" ? "stopped at a problem" : "was stopped"}${at ? ` at step ${at.n} · ${esc(at.label)}` : ""}</h3>
+      <p>${esc(at ? at.note : "")}</p></div>
+      <button class="btn primary" data-act="resume" ${busy ? "disabled" : ""}>Continue from there</button>
+      ${at && at.id !== "shorts" ? `<button class="btn" data-act="skip" ${busy ? "disabled" : ""}>Skip that step</button>` : ""}</div></div>`;
+  } else if (nPend) {
+    const line = (x, kind) => `<label class="opt"><input type="checkbox" data-pend="${kind}" value="${x.i}" checked> <b>${esc(x.name)}</b> <span class="muted">— ${esc(x.why.join(", "))}</span></label>`;
+    alerts += `<div class="card banner"><h3>Your changes aren't in the videos yet</h3>
+      <p class="muted">Untick anything you want left as it is, then apply. Only these are redone; the publish plan is worked out again afterwards.</p>
+      ${pend.render.length ? `<p><b>Render again (${pend.render.length})</b></p>${pend.render.map(x => line(x, "render")).join("")}` : ""}
+      ${pend.post.length ? `<p><b>Write the post${pend.post.length === 1 ? "" : "s"} (${pend.post.length})</b></p>${pend.post.map(x => line(x, "post")).join("")}` : ""}
+      <div class="row" style="margin-top:12px"><button class="btn primary" data-act="apply" ${busy ? "disabled" : ""}>Apply my edits</button>
+      ${!st.job.done ? `<span class="hint">Something is running (${esc(st.job.title)}) — wait for it to finish.</span>` : ""}</div></div>`;
+  }
+  put("alerts", alerts);
+
+  if (put("stages", stages.map(s => `<div id="st-${s.id}"></div>`).join(""))) for (const s of stages) delete SHOWN["st-" + s.id];
+  for (const s of stages) put("st-" + s.id, stageCard(s, st, rv));
+
+  // the last sign-off
+  const pub = stages.find(s => s.id === "publish"), plan = rv.plan || {};
+  const missing = [];
+  if (nSigned < toSign.length) missing.push("sign off " + toSign.filter(s => !s.signed).map(s => s.label).join(", "));
+  if (nPend) missing.push("apply your edits");
+  if (plan.error) missing.push("sort out Publish (see that step)");
+  else if (!plan.ready) missing.push("nothing is waiting to go out");
+  const first = (plan.rows || []).filter(r => r.when && (r.action === "fill" || r.action === "upload")).map(r => r.when).sort()[0];
+  put("final", `<div class="card final"><div class="row"><div class="grow"><h3>${pub.state === "running" ? "Publishing…" : run.status === "published" && !plan.ready ? "Published" : "Final sign-off"}</h3>
+    <p class="muted">${pub.state === "running" ? esc(st.job.last || st.job.title || "") : run.status === "published" && !plan.ready ? "These Shorts have been sent to YouTube. The Publish step above shows where each one stands."
+      : missing.length ? "Before publishing: " + esc(missing.join("; ")) + "."
+      : `Everything is signed off. ${plural(plan.ready, "Short")} will go to YouTube${plan.account && plan.account.who ? " (" + esc(plan.account.who) + ")" : ""}${first ? ", the first on " + day(first) : ""}.`}</p>
+    ${A.opts.tiktok && A.opts.tiktok.connected && !missing.length ? `<label class="opt"><input type="checkbox" id="alsoTt"> Also send them to my TikTok drafts</label>` : ""}</div>
+    <button class="btn primary big" data-act="publish" ${missing.length || busy || pub.state === "running" ? "disabled" : ""}>Publish ${plan.ready ? plural(plan.ready, "Short") : ""}</button></div></div>`);
+}
+
+function stageCard(s, st, rv) {
+  const [word, tone] = STATE[s.state] || ["", ""];
+  const attn = s.changed || ["needs", "failed", "stopped"].includes(s.state);
+  const isPub = s.id === "publish";
+  const body = BODY[s.id](s, st, rv);
+  const busy = !st.job.done || !!st.other;
+  return `<section class="card stage ${s.signed ? "signed" : attn ? "attn" : ""}">
+    <div class="stage-head"><div class="num">${s.signed ? "✓" : s.n}</div>
+      <div class="grow"><h3>${esc(s.label)} ${word && !s.signed ? `<span class="badge ${tone}">${word}</span>` : ""}
+        ${s.signed ? `<span class="badge ok">signed off</span>` : ""}${s.changed ? `<span class="badge warn">changed since you signed off</span>` : ""}</h3>
+        <p class="muted">${esc(s.note || "")}</p></div>
+      <div class="acts">
+        ${s.id === "post" && s.state === "needs" ? `<button class="btn" data-act="ai">Start the AI</button><button class="btn" data-act="retry" data-stage="post" ${busy ? "disabled" : ""}>Try again</button>` : ""}
+        ${isPub ? `<button class="btn" data-act="plan" ${busy ? "disabled" : ""}>Check again</button>` : ""}
+        <button class="btn" data-act="edit" data-tab="${s.id}" data-label="${s.n} · ${esc(s.label)}" title="Open this step of the toolkit right here">Edit</button>
+        <button class="btn" data-act="toolkit" data-tab="${s.id}" title="Show this step in the Shorts Toolkit window instead">In Toolkit ↗</button>
+        ${!s.sign ? "" : s.signed ? `<button class="btn ok" data-act="unsign" data-stage="${s.id}" title="Take the sign-off back">✓ Signed off</button>`
+          : `<button class="btn primary" data-act="sign" data-stage="${s.id}">Looks good</button>`}
+      </div></div>
+    ${body ? `<details data-d="${s.id}" data-def="${s.signed ? 0 : 1}"><summary>${body[0]}</summary><div class="body">${body[1]}</div></details>` : ""}
+  </section>`;
+}
+
+const FIELD = { title: "Title", description: "Description", caption: "Caption", hashtags: "Hashtags", tags: "Tags", text: "Text", on_screen_hook: "Words on screen" };
+const fieldName = f => FIELD[f] || (f.charAt(0).toUpperCase() + f.slice(1)).replace(/_/g, " ");
+const PLATFORM = { youtube_shorts: "YouTube Shorts", tiktok: "TikTok", instagram_reels: "Instagram Reels", facebook: "Facebook" };
+const show = v => Array.isArray(v) ? v.join(", ") : String(v ?? "");
+const BODY = {
+  markers(s, st, rv) {
+    if (!rv.markers.length) return null;
+    return [`The ${plural(rv.markers.length, "moment")} marked in this recording`, `<div class="scroll"><table><thead><tr><th>Moment</th><th>At</th><th>Length</th><th>Why it was picked</th><th></th></tr></thead><tbody>
+      ${rv.markers.map(m => `<tr><td>${esc(m.name)}</td><td>${tc(m.start)}</td><td>${m.seconds} s</td><td class="muted">${esc(m.why)}</td><td>${m.used ? "" : `<span class="badge">not a Short</span>`}</td></tr>`).join("")}</tbody></table></div>`];
+  },
+  captions(s, st, rv) {
+    const c = rv.captions, k = c.check, names = { ok: "in sync", early: "too early", late: "too late", "cut-off": "cut off early", lingers: "stay too long", "no-match": "couldn't be matched", empty: "empty" };
+    const src = c.source === "premiere" ? `${c.count.toLocaleString()} captions from the Premiere project.` : "Written by the toolkit from the speech it heard.";
+    const rows = [src,
+      k ? "Timing check: " + Object.entries(k.counts).map(([n, v]) => `${v} ${names[n] || n}`).join(", ") + "." : "",
+      c.source === "premiere" ? (c.fit ? "Captions that are off are moved onto the speech in every render." : "Timing fitting is switched off: captions are rendered exactly as timed in Premiere.") : "",
+      `Your own fixes: ${plural(c.edits, "caption")} changed, ${c.adds} added. What each Short says is under Render, below.`].filter(Boolean);
+    return ["Where the captions come from", rows.map(r => `<p>${esc(r)}</p>`).join("")];
+  },
+  shorts(s, st, rv) {
+    return [`The ${plural(rv.shorts.length, "Short")} in this run`, `<div class="scroll"><table><thead><tr><th>Short</th><th>From</th><th>To</th><th>Length</th><th></th></tr></thead><tbody>
+      ${rv.shorts.map(x => `<tr><td>${esc(x.name)}</td><td>${tc(x.start)}</td><td>${tc(x.end)}</td><td>${x.seconds} s</td><td>${x.new ? `<span class="badge info">new</span>` : ""}</td></tr>`).join("")}</tbody></table></div>`];
+  },
+  screams(s, st, rv) {
+    const r = rv.screams; if (!r) return null;
+    const list = (xs, word) => xs.length ? `<table><tbody>${xs.map(x => `<tr><td>${esc(x.at ? x.at.replace(/^0:/, "").replace(/\.\d+$/, "") : tc(x.start))}</td><td><b>${esc(x.spelled || "")}</b></td><td class="muted">${x.seconds} s ${word}</td></tr>`).join("")}</tbody></table>` : "";
+    return [`${plural(r.on.length, "scream")} and ${plural(r.laughs_on.length, "laugh")} spelled out in these Shorts`,
+      `${r.stale ? `<p><span class="badge warn">this list is older than your last change</span> It is brought up to date when you apply your edits.</p>` : ""}
+      <div class="scroll">${list(r.on, "scream")}${list(r.laughs_on, "laugh")}</div>
+      <p class="muted">${r.off + r.laughs_off} more suggestion${r.off + r.laughs_off === 1 ? " is" : "s are"} switched off — turn them on in Edit if you want them.${r.installed ? "" : " Laugh detection isn't installed here."}</p>`];
+  },
+  look(s, st, rv) {
+    const l = rv.look, sw = c => c ? `<span class="sw" style="background:#${esc(c)}"></span>` : "";
+    return ["The caption look these Shorts were rendered with", `<p><b>${esc(l.preset)}</b> — ${esc(l.font)}, size ${l.size}, ${l.words ? plural(l.words, "word") + " at a time" : "the whole caption at once"},
+      ${l.case === "upper" ? "capitals" : l.case === "lower" ? "lower case" : "written as said"}, comes in with “${esc(l.anim)}”.</p>
+      <p>Text ${sw(l.text)} ${l.highlight ? `spoken word ${sw(l.highlight_col)}` : "no spoken-word colour"} outline ${sw(l.outline_col)}${l.box ? ` box ${sw(l.box_col)}` : ""}</p>
+      <p class="muted">Blur bands trimmed by ${Math.round((l.blur_trim || 0) * 100)}%. Censor bleep ${l.bleep ? "on" : "off"}. The videos under Render show exactly how it looks.</p>`];
+  },
+  render(s, st, rv) {
+    const n = rv.shorts.filter(x => x.rendered).length;
+    return [`Watch the ${plural(n, "video")}`, `<div class="tiles">${rv.shorts.map(x => `<div class="tile">
+      ${x.rendered ? `<video controls preload="metadata" src="${media(x.video, x.when)}#t=0.1"></video>` : `<div class="novid">Not rendered yet</div>`}
+      <div class="nm">${esc(x.name)}</div>
+      <div class="row" style="gap:6px;margin-top:4px"><span class="badge">${x.seconds} s</span>${x.new ? `<span class="badge info">new</span>` : ""}
+        ${!x.rendered ? "" : x.changed.length ? `<span class="badge warn" title="${esc(x.why.join(", "))}">changed since</span>` : x.known ? `<span class="badge ok">up to date</span>` : `<span class="badge" title="Rendered by an older version, which didn't keep track">rendered earlier</span>`}</div>
+      ${x.changed.length ? `<div class="hint">${esc(x.why.join(", "))}</div>` : ""}
+      ${x.text ? `<div class="says" data-act="says" title="Click to read it all">“${esc(x.text)}”</div>` : ""}</div>`).join("")}</div>
+      <div class="row" style="margin-top:12px"><button class="btn" data-act="folder" data-path="${esc(rv.shorts_dir)}">Open the folder</button></div>`];
+  },
+  post(s, st, rv) {
+    const have = rv.shorts.filter(x => Object.keys(x.posts).length).length;
+    if (!have) return null;
+    const one = (p, f) => `<div class="fld"><span>${esc(fieldName(f))}:</span> ${esc(show(p[f]))}</div>`;
+    return [`Read the posts (${have} of ${rv.shorts.length} written)`, rv.shorts.map(x => {
+      const ids = Object.keys(x.posts), main = x.posts.youtube_shorts || x.posts[ids[0]];
+      if (!main) return `<div class="post"><b>${esc(x.name)}</b> <span class="badge warn">no post yet</span></div>`;
+      const rest = ids.filter(i => x.posts[i] !== main);
+      return `<div class="post"><div class="hint">${esc(x.name)} ${x.post_stale ? `<span class="badge warn">captions changed since this was written</span>` : ""}</div>
+        <div class="ttl">${esc(show(main.title || main.caption || ""))}</div>
+        ${Object.keys(main).filter(f => f !== "title").map(f => one(main, f)).join("")}
+        ${rest.length ? `<details data-d="post-${x.i}" data-def="0"><summary>${rest.map(i => PLATFORM[i] || i).join(", ")}</summary><div class="body">
+          ${rest.map(i => `<p><b>${esc(PLATFORM[i] || i)}</b></p>${Object.keys(x.posts[i]).map(f => one(x.posts[i], f)).join("")}`).join("")}</div></details>` : ""}</div>`;
+    }).join("")];
+  },
+  publish(s, st, rv) {
+    const p = rv.plan; if (!p) return null;
+    if (p.error) return ["What is in the way", `<p>${esc(p.error)}</p><p class="muted">Use <b>Edit</b> to open the toolkit's Publish step, then press <b>Check again</b>.</p>`];
+    const what = { upload: "Upload", fill: "Fill in the draft on YouTube", skip: "Leave alone" };
+    return [`The plan for ${plural(p.rows.length, "Short")}${p.label ? " — posting times: " + esc(p.label) : ""}`, `<div class="scroll"><table><thead><tr><th>Short</th><th>What happens</th><th>Goes public</th><th>Title</th></tr></thead><tbody>
+      ${p.rows.map(r => `<tr><td>${esc(r.name)}</td><td>${what[r.action] || esc(r.action)}${r.why ? `<div class="hint">${esc(r.why)}</div>` : ""}${(r.problems || []).map(x => `<div class="hint" style="color:var(--bad)">${esc(x)}</div>`).join("")}</td>
+        <td>${r.action === "skip" ? "" : r.when ? day(r.when) : p.visibility === "schedule" ? "" : esc(p.visibility)}</td><td>${esc(r.title)}</td></tr>`).join("")}</tbody></table></div>
+      <p class="muted">Checked against your channel ${clock(p.when)}. It is checked once more at the moment you publish; if anything moved, nothing is sent and you see the new plan first.</p>`];
+  },
+};
+
+// ---------------------------------------------------------------- actions
+async function act(name, el) {
+  const d = el.dataset, p = { path: A.path };
+  const go = async (url, body) => { A.wait = true; try { const r = await api(url, body); if (r && r.stages) A.st = r; return r; } finally { A.wait = false; } };
+  try {
+    if (name === "start") { const o = readForm(); A.st = await go("/api/auto/start", { ...p, options: o }); A.setup = false; A.form = null; }
+    else if (name === "stop") await go("/api/auto/stop", p);
+    else if (name === "log") { A.log = !A.log; }
+    else if (name === "back") { A.setup = false; }
+    else if (name === "new") { A.opts = await api("/api/auto/options" + q()); A.setup = true; A.form = null; }
+    else if (name === "resume" || name === "skip") await go("/api/auto/resume", { ...p, skip: name === "skip" });
+    else if (name === "retry") await go("/api/auto/retry", { ...p, stage: d.stage });
+    else if (name === "apply") {
+      const ticked = kind => $$(`[data-pend=${kind}]`).filter(c => c.checked).map(c => +c.value);
+      await go("/api/auto/apply", { ...p, render: ticked("render"), post: ticked("post") });
+    }
+    else if (name === "sign" || name === "unsign") await go("/api/auto/sign", { ...p, stage: d.stage, on: name === "sign" });
+    else if (name === "sign-all") await go("/api/auto/sign", { ...p, stage: "all", on: true });
+    else if (name === "plan") { el.disabled = true; el.textContent = "Asking YouTube…"; await go("/api/auto/plan", p); A.rev = null; }
+    else if (name === "ai") { el.disabled = true; el.textContent = "Starting…"; const r = await api("/api/post/ai", {}); toast(r.message || (r.ok ? "The local AI is running." : "Couldn't start it."), !!r.ok); }
+    else if (name === "edit") return openEditor(d.tab, d.label);
+    else if (name === "edit-done") return closeEditor();
+    else if (name === "toolkit") return toolkit(d.tab);
+    else if (name === "folder") return api("/api/open", { path: d.path, how: "folder" });
+    else if (name === "says") return el.classList.toggle("all");
+    else if (name === "publish") return confirmPublish();
+    await draw();
+  } catch (e) { toast(e.message); tick(); }
+}
+document.addEventListener("click", e => { const el = e.target.closest("[data-act]"); if (el && !el.disabled) act(el.dataset.act, el); });
+document.addEventListener("change", e => {
+  if (e.target.id === "fKind") api("/api/config", { path: A.path, patch: { kind: e.target.value } }).then(() => pick(A.path, true)).catch(x => toast(x.message));
+});
+
+function openEditor(tab, label) {
+  $("#edTitle").textContent = "Editing step " + label;
+  $("#edFrame").src = "/?project=" + encodeURIComponent(A.path) + "&t=" + Date.now() + "#" + tab;
+  $("#editor").classList.add("on");
+}
+async function closeEditor() {
+  $("#editor").classList.remove("on"); $("#edFrame").src = "about:blank";
+  A.rev = null; await tick();
+  const n = A.st ? A.st.pending.render.length + A.st.pending.post.length : 0;
+  if (n) { toast(`Your changes touch ${plural(n, "item")} — see “Your changes aren't in the videos yet” at the top.`, true); $("main").scrollTop = 0; }
+}
+
+function confirmPublish() {
+  const plan = A.rv.plan, go = plan.rows.filter(r => r.action === "fill" || r.action === "upload");
+  const tt = !!($("#alsoTt") && $("#alsoTt").checked);
+  const back = document.createElement("div"); back.className = "modal-back";
+  back.innerHTML = `<div class="modal" role="dialog" aria-label="Publish"><h3>Send ${plural(go.length, "Short")} to YouTube?</h3>
+    <p class="muted">${plan.account && plan.account.who ? "Channel: <b>" + esc(plan.account.who) + "</b>. " : ""}${plan.visibility === "schedule" ? "Each goes public at its time below." : "Visibility: " + esc(plan.visibility) + "."}${tt ? " They also go to your TikTok drafts." : ""}</p>
+    <div class="scroll" style="max-height:260px;margin-top:10px"><table><tbody>${go.map(r => `<tr><td>${esc(r.title || r.name)}</td><td>${r.when ? day(r.when) : ""}</td></tr>`).join("")}</tbody></table></div>
+    <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn" id="pNo">Not yet</button><button class="btn primary" id="pYes">Yes, publish</button></div></div>`;
+  document.body.appendChild(back);
+  back.querySelector("#pNo").onclick = () => back.remove();
+  back.onclick = e => { if (e.target === back) back.remove(); };
+  back.querySelector("#pYes").onclick = async () => {
+    back.querySelector("#pYes").disabled = true; back.querySelector("#pYes").textContent = "Checking the channel…";
+    try {
+      const r = await api("/api/auto/publish", { path: A.path, tiktok: tt });
+      back.remove();
+      if (r.changed) { A.rev = null; toast("The plan changed since you looked (a time was taken, or a Short moved). Nothing was sent — check Publish again."); }
+      else toast(`Publishing ${plural(r.count, "Short")}…`, true);
+    } catch (e) { back.remove(); toast(e.message); }
+    A.rev = null; tick();
+  };
+}
+
+(async () => {
+  await loadProjects().catch(e => toast(e.message));
+  const asked = new URLSearchParams(location.search).get("project") || store.get("auto-project", null);
+  if (asked && (new URLSearchParams(location.search).get("project") || A.projects.some(p => p.path === asked))) pick(asked);
+})();
+</script>
+</body>
+</html>

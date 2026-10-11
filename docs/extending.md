@@ -12,6 +12,7 @@ plain Python, one HTML page and two `.cmd` files — no special tools.
 - [Add a kind of recording](#add-a-kind-of-recording)
 - [Add a caption look or a font](#add-a-caption-look-or-a-font)
 - [Add a Premiere script](#add-a-premiere-script)
+- [Change what Auto Run does](#change-what-auto-run-does)
 - [Check your change](#check-your-change)
 - [Put out a new version](#put-out-a-new-version)
 - [Things that have bitten before](#things-that-have-bitten-before)
@@ -128,21 +129,41 @@ Put the `.jsx` in `premiere\`. It shows up on the "finish in Premiere" tab by it
 the Captions panel. Premiere's script language is old (ES3): no `let`, no arrow functions, and a
 `/` inside `[...]` in a regular expression must be written `\/`. See [Premiere](premiere.md).
 
+## Change what Auto Run does
+
+Shorts Auto Run (`autorun.py`, page `ui\auto.html`) is the toolkit's server plus one page. Run it
+from source with `.venv\Scripts\python desktop.py --autorun` (or `Shorts Auto Run.cmd`).
+
+- **A stage** is one entry in `STAGES` and one function `st_<name>(path)` in `autorun.py`. It
+  returns `("job", title, [command, …])` to run a `shorts.py` command, or `(state, note)` when
+  there is nothing to run. An optional `after_<name>(path)` writes the line shown when the job
+  ends. A stage's id is the toolkit tab that **Edit** opens, so a new stage wants a tab of the
+  same name (see above).
+- **What the review shows** for a stage is its entry in `BODY` in `ui\auto.html`, fed by
+  `review()` in `autorun.py`.
+- **Something new a render depends on** (a setting that changes how a Short looks or sounds): add
+  it to `parts()` in `stale.py`, or Auto Run will not notice that Shorts need rendering again
+  after it changes.
+- **What a sign-off covers** is `stage_sig()` in `autorun.py`.
+- Nothing in a run may publish. The only place that sends anything is `publish()`, behind the
+  sign-off checks. Keep it that way.
+
 ## Check your change
 
 ```
 check.cmd
 ```
 
-It runs every test (about ten seconds) and says `ALL GOOD` or shows what failed:
+It runs every test (about half a minute) and says `ALL GOOD` or shows what failed:
 
 | File | Checks |
 |---|---|
 | `tests\test_logic.py` | The caption logic: punctuation, repeated-phrase cleanup, your caption edits, missed words. |
 | `tests\test_music.py` | Music mode on made-up music with known answers: tempo, beats, gaps, changes, bar-length Shorts, talking left out, the fade, and a music video in → finished Short out with nothing transcribed. |
 | `tests\test_app.py` | Every file loads, every command answers `-h`, every button maps to a real command, the version matches everywhere, the server's pages answer, video is served correctly to phones, and a test video becomes a finished 1080×1920 Short. |
+| `tests\test_autorun.py` | Auto Run: which changes make a Short need rendering again, the two windows never working at once, and one whole run on made-up music - every step, sign-off, an edit carried through, and the last sign-off with a stand-in where YouTube would be. |
 
-Neither touches your projects or your settings. Add a test next to the thing you added; the
+None of them touches your projects or your settings, and none sends anything to YouTube. Add a test next to the thing you added; the
 simplest pattern is at the top of each file.
 
 Then try it by hand in the app on a real project. Tests can't see whether a layout looks right.

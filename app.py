@@ -396,9 +396,55 @@ def open_post_studio():
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+# -- the other window: Shorts Auto Run <-> Shorts Toolkit (peer.py) --------------------------
+ME = "toolkit"                    # desktop.py sets "autorun" when this process is the Auto Run window
+SHOW = None                       # set by desktop.py: show a project (and step) in this window, bring it to the front
+STEPS = ("markers", "captions", "shorts", "screams", "look", "render", "post", "publish", "premiere")
+
+
+def busy_message():
+    import peer
+    job = peer.busy_with(ME)
+    if job:
+        return "%s is busy (%s) - wait for it to finish, or stop it there." % (peer.NAMES[peer.other(ME)], job)
+    return "Something is already running."
+
+
+def remember(path):
+    """Make sure the project list shows this project (a clip opened in the other window, or a
+    project from a folder this window was never pointed at)."""
+    from clip import is_clip
+    p = os.path.normpath(path)
+    if any(os.path.normcase(x["path"]) == os.path.normcase(p) for x in list_projects()):
+        return
+    s = load_settings()
+    if is_clip(p):
+        s["clips"] = [p] + [c for c in s.get("clips", []) if os.path.normcase(c) != os.path.normcase(p)]
+    else:
+        d = os.path.dirname(p)
+        s["dirs"] = s.get("dirs", DEFAULT_DIRS) + ([d] if d not in s.get("dirs", DEFAULT_DIRS) else [])
+    save_settings(s)
+
+
+def hand_over(who, path, tab=None):
+    """Show this project in the other program: tell it if it is open, start it if it isn't."""
+    import peer
+    body = dict(path=path, tab=tab if tab in STEPS else None)
+    if peer.tell(who, "/api/goto", body) is not None:
+        return dict(ok=True, started=False)
+    args = (["--autorun"] if who == "autorun" else []) + (["--project", path] if path else []) + (["--tab", tab] if tab in STEPS else [])
+    if FROZEN:
+        cmd = [os.path.join(APPDIR, "Shorts Toolkit.exe")] + args
+    else:
+        cmd = [PY.replace("python.exe", "pythonw.exe"), os.path.join(HERE, "desktop.py")] + args
+    subprocess.Popen(cmd, cwd=APPDIR, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return dict(ok=True, started=True)
+
+
 # -- jobs ------------------------------------------------------------------------------
 JOB = {"id": 0, "lines": [], "done": True, "code": None, "title": "", "started": 0, "stopped": False, "paused": False}
 PROC = [None]                     # the running job's process, so it can be stopped
+HOLD = [None]                     # Auto Run: what to call this program "busy with" for a whole run, between its jobs too
 
 
 def _tree(pid):
@@ -531,12 +577,16 @@ def markers_to_shorts(path):
 
 
 def run_job(title, argv, after=None):
+    import peer
+    if peer.busy_with(ME):                       # the other window is rendering / writing: one job at a time
+        return None
     with LOCK:
         if not JOB["done"]:
             return None
         JOB.update(id=JOB["id"] + 1, lines=["$ shorts.py " + " ".join(argv)],
                    done=False, code=None, title=title, started=time.time())
         jid = JOB["id"]
+    peer.set_job(ME, title)
 
     def work():
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
@@ -571,6 +621,7 @@ def run_job(title, argv, after=None):
                 JOB["lines"].append("Stopped.")
             JOB.update(done=True, code=proc.returncode)
         PROC[0] = None
+        peer.set_job(ME, HOLD[0])
         if after:
             after(0 if JOB["stopped"] is False and proc.returncode == 0 else (proc.returncode or 1))
 
@@ -658,7 +709,7 @@ STATIC = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifes
           "/sw.js": ("sw.js", "text/javascript"), "/icon-192.png": ("icon-192.png", "image/png"),
           "/icon-512.png": ("icon-512.png", "image/png"), "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png")}
 PUBLIC = set(STATIC) | {"/api/pair"}
-PC_ONLY = {"/api/browse", "/api/open"}
+PC_ONLY = {"/api/browse", "/api/open", "/api/goto", "/api/autorun/open"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -977,7 +1028,7 @@ class Handler(BaseHTTPRequestHandler):
                             run_job("Rendering %d new Short%s (quick run)" % (len(idx), "" if len(idx) == 1 else "s"),
                                     command("make", dict(path=p, preset=preset, indexes=idx)), after_render(p, idx))
                 jid = run_job(b.get("title", action), command(action, b), after)
-                return self.send_json({"id": jid} if jid else {"error": "Something is already running."},
+                return self.send_json({"id": jid} if jid else {"error": busy_message()},
                                       200 if jid else 409)
             if u.path == "/api/browse":
                 p = browse(b.get("kind", "project"))
@@ -1063,6 +1114,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(premiere_install.install())
             if u.path == "/api/ping":
                 return self.send_json({"ok": True})
+            if u.path == "/api/goto":                      # the other window hands a project over (or says it changed)
+                if b.get("path") and not b.get("reload"):
+                    remember(b["path"])
+                if SHOW:
+                    SHOW(b.get("path"), b.get("tab"), bool(b.get("reload")))
+                elif b.get("path") and not b.get("reload"):
+                    from urllib.parse import quote
+                    port = self.server.server_address[1]
+                    webbrowser.open("http://127.0.0.1:%d/%s?project=%s%s" % (port, "auto" if ME == "autorun" else "", quote(b["path"]),
+                                                                              "#" + b["tab"] if b.get("tab") in STEPS else ""))
+                return self.send_json({"ok": True})
+            if u.path == "/api/autorun/open":              # the toolkit's "Auto Run" button
+                return self.send_json(hand_over("autorun", b.get("path")))
         except (Exception, SystemExit) as e:
             note_error("POST " + u.path)
             return self.send_json({"error": str(e)}, 500)
@@ -1127,8 +1191,10 @@ def main():
         webbrowser.open(url)
         return
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    import peer
     import remote
     remote.autostart(Handler)
+    peer.announce(ME, PORT)
 
     def reaper():                                # quit once the tab has been closed for a minute
         while True:
@@ -1138,7 +1204,10 @@ def main():
                 return
     threading.Thread(target=reaper, daemon=True).start()
     threading.Timer(0.6, lambda: webbrowser.open(url)).start()
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        peer.gone(ME)
 
 
 if __name__ == "__main__":

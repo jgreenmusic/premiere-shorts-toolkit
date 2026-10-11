@@ -1,6 +1,6 @@
 @echo off
 rem Runs every test. Use it after any change and before building an installer.
-rem   check.cmd          everything (about ten seconds; makes a test video and renders one Short)
+rem   check.cmd          everything (about half a minute; makes test videos and renders a few Shorts)
 rem   check.cmd quick    skips the render
 cd /d "%~dp0"
 set FAILED=0
@@ -8,9 +8,11 @@ set FAILED=0
 if /i "%~1"=="quick" (
   .venv\Scripts\python.exe tests\test_app.py QuickParts QuickPublish QuickServer || set FAILED=1
   .venv\Scripts\python.exe tests\test_music.py QuickListening QuickSuggestions QuickSettings || set FAILED=1
+  .venv\Scripts\python.exe tests\test_autorun.py QuickStale QuickPeer QuickPages || set FAILED=1
 ) else (
   .venv\Scripts\python.exe tests\test_app.py || set FAILED=1
   .venv\Scripts\python.exe tests\test_music.py || set FAILED=1
+  .venv\Scripts\python.exe tests\test_autorun.py || set FAILED=1
 )
 echo.
 if "%FAILED%"=="1" (

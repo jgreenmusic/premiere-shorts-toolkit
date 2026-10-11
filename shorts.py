@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.28.0"
+__version__ = "0.29.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -411,6 +411,9 @@ def cmd_make(args):
         print("[%d/%d] %s  (%s - %s)" % (n, len(jobs), name, cap.fmt(a), cap.fmt(b)))
         path = os.path.join(out, safe_name(name) + ".mp4")
         render.make_short(ctx, a, b, path, events, preset=args.preset)
+        if not args.out:                         # what this video was made from, so a later change shows (stale.py)
+            import stale
+            stale.record(ctx.outdir, name, stale.parts(ctx.cfg, dict(start=a, end=b), ctx.seq))
         print("  -> %s" % path)
     print("\nDone. Shorts are in %s" % out)
 

@@ -246,6 +246,7 @@ details.how p { margin: 6px 0 0; }
 body.remote .pc-only, body.remote [data-folder], body.remote [data-open], body.remote [data-script],
 body.remote #browseProject, body.remote #browseClip, body.remote #addFolder, body.remote #mkPremiere, body.remote #toPremiere, body.remote #pickVideo { display: none !important; }
 canvas#ov, canvas#dt { touch-action: none; }
+body.embedded #autoBtn, body.embedded #phoneBtn { display: none !important; }
 .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; z-index: 20; padding: 16px; }
 .modal { width: 100%; max-width: 640px; max-height: 90vh; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow); }
 .qr { background: #fff; border-radius: 12px; padding: 10px; width: 180px; height: 180px; flex: none; }
@@ -279,6 +280,7 @@ canvas#ov, canvas#dt { touch-action: none; }
     <div class="logo" aria-hidden="true"><span></span></div>
     <h1>Shorts Toolkit</h1><span class="ver" id="ver"></span>
     <div class="spacer"></div>
+    <button class="icon-btn pc-only" id="autoBtn" title="Hand this project to Shorts Auto Run: it does every step by itself, then stops for your review and sign-off">⚡<span class="lbl"> Auto Run</span></button>
     <button class="icon-btn" id="projToggle" title="Show or hide the projects list">☰<span class="lbl"> Projects</span></button>
     <button class="icon-btn pc-only" id="phoneBtn" title="Use the toolkit from your phone or tablet">📱<span class="lbl"> Phone</span></button>
     <button class="icon-btn" id="theme" title="Switch light / dark">◐<span class="lbl"> Theme</span></button>
@@ -360,6 +362,24 @@ $("#projToggle").onclick = () => {
 // hidden by default on a normal-size window once a project is open: the work area gets the room
 function applySide() { document.body.classList.toggle("noside", (store.get("side", null) || (innerWidth < 1700 && S.current ? "hidden" : "shown")) === "hidden"); }
 $("#phoneBtn").onclick = () => openPhone();
+
+// ---- Shorts Auto Run, the other window (autorun.py). It works on the same project files.
+if (window.self !== window.top) document.body.classList.add("embedded");      // this page inside Auto Run, for editing a step
+$("#autoBtn").onclick = async () => {
+  try { const r = await api("/api/autorun/open", { path: S.current }); toast(r.started ? "Opening Shorts Auto Run…" : "Shown in Shorts Auto Run", true); }
+  catch (e) { toast(e.message); }
+};
+// Auto Run hands a project over ("Open in the Toolkit window"): show it, on that step
+window.gotoProject = async (path, tab) => {
+  if (tab && TABS.some(t => t[0] === tab)) { S.tab = tab; store.set("tab", tab); }
+  await loadState(); await select(path);
+};
+// Auto Run changed this project (new Shorts, a look): read it again, unless you are in the middle of something
+window.projectChanged = path => {
+  if (S.busy || !S.current || S.current.toLowerCase() !== String(path).toLowerCase()) return;
+  if (document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  select(S.current, true);
+};
 
 // ---- Phone & tablet (desktop only): switch the companion on, pair devices
 async function openPhone() {
@@ -2340,7 +2360,9 @@ setInterval(() => api("/api/ping", {}).catch(() => setStatus("bad", "Toolkit clo
   await loadState();
   const j = await api("/api/job?from=0");
   if (!j.done) { S.busy = true; openLog(true); poll(0); }
-  const last = new URLSearchParams(location.search).get("project") || store.get("project", null);
+  const asked = new URLSearchParams(location.search).get("project");
+  if (asked) return select(asked);
+  const last = store.get("project", null);
   const p = S.projects.find(x => x.path === last) || S.projects[0];
   if (p) select(p.path);
 })();

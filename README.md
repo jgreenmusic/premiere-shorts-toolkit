@@ -47,6 +47,21 @@ inside. The first analysis downloads the speech model once (~500 MB).
 In a hurry: **1 · Markers** → **⚡ Find, add & render** does steps 3 and 5 above in one press.
 You can still trim, fix captions and render again afterwards.
 
+## Shorts Auto Run: every step in one go
+
+**Shorts Auto Run** is a second window, installed next to the toolkit (its own shortcut, or the
+**⚡ Auto Run** button at the top of the toolkit). Pick a recording, press **Start the run**, and it
+works through all eight steps by itself - moments, captions, Shorts, screams and laughs, look,
+render, posts, and the publish plan - then stops. It edits what you recorded and nothing else:
+no picture or sound is ever made up. (The posts - titles, descriptions, tags - are text written by
+the AI on your PC, as in step 7, and can be switched off.)
+
+What you get is a review: each step with what it made, the videos to watch, the posts to read
+and the publish plan. Every step has **Edit** (the toolkit's own page for that step, opened right
+there), and **Looks good** to sign it off. Change anything and **Apply my edits** renders and
+rewrites only the Shorts you touched. **Nothing is published until every step is signed off and
+you press Publish.** See the [Guide](docs/guide.md#shorts-auto-run).
+
 Each step has a **Next →** button. The bar at the bottom shows what is running.
 
 ## Documentation

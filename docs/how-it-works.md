@@ -22,6 +22,8 @@ Next to your project (or video file):
 | `…\fit.json` | Fitted caption times for a project with Premiere captions. Rebuilt when the project is saved again. |
 | `…\relisten.json` | What the bigger model heard for the Shorts you pressed **Listen again** on. |
 | `…\preview-*.mp4` | Look previews. Old ones are removed after a day. |
+| `…\renders.json` | What each rendered Short was made from (its range, the captions and choices inside it, the look), so a later change shows as "changed since". |
+| `…\autorun.json` | Shorts Auto Run: the last run, how each step ended, and what you signed off. |
 | `<project>_shorts\` | Your rendered Shorts. |
 
 A synced copy of a project (`_captions-synced`, `-v2`, …) shares the original's folders.
@@ -32,6 +34,7 @@ On the PC, not per project:
 |---|---|
 | `%USERPROFILE%\.shorts-toolkit.json` | Folders and clips you opened, your own look presets, paired phones. |
 | `%LOCALAPPDATA%\ShortsToolkit\errors.log` | Errors, with details. |
+| `%LOCALAPPDATA%\ShortsToolkit\open-toolkit.json`, `open-autorun.json` | Which of the two windows is open and what it is working on, so they never run two jobs at once. Removed when the window closes. |
 
 Your Premiere project is never modified. The only project file the toolkit writes is a **new**
 synced copy, in which only caption start and end numbers differ; it is read back to verify.
@@ -52,6 +55,8 @@ synced copy, in which only caption start and end numbers differ; it is read back
 | **Posts** | A local model through Ollama writes from the Short's own captions. Posts are compared with each other and rewritten when too alike. |
 | **Publishing** | YouTube Data API: drafts are matched to your rendered files by file name and filled in; the rest are uploaded and scheduled. TikTok: sent to your drafts. |
 | **The app** | A small web server on `127.0.0.1` only, shown in its own window. Every button runs a `shorts.py` command as a background job. |
+| **Shorts Auto Run** | The same server with one more page. A run is a list of steps; each step starts the same command its button in the toolkit would, and the next step starts when it ends. Editing a step shows the toolkit's own page inside the window. |
+| **Changed since rendered** | Each render stores fingerprints of what it used. A Short is rendered again only when one of them differs: its range, the captions and caption fixes inside it, the screams and laughs inside it, the look, or the timeline under it. |
 
 ## Speed
 
@@ -78,7 +83,10 @@ faster (6 Shorts: 58 s one at a time, 56 s three at a time), so they run one aft
 |---|---|
 | `shorts.py` | Every command (`markers`, `make`, `post`, …). Start here. |
 | `app.py`, `ui/index.html` | The app: local server and the whole interface in one page |
-| `desktop.py` | The app in its own window |
+| `desktop.py` | The app in its own window (`--autorun`: the Auto Run window) |
+| `autorun.py`, `ui/auto.html` | Shorts Auto Run: the steps of a run, the review, sign-off, Apply my edits |
+| `stale.py` | Which Shorts changed since they were rendered, and why |
+| `peer.py` | The two windows knowing about each other |
 | `pipeline.py` | Loads a project the same way for every command |
 | `prproj.py`, `clip.py` | Read a Premiere project / treat a video file as one |
 | `captions.py` | Caption timing, your caption edits, missed words, loop cleanup |

@@ -3,7 +3,7 @@
 ; their <project>_captions / _shorts folders and settings are never touched.
 
 #define AppName "Shorts Toolkit"
-#define AppVersion "0.28.0"
+#define AppVersion "0.29.0"
 
 [Setup]
 AppId={{6E7A1C52-3B8D-4F1E-9C2A-5D4B8E0F7A31}
@@ -32,8 +32,10 @@ Source: "..\dist\Shorts Toolkit\*"; DestDir: "{app}"; Flags: recursesubdirs igno
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\Shorts Toolkit.exe"
+Name: "{group}\Shorts Auto Run"; Filename: "{app}\Shorts Toolkit.exe"; Parameters: "--autorun"; Comment: "Every step in one go, then your review and sign-off"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#AppName}"; Filename: "{app}\Shorts Toolkit.exe"; Tasks: desktopicon
+Name: "{userdesktop}\Shorts Auto Run"; Filename: "{app}\Shorts Toolkit.exe"; Parameters: "--autorun"; Comment: "Every step in one go, then your review and sign-off"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Shorts Toolkit.exe"; Description: "Open {#AppName}"; Flags: nowait postinstall skipifsilent
