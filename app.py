@@ -702,6 +702,48 @@ def bridge_start(path, engine, style):
     return None
 
 
+# Premiere writes the captions with nobody at the keyboard (premiere_auto.py) - step 2's
+# "Have Premiere write them". Shorts Auto Run takes the same route in its Captions step.
+PREMIERE = dict(running=False, path=None, lines=[], project=None, error=None, stop=False)
+
+
+def premiere_captions(path, style="premiere"):
+    """Start it for this project or recording. Returns an error string or None."""
+    import config
+    import premiere_auto
+    outdir = base_of(path) + "_captions"
+    cfg = config.load(outdir)
+    seq = pick(project(path), cfg)
+    with LOCK:
+        if PREMIERE["running"]:
+            return "Premiere is already writing captions - wait for it, or stop it."
+        PREMIERE.update(running=True, path=path, lines=[], project=None, error=None, stop=False)
+
+    def work():
+        try:
+            made = premiere_auto.captions(path, seq.name, style, cfg["look"].get("punct", "keep"),
+                                          say=lambda text: PREMIERE["lines"].append(time.strftime("%H:%M:%S ") + text),
+                                          stopped=lambda: PREMIERE["stop"])
+            remember(made)
+            PREMIERE["project"] = made
+        except premiere_auto.Stopped:
+            PREMIERE["error"] = "Stopped."
+        except premiere_auto.Problem as e:
+            PREMIERE["error"] = str(e)
+        except Exception as e:                           # noqa: BLE001 - shown in the app, kept for Copy log
+            note_error("Premiere captions")
+            PREMIERE["error"] = str(e)
+        finally:
+            PREMIERE["running"] = False
+    threading.Thread(target=work, daemon=True).start()
+    return None
+
+
+def premiere_view():
+    import premiere_auto
+    return dict(PREMIERE, lines=list(PREMIERE["lines"]), installed=bool(premiere_auto.exe()))
+
+
 # -- HTTP -------------------------------------------------------------------------------------
 LAST_SEEN = [time.time()]
 # installable-app files (phones fetch these before pairing)
@@ -793,6 +835,8 @@ class Handler(BaseHTTPRequestHandler):
                 import bridge
                 import premiere_install
                 return self.send_json(dict(bridge.status(), installed=premiere_install.installed()))
+            if u.path == "/api/bridge/auto":
+                return self.send_json(premiere_view())
             if u.path == "/api/diag":
                 return self.send_json({"text": diagnostics()})
             if u.path == "/api/state":
@@ -1104,10 +1148,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": ok, "message": msg} if ok else {"error": msg}, 200 if ok else 409)
             if u.path == "/api/bridge/cancel":
                 import bridge
-                with bridge.LOCK:
-                    bridge.JOB["step"] = "idle"
-                    bridge.QUEUE["uxp"].clear()
-                    bridge.QUEUE["cep"].clear()
+                bridge.cancel()
+                return self.send_json({"ok": True})
+            if u.path == "/api/bridge/auto":
+                err = premiere_captions(b["path"], "short" if b.get("style") == "short" else "premiere")
+                return self.send_json({"error": err} if err else premiere_view(), 409 if err else 200)
+            if u.path == "/api/bridge/auto/stop":
+                PREMIERE["stop"] = True
                 return self.send_json({"ok": True})
             if u.path == "/api/bridge/install":
                 import premiere_install

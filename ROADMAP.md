@@ -19,8 +19,13 @@ second window on purpose for now; the agreed next step is **one program**.
   Publish button has not.
 - **The toolkit does not show "changed since rendered" yet.** `stale.py` knows it; step 6 still
   says only "Rendered".
-- **Editing inside the window cannot reach Premiere.** The Premiere panels talk to the Shorts
-  Toolkit window; use **In Toolkit** for the Premiere buttons.
+- **Premiere captions in a run (0.30.0): tried on short cuts only.** Premiere started, made the
+  project from a recording, transcribed and added the caption track on two 3-minute cuts of a
+  real recording. Not yet tried: a full-length recording (Adobe's transcription of an hour or
+  more), a Premiere project with several timelines, and a PC where the two panels are not
+  docked in the workspace (the run then stops and says which menu opens them).
+- **Premiere's questions.** If Premiere shows a dialog while a project is opened or made, the run
+  waits, then stops and says which step it was at. It does not answer dialogs for you.
 
 ## Music streams - built in 0.28.0, what is still open
 

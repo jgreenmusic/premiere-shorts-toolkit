@@ -1,5 +1,5 @@
-// Shorts Toolkit - Captions (CEP panel). Checks in with the Shorts Toolkit app on this
-// PC every 1.5 s; when the app has caption lines ready (an .srt), lays them on the
+// Shorts Toolkit - Captions (CEP panel). Checks in with the Shorts Toolkit apps on this
+// PC every 1.5 s; when one has caption lines ready (an .srt), lays them on the
 // sequence as a real Premiere caption track (host.jsx) and saves the project.
 // Node's http is used, not fetch: a CEP page is a file:// page, and the browser would
 // block its requests to the app.
@@ -8,7 +8,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const VERSION = "1.0.3";
+const VERSION = "1.0.4";
 
 // what the panel did, in %TEMP%\shorts-toolkit-captions-panel.log (Premiere's own CEP logs
 // don't say why a panel stops)
@@ -22,9 +22,12 @@ window.addEventListener("unhandledrejection", (e) => trace("unhandled: " + (e.re
 window.addEventListener("beforeunload", () => trace("page unloading"));
 process.on("uncaughtException", (e) => trace("node exception: " + (e && e.stack || e)));
 process.on("exit", (c) => trace("node exit " + c));
-// the toolkit uses the first free one of these (app.BRIDGE_PORTS)
-const PORTS = [8765, 8767, 8768, 8769];
-let port = 0;
+// where the apps listen: the Shorts Toolkit window uses the first free one of the first four
+// (app.BRIDGE_PORTS), Shorts Auto Run one of the last three (autorun.PORTS). Both can be open.
+const PORTS = [8765, 8767, 8768, 8769, 8772, 8773, 8774];
+const live = new Set();       // ports that answered the last time they were asked
+const todo = [];              // what the apps asked for, one at a time: {port, cmd}
+let ticks = 0;
 let busy = false;
 const lines = [];
 
@@ -39,11 +42,11 @@ function log(line) {
   document.getElementById("log").textContent = lines.join("\n");
 }
 
-function post(path, body) {
+function post(port, path, body, ms) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(Object.assign({ kind: "cep" }, body));
     const req = http.request({
-      host: "127.0.0.1", port: PORTS[port], path, method: "POST",
+      host: "127.0.0.1", port, path, method: "POST",
       headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) },
     }, (res) => {
       let buf = "";
@@ -52,7 +55,7 @@ function post(path, body) {
       res.on("end", () => { try { resolve(JSON.parse(buf || "{}")); } catch (e) { resolve({}); } });
     });
     req.on("error", reject);
-    req.setTimeout(5000, () => req.destroy(new Error("timeout")));
+    req.setTimeout(ms || 5000, () => req.destroy(new Error("timeout")));
     req.end(data);
   });
 }
@@ -76,27 +79,27 @@ async function loadHost() {
   return r;
 }
 
-async function importCaptions(cmd) {
+async function importCaptions(port, cmd) {
   log("Adding caption track from " + baseName(cmd.srt));
   show("Adding captions…", "busy");
   const r = String(await host("shortsImportCaptions", cmd.srt, cmd.sequence || "", cmd.project || ""));
   if (r.indexOf("OK:") === 0) {
     log(r.slice(3));
-    return post("/api/bridge/report", { job: cmd.job, done: true, message: r.slice(3) });
+    return post(port, "/api/bridge/report", { job: cmd.job, done: true, message: r.slice(3) });
   }
   const msg = r.indexOf("ERR:") === 0 ? r.slice(4) : "Premiere didn't answer the script (" + r + ")";
   log(msg);
-  return post("/api/bridge/report", { job: cmd.job, error: msg });
+  return post(port, "/api/bridge/report", { job: cmd.job, error: msg });
 }
 
-async function runScript(cmd) {
+async function runScript(port, cmd) {
   log("Running " + baseName(cmd.script));
   show("Running " + baseName(cmd.script) + "…", "busy");
   const r = String(await host("shortsRunScript", cmd.script, cmd.sequence || "", cmd.project || ""));
   const ok = r.indexOf("OK:") === 0;
   const message = ok ? r.slice(3) : r.indexOf("ERR:") === 0 ? r.slice(4) : "Premiere didn't answer the script (" + r + ")";
   log(message);
-  return post("/api/bridge/report", { rid: cmd.rid, ok, message });
+  return post(port, "/api/bridge/report", { rid: cmd.rid, ok, message });
 }
 
 let lastState = "";
@@ -107,31 +110,41 @@ function hostWithin(ms, fn, ...args) {
   return Promise.race([host(fn, ...args), new Promise((res) => setTimeout(() => res("TIMEOUT"), ms))]);
 }
 
+function work() {
+  if (busy || !todo.length) return;
+  const { port, cmd } = todo.shift();
+  if (cmd.op !== "import" && cmd.op !== "script") return work();
+  trace("running " + cmd.op + " " + (cmd.script || cmd.srt || "") + " for the app on " + port);
+  busy = true;
+  (cmd.op === "import" ? importCaptions(port, cmd) : runScript(port, cmd))
+    .catch((e) => post(port, "/api/bridge/report", { job: cmd.job, rid: cmd.rid, error: "Captions panel error: " + e, message: String(e) }).catch(() => {}))
+    .finally(() => { busy = false; work(); });
+}
+
 async function tick() {
-  let wait = 1500;
+  ticks++;
   try {
     let i = {};
     const info = await hostWithin(5000, "shortsInfo");
     if (info === "TIMEOUT") state("ExtendScript (host.jsx) not answering");
     try { i = JSON.parse(info); } catch (e) { /* Premiere busy */ }
-    const r = await post("/api/bridge/hello", Object.assign({ plugin: VERSION }, i));
-    state("connected to toolkit on " + PORTS[port]);
-    if (!busy) show(i.project ? `Connected · ${baseName(i.project)}` : "Connected · no project open", "on");
-    const cmd = r.command;
-    if (cmd && !busy && (cmd.op === "import" || cmd.op === "script")) {
-      trace("running " + cmd.op + " " + (cmd.script || cmd.srt || ""));
-      busy = true;
-      (cmd.op === "import" ? importCaptions(cmd) : runScript(cmd))
-        .catch((e) => post("/api/bridge/report", { job: cmd.job, rid: cmd.rid, error: "Captions panel error: " + e, message: String(e) }).catch(() => {}))
-        .finally(() => { busy = false; });
+    // the apps that are there, every time; the other ports now and then (a closed port takes
+    // Windows a couple of seconds to refuse, so nothing waits for it)
+    const ask = PORTS.filter((p) => live.has(p) || ticks % 4 === 1);
+    await Promise.all(ask.map((p) => post(p, "/api/bridge/hello", Object.assign({ plugin: VERSION }, i), 1200).then((r) => {
+      live.add(p);
+      if (r && r.command) todo.push({ port: p, cmd: r.command });
+    }, () => { live.delete(p); })));
+    state(live.size ? "connected to the apps on " + [...live].join(", ") : "no Shorts Toolkit app found");
+    if (!busy) {
+      if (live.size) show(i.project ? `Connected · ${baseName(i.project)}` : "Connected · no project open", "on");
+      else show("Shorts Toolkit isn't open", "off");
     }
+    work();
   } catch (e) {
-    if (!busy) port = (port + 1) % PORTS.length;        // look on the next port
-    if (port === 0) state("toolkit not found: " + e);
-    show("Shorts Toolkit isn't open", "off");
-    wait = port === 0 ? 4000 : 300;
+    state("check-in failed: " + e);
   }
-  setTimeout(tick, wait);
+  setTimeout(tick, live.size ? 1500 : 3000);
 }
 
 loadHost().finally(tick);

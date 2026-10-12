@@ -161,7 +161,7 @@ It runs every test (about half a minute) and says `ALL GOOD` or shows what faile
 | `tests\test_logic.py` | The caption logic: punctuation, repeated-phrase cleanup, your caption edits, missed words. |
 | `tests\test_music.py` | Music mode on made-up music with known answers: tempo, beats, gaps, changes, bar-length Shorts, talking left out, the fade, and a music video in → finished Short out with nothing transcribed. |
 | `tests\test_app.py` | Every file loads, every command answers `-h`, every button maps to a real command, the version matches everywhere, the server's pages answer, video is served correctly to phones, and a test video becomes a finished 1080×1920 Short. |
-| `tests\test_autorun.py` | Auto Run: which changes make a Short need rendering again, the two windows never working at once, and one whole run on made-up music - every step, sign-off, an edit carried through, and the last sign-off with a stand-in where YouTube would be. |
+| `tests\test_autorun.py` | Auto Run: which changes make a Short need rendering again, the two windows never working at once, Premiere writing the captions (with stand-ins where Premiere and its two panels would be), and one whole run on made-up music - every step, sign-off, an edit carried through, and the last sign-off with a stand-in where YouTube would be. |
 
 None of them touches your projects or your settings, and none sends anything to YouTube. Add a test next to the thing you added; the
 simplest pattern is at the top of each file.

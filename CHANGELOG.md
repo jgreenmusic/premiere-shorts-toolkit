@@ -2,6 +2,45 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.30.0 - 2026-10-11
+
+- **Auto Run can have Premiere write the captions, with nobody at the keyboard.** A run on a
+  plain recording (an .mp4 opened with Open clip) only ever got the toolkit's own captions, and
+  the Captions step said so in one line - it looked as if captions could no longer be made. The
+  set-up card now has a **Captions** choice: **Premiere writes them** (the default wherever
+  Premiere is installed) or **The toolkit writes them**. With Premiere chosen the run starts
+  Premiere if it is closed, opens the project, has Adobe Speech to Text transcribe it, lays the
+  lines on the timeline as a real caption track, saves, and carries on. You edit them afterwards
+  as before - in the review with **Edit**, or in Premiere.
+- **A plain recording gets its own Premiere project.** For a video file with no project, Premiere
+  makes `<recording name>.prproj` next to it with the recording on one timeline. The run then
+  moves to that project, and so does the Auto Run window; the Shorts, markers and settings come
+  along because both use the same `<name>_captions` folder. The recording is never changed.
+- **That step goes first.** When Premiere has to write the captions the run does Captions before
+  Moments, so everything after it works on the project and the speech is listened to once.
+- **A run waits instead of guessing.** If Premiere cannot do it (not installed, a panel closed, a
+  question on Premiere's screen) the run stops at Captions and says what to do. **Continue from
+  there** tries again; **Let the toolkit write the captions instead** goes on without Premiere.
+  It never renders with captions you did not ask for.
+- **Afterwards too.** A run that used the toolkit's captions has **Have Premiere write them** on
+  its Captions card. The Shorts then show as changed and **Apply my edits** renders them again.
+- **The toolkit's step 2 no longer dead-ends on a recording.** It used to say only "A video clip
+  has no Premiere captions". It now says where those captions are fixed (step 3) and has the
+  same **Have Premiere write them** button.
+- **Both Premiere panels answer both windows** (panels 1.0.4). They used to talk to whichever
+  window they found first, so Auto Run could not reach Premiere while the toolkit was open. The
+  Speech panel can now also open a project and make one from a recording; it is the panel that
+  is alive on Premiere's Home screen, before any project is open.
+- **The Speech panel installs without Creative Cloud being signed in.** Adobe's plugin installer
+  refuses with status -631 when the Creative Cloud app is signed out, and the old panel stayed.
+  The toolkit now puts the panel in place itself when that happens. Auto Run updates both panels
+  by itself when they are missing or old; Premiere has to be restarted once to load new ones.
+- **Stop means stop.** A transcript that arrives from Premiere after you pressed Stop or Cancel
+  is thrown away; it used to be able to add a caption track later.
+- Found on the way: Premiere answers a project path written with `/` with a "Scratch Disk Error"
+  question and waits. Paths are sent the Windows way; if Premiere ever does wait on a question,
+  the run says which step it was at.
+
 ## 0.29.0 - 2026-10-11
 
 - **Shorts Auto Run: every step in one go, then your review.** Making Shorts meant walking

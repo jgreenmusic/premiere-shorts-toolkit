@@ -1,16 +1,23 @@
 // Shorts Toolkit - Speech (UXP panel for Premiere 26.5+).
-// Checks in with the Shorts Toolkit app on this PC every 1.5 s. When the app asks,
-// runs Adobe's Speech to Text on every audible clip of the sequence and sends the
-// transcripts back, with where each clip sits on the timeline. The app turns them
-// into caption lines; its other panel (Shorts Toolkit - Captions) adds the track.
+// Checks in with the Shorts Toolkit apps on this PC every 1.5 s. When one asks, it
+//   - opens a project, or makes one from a recording (this panel is alive even on
+//     Premiere's Home screen, with no project open - the Captions panel is not),
+//   - runs Adobe's Speech to Text on every audible clip of the sequence and sends the
+//     transcripts back, with where each clip sits on the timeline. The app turns them
+//     into caption lines; its other panel (Shorts Toolkit - Captions) adds the track,
+//   - places markers.
 const ppro = require("premierepro");
 const uxp = require("uxp");
 
-// the toolkit uses the first free one of these (app.BRIDGE_PORTS)
-const PORTS = [8765, 8767, 8768, 8769];
-let port = 0;
-const VERSION = "1.0.3";
+// where the apps listen: the Shorts Toolkit window uses the first free one of the first four
+// (app.BRIDGE_PORTS), Shorts Auto Run one of the last three (autorun.PORTS). Both can be open.
+const PORTS = [8765, 8767, 8768, 8769, 8772, 8773, 8774];
+const VERSION = "1.0.4";
+const live = new Set();       // ports that answered the last time they were asked
+const todo = [];              // what the apps asked for, one at a time: {port, cmd}
 let busy = false;
+let doing = "";               // the step a job is at, told to the apps (so "Premiere didn't answer" can say where)
+let ticks = 0;
 const lines = [];
 
 function show(state, cls) {
@@ -24,21 +31,23 @@ function log(line) {
   document.getElementById("log").textContent = lines.join("\n");
 }
 
-async function post(path, body) {
-  const r = await fetch(`http://127.0.0.1:${PORTS[port]}${path}`, {
+function post(port, path, body, ms) {
+  const ask = fetch(`http://127.0.0.1:${port}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(Object.assign({ kind: "uxp" }, body)),
-  });
-  return r.json();
+  }).then((r) => r.json());
+  if (!ms) return ask;
+  // a closed port takes Windows a couple of seconds to refuse: don't hold the check-in up for it
+  return Promise.race([ask, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
 }
 
+// one way of writing a path (Premiere 26 reports project paths with the \\?\ long-path prefix)
+const norm = (p) => String(p || "").replace(/\//g, "\\").replace(/^\\\\\?\\/, "").toLowerCase();
 // the project the toolkit means, or a copy saved from it next to it ("Name.prproj" ->
 // "NameV0.1.prproj", "Name_captions-synced.prproj")
 function same(open, wanted) {
-  // Premiere 26 reports project paths with the \\?\ long-path prefix
-  const n = (p) => String(p || "").replace(/\//g, "\\").replace(/^\\\\\?\\/, "").toLowerCase();
-  const o = n(open), w = n(wanted);
+  const o = norm(open), w = norm(wanted);
   if (o === w) return true;
   const dir = (p) => p.slice(0, p.lastIndexOf("\\"));
   const stem = (p) => p.slice(p.lastIndexOf("\\") + 1).replace(/\.prproj$/, "");
@@ -50,10 +59,13 @@ function baseName(p) { return String(p || "").split(/[\\/]/).pop(); }
 async function info() {
   const i = {
     plugin: VERSION,
+    doing,
     host: (uxp.host && uxp.host.version) || "",
     apis: {
       transcribe: !!(ppro.Transcript && ppro.Transcript.transcribeClipProjectItem),
       exportJSON: !!(ppro.Transcript && ppro.Transcript.exportToJSON),
+      open: !!(ppro.Project && ppro.Project.open),
+      create: !!(ppro.Project && ppro.Project.createProject),
       // Premiere's own Text panel uses these. Not public - only reported, not used yet.
       speechInternal: !!(uxp.mediaCoreSpeechToText && uxp.mediaCoreSpeechToText.AutoCaptioningAPI),
       captionInternal: !!(uxp.hSLScripting && uxp.hSLScripting.CaptioningScriptAPI),
@@ -75,9 +87,9 @@ async function info() {
   return i;
 }
 
-async function transcribe(cmd) {
-  const say = (line) => { log(line); return post("/api/bridge/report", { job: cmd.job, line }); };
-  const fail = (error, click) => { log(error); return post("/api/bridge/report", { job: cmd.job, error, click: !!click }); };
+async function transcribe(port, cmd) {
+  const say = (line) => { log(line); return post(port, "/api/bridge/report", { job: cmd.job, line }); };
+  const fail = (error, click) => { log(error); return post(port, "/api/bridge/report", { job: cmd.job, error, click: !!click }); };
 
   if (!ppro.Transcript || !ppro.Transcript.transcribeClipProjectItem) {
     return fail("This Premiere can't transcribe from a script (needs Premiere 26.5 or newer). Use 'Toolkit speech' in the app instead.");
@@ -129,6 +141,7 @@ async function transcribe(cmd) {
     } else {
       await say(`${name}: Adobe Speech to Text is listening (long recordings take a few minutes)…`);
       show("Transcribing…", "busy");
+      doing = "transcribing " + name;
       let ok = false;
       try {
         ok = await ppro.Transcript.transcribeClipProjectItem(clip);
@@ -140,12 +153,12 @@ async function transcribe(cmd) {
     transcripts[key] = await ppro.Transcript.exportToJSON(clip);
   }
   await say("Transcript done - sending it to the toolkit");
-  await post("/api/bridge/report", { job: cmd.job, transcripts, items });
+  await post(port, "/api/bridge/report", { job: cmd.job, transcripts, items });
 }
 
 // markers the toolkit placed: replace the ones with this name prefix, keep everything else
-async function placeMarkers(cmd) {
-  const reply = (ok, message) => { log(message); return post("/api/bridge/report", { rid: cmd.rid, ok, message }); };
+async function placeMarkers(port, cmd) {
+  const reply = (ok, message) => { log(message); return post(port, "/api/bridge/report", { rid: cmd.rid, ok, message }); };
   const project = await ppro.Project.getActiveProject();
   if (!project) return reply(false, "No project is open in Premiere.");
   if (cmd.project && !same(project.path, cmd.project)) {
@@ -181,31 +194,104 @@ async function placeMarkers(cmd) {
   return reply(true, `Added ${rows.length} marker(s) to "${seq.name}", replaced ${old.length} old one(s)${coloured ? "" : " (colour not set)"}.`);
 }
 
+// open a project - Auto Run does this before it asks for captions. Exactly that file, not a
+// copy saved from it.
+async function openProject(port, cmd) {
+  const reply = (ok, message) => { log(message); return post(port, "/api/bridge/report", { rid: cmd.rid, ok, message }); };
+  const active = await ppro.Project.getActiveProject();
+  if (active && norm(active.path) === norm(cmd.project)) return reply(true, `${baseName(cmd.project)} is open.`);
+  show("Opening the project…", "busy");
+  doing = "opening " + baseName(cmd.project);
+  const p = await ppro.Project.open(cmd.project);
+  if (!p) return reply(false, `Premiere couldn't open ${baseName(cmd.project)}.`);
+  return reply(true, `Opened ${baseName(cmd.project)}.`);
+}
+
+// every item in the project's top bin, with its name
+async function rootItems(project) {
+  const root = await project.getRootItem();
+  const out = [];
+  for (const it of await root.getItems()) out.push({ it, name: String(it.name) });
+  return out;
+}
+
+// a recording with no Premiere project yet: make the project next to it, put the recording
+// on a timeline of its own, save. Nothing else is added.
+async function projectFromClip(port, cmd) {
+  const reply = (ok, message) => { log(message); return post(port, "/api/bridge/report", { rid: cmd.rid, ok, message }); };
+  show("Making the project…", "busy");
+  let project = await ppro.Project.getActiveProject();
+  if (!project || norm(project.path) !== norm(cmd.project)) {
+    doing = (cmd.exists ? "opening " : "making ") + baseName(cmd.project);
+    project = cmd.exists ? await ppro.Project.open(cmd.project) : await ppro.Project.createProject(cmd.project);
+  }
+  if (!project) return reply(false, `Premiere couldn't make ${baseName(cmd.project)}.`);
+  const have = (await project.getSequences()).find((s) => s.name === cmd.sequence);
+  if (have) {
+    await project.save();
+    return reply(true, `The timeline "${cmd.sequence}" was already there.`);
+  }
+  const file = baseName(cmd.clip), stem = file.replace(/\.[^.]+$/, "");
+  const find = async () => (await rootItems(project)).find((x) => x.name === file || x.name === stem);
+  let item = await find();
+  if (!item) {
+    log("Importing " + file);
+    doing = "importing " + file;
+    const ok = await project.importFiles([cmd.clip], true);
+    if (!ok) return reply(false, `Premiere couldn't import ${file}.`);
+    for (let n = 0; n < 40 && !item; n++) {          // the item shows up a moment after the import returns
+      item = await find();
+      if (!item) await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  if (!item) return reply(false, `Imported ${file}, but it isn't in the Project panel.`);
+  const clip = ppro.ClipProjectItem.cast(item.it);
+  if (!clip) return reply(false, `${file} came in as something Premiere can't put on a timeline.`);
+  doing = "making the timeline";
+  const seq = await project.createSequenceFromMedia(cmd.sequence, [clip]);
+  if (!seq) return reply(false, `Premiere couldn't make a timeline from ${file}.`);
+  try { await project.setActiveSequence(seq); } catch (e) { /* it is usually active already */ }
+  doing = "saving the project";
+  await project.save();
+  return reply(true, `Made ${baseName(cmd.project)} with the timeline "${cmd.sequence}".`);
+}
+
+const OPS = { transcribe, markers: placeMarkers, open: openProject, newproject: projectFromClip };
+
+function work() {
+  if (busy || !todo.length) return;
+  const { port, cmd } = todo.shift();
+  // run it without holding up check-ins, so the apps keep seeing this panel
+  busy = true;
+  show("Working…", "busy");
+  Promise.resolve().then(() => (OPS[cmd.op] ? OPS[cmd.op](port, cmd) : null))
+    .catch((e) => {
+      log("Error: " + e);
+      return post(port, "/api/bridge/report", { job: cmd.job, rid: cmd.rid, ok: false, message: "Speech panel error: " + e,
+                                                  error: "Speech panel error: " + e }).catch(() => {});
+    })
+    .finally(() => { busy = false; doing = ""; work(); });
+}
+
 async function tick() {
-  let wait = 1500;
+  ticks++;
   try {
     const i = await info();
-    const r = await post("/api/bridge/hello", i);
-    if (!busy) show(i.project ? `Connected · ${baseName(i.project)}` : "Connected · no project open", "on");
-    if (r.command && !busy) {
-      // run it without holding up check-ins, so the app keeps seeing this panel
-      busy = true;
-      show("Working…", "busy");
-      const cmd = r.command;
-      (cmd.op === "transcribe" ? transcribe(cmd) : cmd.op === "markers" ? placeMarkers(cmd) : Promise.resolve())
-        .catch((e) => {
-          log("Error: " + e);
-          return post("/api/bridge/report", { job: cmd.job, rid: cmd.rid, ok: false, message: "Speech panel error: " + e,
-                                              error: "Speech panel error: " + e }).catch(() => {});
-        })
-        .finally(() => { busy = false; });
+    // the apps that are there, every time; the other ports now and then
+    const ask = PORTS.filter((p) => live.has(p) || ticks % 4 === 1);
+    await Promise.all(ask.map((p) => post(p, "/api/bridge/hello", i, 1200).then((r) => {
+      live.add(p);
+      if (r && r.command) todo.push({ port: p, cmd: r.command });
+    }, () => { live.delete(p); })));
+    if (!busy) {
+      if (live.size) show(i.project ? `Connected · ${baseName(i.project)}` : "Connected · no project open", "on");
+      else show("Shorts Toolkit isn't open", "off");
     }
+    work();
   } catch (e) {
-    if (!busy) port = (port + 1) % PORTS.length;        // look on the next port
-    show("Shorts Toolkit isn't open", "off");
-    wait = port === 0 ? 4000 : 300;
+    log("Error: " + e);
   }
-  setTimeout(tick, wait);
+  setTimeout(tick, live.size ? 1500 : 3000);
 }
 
 tick();

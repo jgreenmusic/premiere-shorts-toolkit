@@ -9,6 +9,9 @@ A run works through the same steps as the toolkit's tabs, with the same commands
     markers > captions > shorts > screams & laughs > look > render > posts > publish (plan only)
 
 and then stops. Nothing is published until every step is signed off and Publish is pressed.
+Captions can be Premiere's own (premiere_auto.py): the run opens Premiere, has Adobe's Speech to
+Text write them as a real caption track and carries on - for a plain recording Premiere first makes
+a project next to it, and the rest of the run works on that project. That step then goes first.
 Each step can be opened for editing - the toolkit's own page for that step, inside this window or
 in the Shorts Toolkit window. Afterwards "Apply my edits" renders and rewrites only what changed
 (stale.py knows which Shorts those are).
@@ -35,7 +38,9 @@ LABEL = dict(STAGES)
 ORDER = [s for s, _ in STAGES]
 REQUIRED = ("markers", "shorts", "render")       # a failure here stops the run; elsewhere it is noted and the run goes on
 OPTIONS = dict(find=True, count=10, min=15, max=30, include_existing=False, look="", preset="medium",
-               posts=True, start_ai=True)
+               posts=True, start_ai=True,
+               captions="toolkit",               # or "premiere": Adobe's Speech to Text writes them, in Premiere
+               cap_style="premiere")             # Premiere's lines: "premiere" up to 42 characters, "short" 1-3 words
 PORTS = (8772, 8773, 8774)                       # not the toolkit's (8765, 8767-8769), the phone's (8766) or Post Studio's (8770)
 
 LOCK = threading.RLock()
@@ -44,6 +49,36 @@ ACTIVE = {"path": None}                          # the project a run is live on 
 
 def _key(path):
     return os.path.normcase(os.path.normpath(path))
+
+
+def _rk(path):
+    """What a run belongs to: a recording and the Premiere project made from it are one run
+    (they share the <name>_captions folder, so also autorun.json)."""
+    return _key(app.base_of(path))
+
+
+def _cur(path):
+    """The project a run is on now. A run started on a plain recording moves to the Premiere
+    project once Premiere has made one for its captions."""
+    with LOCK:
+        cur = (load_state(app.base_of(path) + "_captions").get("run") or {}).get("path")
+    return cur if cur and os.path.exists(cur) and _rk(cur) == _rk(path) else path
+
+
+def wants_premiere(I, run):
+    """Is this a run whose captions Premiere still has to write?"""
+    return bool(run) and (run.get("options") or {}).get("captions") == "premiere" and I.speech and not I.seq.captions
+
+
+def _queue(I, run, stages):
+    """The steps in the order they run: the toolkit's order, except that captions Premiere has to
+    write go first - a plain recording becomes a Premiere project there, and everything after
+    works on that project (so the speech is heard once, not once per file)."""
+    q = [s for s in ORDER if s in stages]
+    if "captions" in q and wants_premiere(I, run):
+        q.remove("captions")
+        q.insert(0, "captions")
+    return q
 
 
 # -- the project, read fresh ------------------------------------------------------------
@@ -181,7 +216,7 @@ def stage_sig(sid, I, run, have=None):
     if sid == "markers":
         return stale._h(c.get("markers"))
     if sid == "captions":
-        return stale._h([c.get("caption_edits"), c.get("caption_adds"), c.get("fit_timing")])
+        return stale._h([c.get("caption_edits"), c.get("caption_adds"), c.get("fit_timing"), len(I.seq.captions)])
     if sid == "shorts":
         return stale._h([(s["name"], round(float(s["start"]), 3), round(float(s["end"]), 3)) for _, s, _ in scope(I, run)])
     if sid == "screams":
@@ -413,6 +448,24 @@ def after_markers(path):
 
 def st_captions(path):
     I, run = _snap(path)
+    if wants_premiere(I, run):
+        import premiere_auto
+        o = run["options"]
+        going = lambda: (load_state(I.outdir).get("run") or {}).get("status") == "running"
+        try:
+            project = premiere_auto.captions(path, I.seq.name, o.get("cap_style") or "premiere", I.cfg["look"].get("punct", "keep"),
+                                             say=lambda text: note(path, "captions", text), stopped=lambda: not going())
+        except premiere_auto.Stopped:
+            return "stopped", "Stopped."
+        except premiere_auto.Problem as e:
+            return "halt", str(e)                        # only you can sort it out: the run waits here
+        if _key(project) != _key(path):                  # a plain recording: the run goes on with its new Premiere project
+            app.remember(project)
+            with _Run(path) as (_, _, run):
+                if run:
+                    run["path"] = project
+            path = project
+        I, run = _snap(path)
     if I.seq.captions:
         return "job", "Checking caption timing", ["captions", path, "--sequence", I.seq.name]
     return "done", "No Premiere captions here - the toolkit writes them from the speech it hears."
@@ -422,7 +475,8 @@ def after_captions(path):
     I, run = _snap(path)
     c = (app.results(I.outdir, I.sdir, I.cfg).get("check") or {})
     off = sum(v for k, v in (c.get("counts") or {}).items() if k in ("early", "late", "cut-off", "lingers"))
-    return "%d captions checked against the speech; %d are off%s." % (
+    return "%s%d captions checked against the speech; %d are off%s." % (
+        "Written by Premiere. " if run["options"].get("captions") == "premiere" else "",
         c.get("total", 0), off, " and are fitted in every render" if I.cfg.get("fit_timing", True) and off else "")
 
 
@@ -578,6 +632,7 @@ def _poke_toolkit(path):
 
 def _next(path):
     while True:
+        path = _cur(path)
         with _Run(path) as (I, st, run):
             if not run or run["status"] != "running":
                 _idle()
@@ -597,7 +652,12 @@ def _next(path):
             res = STAGE[sid](path)
         except (Exception, SystemExit) as e:
             app.note_error("auto run, " + sid)
-            res = ("failed", str(e))
+            res = ("halt" if sid == "captions" else "failed", str(e))    # never on to rendering with captions you didn't ask for
+        path = _cur(path)
+        with LOCK:                                       # stopped while the stage was at it (stop() wrote that down)
+            if (load_state(app.base_of(path) + "_captions").get("run") or {}).get("status") != "running":
+                _idle()
+                return
         if res[0] == "job":
             if app.run_job(res[1], res[2], lambda code, sid=sid: _done(path, sid, code)):
                 return
@@ -608,11 +668,13 @@ def _next(path):
 
 def _finish(path, sid, state, text):
     """Write down how a stage ended. False = the run stops here."""
+    halt = state == "halt"                               # failed, and the run can't sensibly go on without it
+    state = "failed" if halt else state
     with _Run(path) as (I, st, run):
         if not run:
             return False
         _set(run, sid, state, text)
-        if state == "failed" and sid in REQUIRED:
+        if state == "failed" and (halt or sid in REQUIRED):
             run["status"] = "failed"
             _idle()
             return False
@@ -625,6 +687,7 @@ def _finish(path, sid, state, text):
 
 def _done(path, sid, code):
     """A stage's job ended (called on the job's own thread)."""
+    path = _cur(path)
     with _Run(path) as (I, st, run):
         if not run:
             return
@@ -647,7 +710,7 @@ def _done(path, sid, code):
 def _launch(path):
     """Busy from here until the run stops - also between two jobs, so the toolkit can't slip one in."""
     import peer
-    ACTIVE["path"] = _key(path)
+    ACTIVE["path"] = _rk(path)
     app.HOLD[0] = "an auto run on %s" % os.path.splitext(os.path.basename(path))[0]
     peer.set_job(app.ME, app.HOLD[0])
     threading.Thread(target=_next, args=(path,), daemon=True).start()
@@ -666,7 +729,7 @@ def _free(path):
     if not app.JOB["done"] or peer.busy_with(app.ME):
         raise ValueError(app.busy_message())
     if ACTIVE["path"]:
-        raise ValueError("A run is already going%s." % ("" if ACTIVE["path"] == _key(path) else " on another project"))
+        raise ValueError("A run is already going%s." % ("" if ACTIVE["path"] == _rk(path) else " on another project"))
 
 
 def start(path, options=None):
@@ -674,7 +737,9 @@ def start(path, options=None):
     _free(path)
     with _Run(path) as (I, st, run):
         o = dict(OPTIONS, **{k: v for k, v in (options or {}).items() if k in OPTIONS})
-        o.update(count=max(1, min(60, int(o["count"]))), min=float(o["min"]), max=float(o["max"]))
+        o.update(count=max(1, min(60, int(o["count"]))), min=float(o["min"]), max=float(o["max"]),
+                 captions="premiere" if o["captions"] == "premiere" else "toolkit",
+                 cap_style="short" if o["cap_style"] == "short" else "premiere")
         if o["max"] <= o["min"]:
             raise ValueError("The longest length has to be more than the shortest.")
         have = [s["name"] for s in I.cfg["shorts"]]
@@ -683,7 +748,9 @@ def start(path, options=None):
         st["runs"] = int(st.get("runs") or 0) + 1
         st["run"] = dict(id=st["runs"], started=time.time(), finished=None, status="running", options=o,
                          outside=have if o["find"] and not o["include_existing"] else [], new=[],
-                         stage=None, queue=list(ORDER), stages={}, signed={}, posts_sig={}, plan=None)
+                         stage=None, queue=[], stages={}, signed={}, posts_sig={}, plan=None)
+        st["run"]["queue"] = _queue(I, st["run"], ORDER)
+        st["run"]["order"] = list(st["run"]["queue"])   # how the page lists this run's steps
     _launch(path)
     return state(path)
 
@@ -694,7 +761,7 @@ def again(path, stages, only=None):
     with _Run(path) as (I, st, run):
         if not run:
             raise ValueError("There is no run yet.")
-        run.update(status="running", queue=[s for s in ORDER if s in stages], only=only or {})
+        run.update(status="running", queue=_queue(I, run, stages), only=only or {})
         for s in run["queue"]:
             if applies(s, I):
                 _set(run, s, "todo", "")
@@ -711,6 +778,20 @@ def apply_edits(path, render=None, post=None):
         listing = app.results(I.outdir, I.sdir, I.cfg).get("screams") or {}
     stages = (["screams"] if I.reactions and listing.get("stale") else []) + ["render", "post", "publish"]
     return again(path, stages, dict(render=render, post=post))
+
+
+def premiere_captions(path, style=None):
+    """From the review of a run that used the toolkit's captions: have Premiere write them after
+    all. The Shorts then show as changed, and "Apply my edits" renders them again."""
+    with _Run(path) as (I, st, run):
+        if not run:
+            raise ValueError("There is no run yet.")
+        if I.seq.captions:
+            raise ValueError("This project already has Premiere captions.")
+        run["options"]["captions"] = "premiere"
+        if style in ("premiere", "short"):
+            run["options"]["cap_style"] = style
+    return again(path, ["captions"])
 
 
 def resume(path, skip=False):
@@ -765,7 +846,7 @@ def state(path):
         I = info(path)
         st = load_state(I.outdir)
         run = st.get("run")
-        if run and run["status"] == "running" and ACTIVE["path"] != _key(path):
+        if run and run["status"] == "running" and ACTIVE["path"] != _rk(path):
             run["status"] = "stopped"                    # the window was closed in the middle of a run
             if run.get("stage"):
                 _set(run, run["stage"], "stopped", "Stopped when the window was closed.")
@@ -774,11 +855,14 @@ def state(path):
         out = dict(path=path, name=os.path.splitext(os.path.basename(path))[0], kind=I.kind, speech=I.speech,
                    reactions=I.reactions, seconds=round(seq.end_s, 1), shorts=len(I.cfg["shorts"]),
                    markers=len(I.cfg.get("markers") or []), run=None, stages=[], pending=dict(render=[], post=[]),
-                   job=job_view(), other=peer.busy_with(app.ME), active=ACTIVE["path"] == _key(path),
-                   elsewhere=bool(ACTIVE["path"] and ACTIVE["path"] != _key(path)))
+                   job=job_view(), other=peer.busy_with(app.ME), active=ACTIVE["path"] == _rk(path),
+                   elsewhere=bool(ACTIVE["path"] and ACTIVE["path"] != _rk(path)),
+                   premiere_captions=len(seq.captions), wants_premiere=wants_premiere(I, run))
         settled = bool(run) and run["status"] != "running"
         have = written(I, run) if settled else {}
-        for sid, label in STAGES:
+        shown = (run or {}).get("order") or ORDER
+        for sid in (shown if sorted(shown) == sorted(ORDER) else ORDER):
+            label = LABEL[sid]
             s = ((run or {}).get("stages") or {}).get(sid) or {}
             ok, changed = signed(sid, I, run, have) if settled else (False, False)
             out["stages"].append(dict(id=sid, label=label, applies=applies(sid, I), state=s.get("state", "todo"),
@@ -851,14 +935,24 @@ def review(path):
 def options(path):
     """What the set-up card offers for this project."""
     import style
+    from clip import is_clip
     I = info(path)
     run = load_state(I.outdir).get("run") or {}
     music = I.kind == "music"
     o = dict(OPTIONS, **(dict(min=20, max=45) if music else {}))
-    last = {k: v for k, v in (run.get("options") or {}).items() if k in ("count", "min", "max", "preset", "posts", "start_ai")}
+    last = {k: v for k, v in (run.get("options") or {}).items()
+            if k in ("count", "min", "max", "preset", "posts", "start_ai", "captions", "cap_style")}
+    try:
+        import premiere_auto
+        premiere = premiere_auto.status()
+    except Exception as e:                               # never a reason not to show the card
+        premiere = dict(installed=False, running=False, error=str(e))
+    o["captions"] = "premiere" if premiere["installed"] else "toolkit"     # Premiere's own, wherever there is a Premiere
+    if not premiere["installed"]:
+        last.pop("captions", None)
     out = dict(defaults=dict(o, **last), kind=I.kind, kinds=[dict(id=k, label=v["label"], about=v["about"]) for k, v in config.KINDS.items()],
                shorts=len(I.cfg["shorts"]), markers=len(I.cfg.get("markers") or []), seconds=round(I.seq.end_s, 1),
-               speech=I.speech, premiere_captions=len(I.seq.captions),
+               speech=I.speech, premiere_captions=len(I.seq.captions), premiere=premiere, clip=is_clip(path),
                look=I.cfg["look"].get("preset_name") or "Classic",
                looks=[n for n, _, _ in style.PRESETS], my_looks=sorted(app.load_settings().get("look_presets", {})),
                posting=dict(ok=False), ai=dict(up=False), youtube=None, tiktok=None)
@@ -890,10 +984,10 @@ class Handler(app.Handler):
         app.LAST_SEEN[0] = time.time()
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         try:
-            if u.path == "/api/auto/state":
-                return self.send_json(state(q["path"]))
+            if u.path == "/api/auto/state":             # its "path" says where the run is now; the page follows
+                return self.send_json(state(_cur(q["path"])))
             if u.path == "/api/auto/review":
-                return self.send_json(review(q["path"]))
+                return self.send_json(review(_cur(q["path"])))
             if u.path == "/api/auto/options":
                 return self.send_json(options(q["path"]))
         except (Exception, SystemExit) as e:
@@ -914,6 +1008,9 @@ class Handler(app.Handler):
             p = b.get("path")
             if u.path == "/api/auto/start":
                 return self.send_json(start(p, b.get("options")))
+            p = _cur(p) if p else p
+            if u.path == "/api/auto/premiere":
+                return self.send_json(premiere_captions(p, b.get("style")))
             if u.path == "/api/auto/stop":
                 return self.send_json(stop(p))
             if u.path == "/api/auto/resume":

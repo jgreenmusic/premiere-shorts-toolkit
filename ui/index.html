@@ -2053,11 +2053,7 @@ function viewCaptions() {
   const I = S.info, R = I.results, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
   const synced = S.projects.filter(p => p.base === name.replace(/_captions-synced(-v\d+)?$/, "") && p.version !== "original");
-  if (!seq.captions && I.clip) {
-    $("#view").innerHTML = `<div class="card"><div class="card-head"><div class="grow"><h3>A video clip has no Premiere captions</h3>
-      <p>That's fine — the toolkit makes captions from the speech itself (1–3 words at a time) for everything it renders. Timing checks here are only for captions made in Premiere.</p></div></div></div>`;
-    return;
-  }
+  if (!seq.captions && I.clip) return viewClipCaptions();
   if (!seq.captions) return viewMakeCaptions();
   $("#view").innerHTML = `
   <div class="card">
@@ -2087,11 +2083,53 @@ function viewCaptions() {
   $("#fitTiming").onchange = e => saveCfg({ fit_timing: e.target.checked }, false).then(() => toast(e.target.checked ? "Caption timing is fitted in renders" : "Renders use Premiere's own caption timing", true));
 }
 
+// ---- A plain recording: the toolkit's own captions need nothing here; or Premiere writes
+// them by itself (premiere_auto.py) and the toolkit moves to the project Premiere made.
+function viewClipCaptions() {
+  const P = W.auto || {}, mine = P.path === S.current, on = !!P.running && mine;
+  $("#view").innerHTML = `
+  <div class="card"><div class="card-head"><div class="grow"><h3>This recording gets the toolkit's captions</h3>
+    <p>A plain video file has no Premiere captions, so the toolkit writes its own from the speech (1–3 words at a time) for everything it renders. There is nothing to press here for that. To fix a caption, open a Short in step 3 and use the caption list beside it.</p></div></div></div>
+  <div class="card"><div class="card-head"><div class="grow"><h3>Or have Premiere write them</h3>
+    <p>Premiere opens by itself, makes a project next to the recording (same name, .prproj) and Adobe Speech to Text writes the captions as a real caption track. The toolkit then moves to that project, with the same Shorts and settings. The recording itself is not changed.</p></div>
+    <button class="btn primary" id="pcGo" ${on || S.busy || (W.auto && !P.installed) ? "disabled" : ""}>${on ? "Premiere is at it…" : "Have Premiere write them"}</button>
+    ${on ? `<button class="btn" id="pcStop">Stop</button>` : ""}</div>
+    <label class="field" style="max-width:420px">Caption lines<select class="text" id="pcStyle">
+      <option value="premiere" ${store.get("capStyle", "premiere") === "premiere" ? "selected" : ""}>As Premiere makes them — up to 42 characters</option>
+      <option value="short" ${store.get("capStyle", "premiere") === "short" ? "selected" : ""}>Short lines — 1 to 3 words</option></select></label>
+    ${W.auto && !P.installed ? `<p class="hint" style="margin:10px 0 0">Premiere isn't installed on this PC.</p>` : ""}
+    ${mine && (P.lines || []).length ? `<div class="result" style="margin-top:14px"><pre class="hint" style="white-space:pre-wrap;margin:0;max-height:200px;overflow:auto">${esc(P.lines.join("\n"))}</pre></div>` : ""}
+    ${mine && P.error ? `<p style="color:var(--bad);margin:12px 0 0">${esc(P.error)}</p>` : ""}
+  </div>`;
+  $("#pcStyle").onchange = e => store.set("capStyle", e.target.value);
+  $("#pcGo").onclick = async () => {
+    try { W.auto = await api("/api/bridge/auto", { path: S.current, style: store.get("capStyle", "premiere") }); }
+    catch (e) { return toast(e.message); }
+    render(); autoPoll();
+  };
+  const st = $("#pcStop"); if (st) st.onclick = () => api("/api/bridge/auto/stop", {}).then(autoPoll);
+  if (!W.aTimer) autoPoll();
+}
+async function autoPoll() {
+  clearTimeout(W.aTimer); W.aTimer = null;
+  let P; try { P = await api("/api/bridge/auto"); } catch (e) { return; }
+  const was = W.auto, changed = JSON.stringify(was) !== JSON.stringify(P);
+  W.auto = P;
+  if (was && was.running && !P.running && P.project && P.path === S.current) {      // done: carry on in the project Premiere made
+    await loadState();
+    toast("Premiere wrote the captions — now on the Premiere project", true);
+    return select(P.project);
+  }
+  const here = S.tab === "captions" && S.info && S.info.clip;
+  if (P.running || here) W.aTimer = setTimeout(autoPoll, P.running ? 1000 : 4000);
+  if (changed && here) render();
+}
+
 // ---- Making Premiere captions (no captions yet). Two ways that end the same:
 // the toolkit sees captions in the saved project -> checks timing -> step 3.
 //  • Automatic: the Premiere panels (bridge.py) transcribe + add the caption track + save
 //  • By hand: you press Create captions in Premiere and save; the toolkit watches
-const W = { on: false, timer: null, for: null, bridge: null, bTimer: null };
+const W = { on: false, timer: null, for: null, bridge: null, bTimer: null, auto: null, aTimer: null };
 // the Captions panel's connection, shown wherever a step needs Premiere
 function panelStatus() {
   const B = W.bridge, p = B && B.panels && B.panels.cep, inst = B && B.installed && B.installed.cep;

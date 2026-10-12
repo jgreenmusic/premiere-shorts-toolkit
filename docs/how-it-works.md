@@ -85,6 +85,7 @@ faster (6 Shorts: 58 s one at a time, 56 s three at a time), so they run one aft
 | `app.py`, `ui/index.html` | The app: local server and the whole interface in one page |
 | `desktop.py` | The app in its own window (`--autorun`: the Auto Run window) |
 | `autorun.py`, `ui/auto.html` | Shorts Auto Run: the steps of a run, the review, sign-off, Apply my edits |
+| `premiere_auto.py` | Premiere writing the captions by itself: start Premiere, open or make the project, transcribe, add the caption track, check the saved file |
 | `stale.py` | Which Shorts changed since they were rendered, and why |
 | `peer.py` | The two windows knowing about each other |
 | `pipeline.py` | Loads a project the same way for every command |

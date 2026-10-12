@@ -223,6 +223,7 @@ Pick a project at the top (or **Open clip…**) and choose:
 |---|---|
 | **What is it?** | Gaming / talking or Music stream - the same choice as in the toolkit. |
 | **Moments** | **Find** so many new moments of such a length, or **Don't look for new ones** to carry the Shorts you already made through the rest. Tick **…and also take the Shorts already in the project** to do both. |
+| **Captions** | **Premiere writes them**: Adobe Speech to Text, as a real caption track in a Premiere project - see below. **The toolkit writes them**: from the speech it hears on this PC, no Premiere needed. Not shown when the project already has Premiere captions. |
 | **Look** | Keep the project's look, or switch to a preset for this run. |
 | **Render** | Speed against file size. |
 | **Posts** | Write titles, descriptions and tags. Needs the local AI; it can start it by itself. |
@@ -232,12 +233,37 @@ the toolkit's log bar does. **Stop** stops it where it is - **Continue from ther
 A run on a new recording takes as long as the same steps by hand: the first transcription is the
 slow part (about 8 minutes per hour of video).
 
+### Captions written by Premiere
+
+With **Premiere writes them** chosen, the Captions step runs first and does what you would do by
+hand in Premiere:
+
+1. Starts Premiere if it is closed (and puts the toolkit's two panels in if they are missing or old).
+2. Opens the project. For a plain recording with no project, Premiere makes one next to it with
+   the same name (`My recording.mp4` gets `My recording.prproj`) and puts the recording on one timeline.
+   The recording itself is not changed.
+3. Adobe Speech to Text transcribes it. A long recording takes a few minutes.
+4. The lines go on the timeline as a real caption track, and the project is saved.
+
+The run then carries on with that project - the window switches to it by itself - and checks the
+captions' timing against the speech like any Premiere captions. Edit them later either way: **Edit**
+on the Captions or Render card (the toolkit's caption list, per Short), or in Premiere's Text panel.
+
+If Premiere cannot do it, the run stops at Captions and says why. **Continue from there** tries
+again; **Let the toolkit write the captions instead** carries on without Premiere. The usual
+reasons: one of the two panels is not open in Premiere (the message says which menu), Premiere
+is showing a question that needs an answer, or the panels were just updated and Premiere needs
+closing once - the run starts it again.
+
+A run made with the toolkit's captions can still get Premiere's: **Have Premiere write them** on
+its Captions card, then **Apply my edits** to render the Shorts again.
+
 What a run does at each step:
 
 | Step | Automatically |
 |---|---|
 | Moments | Places markers on the best moments (step 1's **Find Shorts**). |
-| Captions | Premiere captions: checks their timing against the speech; renders fit the ones that are off. No Premiere captions: they are written from the speech. |
+| Captions | Premiere captions: checks their timing against the speech; renders fit the ones that are off. None yet: Premiere writes them first if you chose that, otherwise they are written from the speech. |
 | Shorts | Every moment found in this run becomes a Short. |
 | Screams & laughs | Finds them; the confident ones are on, the rest are left as suggestions. |
 | Look | Uses the look you chose. |

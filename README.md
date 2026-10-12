@@ -56,6 +56,10 @@ render, posts, and the publish plan - then stops. It edits what you recorded and
 no picture or sound is ever made up. (The posts - titles, descriptions, tags - are text written by
 the AI on your PC, as in step 7, and can be switched off.)
 
+Captions can be Premiere's own: choose **Premiere writes them** and the run opens Premiere, has
+Adobe Speech to Text write a real caption track (for a plain recording it first makes a Premiere
+project next to it), and carries on by itself.
+
 What you get is a review: each step with what it made, the videos to watch, the posts to read
 and the publish plan. Every step has **Edit** (the toolkit's own page for that step, opened right
 there), and **Looks good** to sign it off. Change anything and **Apply my edits** renders and

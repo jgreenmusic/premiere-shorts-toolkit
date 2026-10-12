@@ -100,18 +100,18 @@ def connected(kind):
         return now() - PANELS.get(kind, {}).get("seen", 0) < 6
 
 
-def run_script(project, script, sequence=None, timeout=30):
-    """Have the Captions panel run one of premiere/*.jsx on the open project and wait for
-    its answer. Returns (ok, message)."""
-    name = os.path.basename(script)
-    if name in MARKER_SCRIPTS and connected("uxp"):
-        # the Speech panel can place markers itself (Adobe's documented markers API)
-        prefix, color, csv_name = MARKER_SCRIPTS[name]
-        kind, cmd = "uxp", dict(op="markers", project=project, sequence=sequence, prefix=prefix, color=color,
-                                rows=read_marker_csv(os.path.join(outdir_of(project), csv_name)))
-    elif connected("cep"):
-        kind, cmd = "cep", dict(op="script", project=project, sequence=sequence, script=script)
-    else:
+def panel(kind):
+    """What that panel last said about itself (project, sequence, plugin version...), or None
+    if it hasn't checked in during the last few seconds."""
+    with LOCK:
+        p = PANELS.get(kind)
+        return dict(p) if p and now() - p.get("seen", 0) < 6 else None
+
+
+def call(kind, cmd, timeout=30):
+    """Ask a panel to do one thing and wait for its answer. Returns (ok, message);
+    message None = the panel isn't there, so nothing was asked."""
+    if not connected(kind):
         return False, None
     with LOCK:
         SCRIPT["n"] += 1
@@ -128,6 +128,26 @@ def run_script(project, script, sequence=None, timeout=30):
     return False, "Premiere didn't answer in %d s - is it busy (rendering, a dialog open)?" % timeout
 
 
+def cancel():
+    """Drop the captions job and anything still waiting for a panel."""
+    with LOCK:
+        JOB["step"] = "idle"
+        QUEUE["uxp"].clear()
+        QUEUE["cep"].clear()
+
+
+def run_script(project, script, sequence=None, timeout=30):
+    """Have the Captions panel run one of premiere/*.jsx on the open project and wait for
+    its answer. Returns (ok, message)."""
+    name = os.path.basename(script)
+    if name in MARKER_SCRIPTS and connected("uxp"):
+        # the Speech panel can place markers itself (Adobe's documented markers API)
+        prefix, color, csv_name = MARKER_SCRIPTS[name]
+        return call("uxp", dict(op="markers", project=project, sequence=sequence, prefix=prefix, color=color,
+                                rows=read_marker_csv(os.path.join(outdir_of(project), csv_name))), timeout)
+    return call("cep", dict(op="script", project=project, sequence=sequence, script=script), timeout)
+
+
 def fail(msg):
     say("Failed: " + msg)
     with LOCK:
@@ -140,8 +160,8 @@ def report(kind, r):
         with LOCK:
             SCRIPT["results"][r["rid"]] = (bool(r.get("ok")), r.get("message") or "")
         return
-    if r.get("job") != JOB["id"]:
-        return
+    if r.get("job") != JOB["id"] or JOB["step"] not in ("speech", "words", "srt", "import"):
+        return                                   # an old job's, or one that was cancelled meanwhile
     if r.get("line"):
         say(r["line"])
     if r.get("error"):

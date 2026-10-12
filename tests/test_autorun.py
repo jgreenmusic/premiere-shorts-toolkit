@@ -1,5 +1,6 @@
 """Tests for Shorts Auto Run (autorun.py), for knowing which Shorts changed since they were
-rendered (stale.py), and for the two windows knowing about each other (peer.py).
+rendered (stale.py), for the two windows knowing about each other (peer.py), and for Premiere writing the captions
+by itself (premiere_auto.py) - with stand-ins where Premiere and its panels would be.
 
     .venv\\Scripts\\python.exe tests\\test_autorun.py           everything (about twenty seconds)
     .venv\\Scripts\\python.exe tests\\test_autorun.py Quick     the fast ones only
@@ -227,6 +228,222 @@ class QuickPages(Sandbox, unittest.TestCase):
             self.assertIn(sid, app.STEPS)
         self.assertIn('id="autoBtn"', page)
         self.assertIn("window.gotoProject", page)
+
+
+class StandInPremiere(threading.Thread):
+    """Where Premiere would be: two panels that check in with bridge.py the way the real ones do
+    and answer what they are asked. `world` is what "Premiere" has open and has made."""
+
+    def __init__(self, world):
+        super().__init__(daemon=True)
+        self.w = world
+        self.on = True
+
+    def run(self):
+        import bridge
+        import premiere_install
+        w = self.w
+        while self.on:
+            if w["premiere"]:
+                cmd = bridge.hello("uxp", dict(plugin=premiere_install.PANELS, project=w["open"], doing=w["doing"]))
+                if cmd:
+                    self.speech(bridge, cmd)
+                if w["open"] and w["captions_panel"]:                   # that panel only lives once a project is open
+                    cmd = bridge.hello("cep", dict(plugin=premiere_install.PANELS, project=w["open"]))
+                    if cmd:
+                        self.captions(bridge, cmd)
+            time.sleep(0.02)
+
+    def speech(self, bridge, cmd):
+        w = self.w
+        w["asked"].append(cmd["op"])
+        if cmd["op"] in ("newproject", "open"):
+            if w["question"]:                                           # a dialog is up in Premiere: no answer comes
+                w["doing"] = "making " + os.path.basename(cmd["project"])
+                return
+            w["open"] = cmd["project"]
+            w["made"] = w["made"] or cmd["op"] == "newproject"
+            bridge.report("uxp", dict(rid=cmd["rid"], ok=True, message="Done."))
+        elif cmd["op"] == "transcribe":
+            words = [dict(text=t, start=1.0 + n * 0.5, duration=0.4) for n, t in enumerate("this is what was said in the recording".split())]
+            bridge.report("uxp", dict(job=cmd["job"], line="listening"))
+            bridge.report("uxp", dict(job=cmd["job"], transcripts={"rec": dict(words=words)},
+                                      items=[{"key": "rec", "start": 0, "end": 60, "in": 0, "out": 60}]))
+
+    def captions(self, bridge, cmd):
+        self.w["asked"].append(cmd["op"])
+        if cmd["op"] == "import":
+            with open(cmd["srt"], encoding="utf-8") as f:
+                self.w["captions"] = f.read().count("-->")
+            bridge.report("cep", dict(job=cmd["job"], done=True, message="Caption track added and the project saved."))
+
+
+class QuickPremiere(Sandbox, unittest.TestCase):
+    """Premiere writing the captions by itself (premiere_auto.py), with stand-ins where Premiere
+    and its two panels would be - and what Auto Run does around it."""
+
+    def setUp(self):
+        import bridge
+        import premiere_auto
+        self.bridge, self.pa = bridge, premiere_auto
+        bridge.PANELS.clear()
+        bridge.QUEUE["uxp"].clear()
+        bridge.QUEUE["cep"].clear()
+        bridge.JOB.update(step="idle", lines=[], project=None)
+        self.world = dict(premiere=False, open=None, made=False, captions=0, captions_panel=True, question=False,
+                          doing="", asked=[])
+        self.keep = (premiere_auto.running, premiere_auto._read, dict(premiere_auto.WAIT))
+        premiere_auto.running = lambda: self.world["premiere"]
+        premiere_auto._read = lambda project, sequence=None: (1 if self.world["made"] else 0, self.world["captions"])
+        premiere_auto.WAIT.update(premiere=3, panel=0.3, ask=1.2, settle=0.2, opened=2, captions_panel=1, quiet=2, saved=2)
+        self.premiere = StandInPremiere(self.world)
+        self.premiere.start()
+        self.clip = os.path.join(self.tmp, "night.mp4")
+        self.said = []
+
+    def tearDown(self):
+        self.premiere.on = False
+        self.premiere.join(2)
+        self.pa.running, self.pa._read = self.keep[0], self.keep[1]
+        self.pa.WAIT.update(self.keep[2])
+
+    def go(self, path=None, **more):
+        return self.pa.captions(path or self.clip, say=self.said.append,
+                                start=lambda project: self.world.update(premiere=True, open=project), **more)
+
+    def test_a_recording_gets_a_project_and_its_captions(self):
+        project = self.go()
+        self.assertEqual(project, os.path.join(self.tmp, "night.prproj"))       # next to the recording, same name
+        self.assertEqual(self.world["asked"], ["newproject", "transcribe", "import"])
+        self.assertEqual(self.world["open"], project)
+        self.assertGreater(self.world["captions"], 0)
+        self.assertIn("captions written by Premiere", self.said[-1])
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "night_captions", "premiere-words.json")))
+        self.assertEqual(self.bridge.status()["job"]["step"], "done")
+
+    def test_a_project_is_opened_not_made(self):
+        project = os.path.join(self.tmp, "edit.prproj")
+        self.world.update(premiere=True, made=True)                     # Premiere is open already, on something else
+        self.assertEqual(self.go(project, sequence="Main"), project)
+        self.assertEqual(self.world["asked"], ["open", "transcribe", "import"])
+
+    def test_captions_that_are_there_are_kept(self):
+        self.world.update(premiere=True, made=True, captions=40)
+        self.go()
+        self.assertNotIn("transcribe", self.world["asked"])
+        self.assertIn("already has 40 captions", self.said[-1])
+
+    def test_a_question_on_premieres_screen_is_said_plainly(self):
+        self.world["question"] = True
+        with self.assertRaises(self.pa.Problem) as e:
+            self.go()
+        self.assertIn("making night.prproj", str(e.exception))
+        self.assertIn("question", str(e.exception))
+        self.assertEqual(self.bridge.QUEUE["uxp"], [])                  # nothing left to run later by surprise
+
+    def test_a_closed_captions_panel_says_where_to_open_it(self):
+        self.world["captions_panel"] = False
+        with self.assertRaises(self.pa.Problem) as e:
+            self.go()
+        self.assertIn("Window > Extensions > Shorts Toolkit - Captions", str(e.exception))
+        self.assertNotIn("transcribe", self.world["asked"])
+
+    def test_premiere_that_never_starts(self):
+        with self.assertRaises(self.pa.Problem) as e:
+            self.pa.captions(self.clip, say=self.said.append, start=lambda project: None)
+        self.assertIn("didn't start", str(e.exception))
+
+    def test_stop_stops_it(self):
+        with self.assertRaises(self.pa.Stopped):
+            self.go(stopped=lambda: "transcribe" in self.world["asked"] or self.world["premiere"])
+        self.assertEqual(self.bridge.status()["job"]["step"], "idle")
+
+    def test_a_cancelled_job_cannot_come_back(self):
+        """Premiere finishing its transcript after Stop must not add a caption track."""
+        b = self.bridge
+        b.start("p.prproj", self.tmp, "Seq", "adobe", "premiere")
+        job = b.JOB["id"]
+        b.cancel()
+        b.report("uxp", dict(job=job, transcripts={"rec": dict(words=[dict(text="late", start=1, duration=1)])}, items=[]))
+        self.assertEqual(b.status()["job"]["step"], "idle")
+        self.assertEqual(b.QUEUE["cep"], [])
+
+    # -- Auto Run around it ---------------------------------------------------------------------
+    def fake(self, speech=True, captions=0, choice="premiere"):
+        I = SimpleNamespace(speech=speech, seq=SimpleNamespace(captions=[0] * captions))
+        return I, dict(options=dict(captions=choice))
+
+    def test_premiere_captions_go_first(self):
+        self.assertEqual(autorun._queue(*self.fake(), autorun.ORDER)[:3], ["captions", "markers", "shorts"])
+        self.assertEqual(autorun._queue(*self.fake(choice="toolkit"), autorun.ORDER), autorun.ORDER)
+        self.assertEqual(autorun._queue(*self.fake(captions=12), autorun.ORDER), autorun.ORDER)      # they are there already
+        self.assertEqual(autorun._queue(*self.fake(), ["render", "post"]), ["render", "post"])
+
+    def test_a_recording_and_its_project_are_one_run(self):
+        clip, project = os.path.join(self.tmp, "show.mp4"), os.path.join(self.tmp, "show.prproj")
+        self.assertEqual(autorun._rk(clip), autorun._rk(project))
+        self.assertEqual(autorun._cur(clip), clip)
+        autorun.save_state(os.path.join(self.tmp, "show_captions"), dict(run=dict(path=project)))
+        self.assertEqual(autorun._cur(clip), clip)                      # the project isn't there (yet, or any more)
+        open(project, "w").close()
+        self.assertEqual(autorun._cur(clip), project)
+        self.assertEqual(autorun._cur(project), project)
+
+    def test_a_problem_holds_the_run_until_you_deal_with_it(self):
+        """Not rendered with the wrong captions behind your back: the run waits at Captions."""
+        outdir = os.path.join(self.tmp, "held_captions")
+        autorun.save_state(outdir, dict(run=dict(status="running", queue=["captions", "markers"], stages={}, options={})))
+        clip = os.path.join(self.tmp, "held.mp4")
+        keep = autorun.info
+        autorun.info = lambda path: SimpleNamespace(outdir=outdir)
+        try:
+            self.assertFalse(autorun._finish(clip, "captions", "halt", "Premiere isn't installed."))
+        finally:
+            autorun.info = keep
+        run = autorun.load_state(outdir)["run"]
+        self.assertEqual(run["status"], "failed")
+        self.assertEqual(run["queue"][0], "captions")                   # Continue picks it up again; Skip goes past it
+        self.assertEqual(run["stages"]["captions"]["state"], "failed")
+        self.assertIn("isn't installed", run["stages"]["captions"]["note"])
+
+    def test_the_panels_are_the_version_the_installer_expects(self):
+        import re
+        import premiere_install
+        with open(os.path.join(ROOT, "premiere", "bridge-uxp", "manifest.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["version"], premiere_install.PANELS)
+        for name in (os.path.join("bridge-uxp", "main.js"), os.path.join("bridge-cep", "main.js"),
+                     os.path.join("bridge-cep", "CSXS", "manifest.xml")):
+            with open(os.path.join(ROOT, "premiere", name), encoding="utf-8") as f:
+                text = f.read()
+            with self.subTest(file=name):
+                self.assertIn('"%s"' % premiere_install.PANELS, text)
+                if name.endswith(".js"):                                # both panels look for both programs
+                    ports = [int(x) for x in re.search(r"const PORTS = \[([^\]]+)\]", text).group(1).split(",")]
+                    self.assertEqual(ports, list(app.BRIDGE_PORTS) + list(autorun.PORTS))
+
+    def test_the_speech_panel_can_be_put_in_without_adobes_installer(self):
+        import premiere_install as pi
+        keep = (pi.UXP_ROOT, pi.UXP_INFO)
+        pi.UXP_ROOT = os.path.join(self.tmp, "UXP")
+        pi.UXP_INFO = os.path.join(pi.UXP_ROOT, "PluginsInfo", "v1", "premierepro.json")
+        try:
+            old = os.path.join(pi.UXP_ROOT, "Plugins", "External", pi.UXP_ID + "_1.0.0")
+            os.makedirs(old)
+            os.makedirs(os.path.dirname(pi.UXP_INFO))
+            other = dict(pluginId="someone.elses.plugin", path="$localPlugins\\External\\x", status="enabled")
+            with open(pi.UXP_INFO, "w", encoding="utf-8") as f:
+                json.dump({"plugins": [other, dict(pluginId=pi.UXP_ID, path="$localPlugins\\External\\" + pi.UXP_ID + "_1.0.0",
+                                                   status="enabled", versionString="1.0.0")]}, f)
+            self.assertFalse(pi._uxp_current())
+            pi._uxp_by_hand()
+            self.assertTrue(pi._uxp_current())
+            with open(pi.UXP_INFO, encoding="utf-8") as f:
+                listed = json.load(f)["plugins"]
+            self.assertEqual([p["pluginId"] for p in listed], ["someone.elses.plugin", pi.UXP_ID])   # others left alone
+            self.assertEqual(listed[1]["versionString"], pi.PANELS)
+            self.assertFalse(os.path.exists(old))                       # its own earlier version: gone
+        finally:
+            pi.UXP_ROOT, pi.UXP_INFO = keep
 
 
 def clicks(seconds, bpm, level=0.5):

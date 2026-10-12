@@ -11,15 +11,23 @@ The toolkit works without touching Premiere. These pieces are for when you want 
 ## The two panels
 
 Install once: in the app, **Install Premiere panels** (step 1 or 2), or from source
-`python premiere_install.py`. Then restart Premiere and open both:
+`python premiere_install.py`. Shorts Auto Run puts them in by itself when it needs Premiere.
+Then restart Premiere and open both:
 
 | Panel | Where in Premiere | What it is for |
 |---|---|---|
 | **Shorts Toolkit - Captions** | Window › Extensions | Runs the toolkit's scripts, adds a caption track, saves the project |
 | **Shorts Toolkit - Speech** | Window › Plugins | Runs Adobe Speech to Text, places markers |
 
-Dock them and leave them open. They check in with the toolkit every 1.5 s; the app shows when
-they are connected.
+Dock them and leave them open. They check in every 1.5 s with both programs - the Shorts
+Toolkit window and Shorts Auto Run - and do what either asks; the app shows when they are
+connected. The Speech panel is alive even on Premiere's Home screen with no project open (that is
+how a project gets opened or made for you); the Captions panel only once a project is open.
+
+The Speech panel normally goes in through Adobe's own plugin installer. That installer refuses
+when the Creative Cloud app is signed out, so the toolkit then copies the panel to
+`%APPDATA%\Adobe\UXP\Plugins\External` and lists it in `...\UXP\PluginsInfo\v1\premierepro.json`
+itself - the same two things Adobe's installer does.
 
 Why two: Adobe only lets one kind of panel (UXP) start transcription, and only the other kind
 (CEP/ExtendScript) add a caption track. Neither can press Premiere's own **Create captions** button.
@@ -31,6 +39,8 @@ Why two: Adobe only lets one kind of panel (UXP) start transcription, and only t
 | Step 1 › **Place markers in Premiere** | Yellow range markers named "Suggested: …" |
 | Step 1 › **Cut at the markers** | Every unlocked track razored at each marker's start and end |
 | Step 2 › **Make captions** | A caption track made from Adobe's transcript or the toolkit's, project saved |
+| Step 2 › **Have Premiere write them** (a plain recording) | Premiere opens, makes a project next to the recording, transcribes, adds the caption track, saves |
+| Auto Run › Captions: **Premiere writes them** | The same, as the first step of a run - for a project or a plain recording |
 | Step 2 › **Watch for captions** | Nothing — the toolkit waits for captions you make by hand, then carries on |
 | Step 3 › **Send to Premiere** | Range markers named "Short: …" |
 
@@ -67,6 +77,7 @@ Premiere's own caption tracks cannot animate, which is why the animated look liv
 
 - **A panel is blank or says not connected:** close and reopen it from the Window menu.
 - **"Premiere didn't answer":** open *Window › Extensions › Shorts Toolkit - Captions* once; Premiere does not always start it on its own.
-- **After updating the toolkit:** press **Reinstall Premiere panels**.
+- **After updating the toolkit:** press **Reinstall Premiere panels** (Auto Run does this by itself), then close and reopen Premiere once.
+- **Auto Run says Premiere stopped while making or opening a project:** Premiere is showing a question. Answer it in Premiere, then **Continue from there**.
 - **Logs:** `%TEMP%\shorts-toolkit-captions-panel.log` (Captions) and
   `%APPDATA%\Adobe\Premiere Pro\Logs\UXPLogs_*.log` (Speech).
