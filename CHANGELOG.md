@@ -2,6 +2,17 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.31.0 - 2026-10-20
+
+- **Transcribing can use the graphics card.** The first transcription was the slow step
+  (~8 min per hour of video on the processor) because faster-whisper only uses NVIDIA cards.
+  With a whisper.cpp Vulkan build in `%USERPROFILE%\tools\whisper-vulkan\` new transcripts are
+  made on the graphics card: an 87-minute recording took 3.2 min with `small` on an RX 9070 XT.
+  Same model, same voice filter (Silero), word times within 0.02 s of the processor's. Without
+  the build, or if it fails, the processor is used as before. Details in docs/how-it-works.md.
+- **Existing transcripts are kept.** A project transcribed on the processor keeps using that
+  transcript, so caption edits stay attached to their captions.
+
 ## 0.30.0 - 2026-10-11
 
 - **Auto Run can have Premiere write the captions, with nobody at the keyboard.** A run on a

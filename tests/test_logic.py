@@ -261,5 +261,44 @@ class SpeechBeforeLaughs(unittest.TestCase):
         self.assertEqual(style.readable("x" * 100), 1.5)
 
 
+class GraphicsCardWhisper(unittest.TestCase):
+    def tok(self, text, dtw, p=0.9):
+        return {"text": text, "t_dtw": dtw, "p": p, "offsets": {"from": 0, "to": 0}}
+
+    def test_words_end_at_their_dtw_time_and_map_back(self):
+        import whisper_gpu
+        seg = {"text": " Help me", "offsets": {"from": 1000, "to": 2500},
+               "tokens": [self.tok("[_BEG_]", -1), self.tok(" He", 120, 0.8), self.tok("lp", 140, 0.6),
+                          self.tok(" me", 230, 0.4), self.tok("[_TT_75]", -1)]}
+        words = whisper_gpu.words_from([seg, {"text": " ", "offsets": {"from": 0, "to": 0}, "tokens": []}],
+                                       lambda t: t + 10)
+        self.assertEqual(words, [[11.0, 11.4, "Help", 0.7], [11.4, 12.3, "me", 0.4]])
+
+    def test_processor_transcript_is_still_used_first(self):
+        import json
+        import tempfile
+        import numpy as np
+        d = tempfile.mkdtemp()
+        audio = np.zeros(16000, np.float32)
+        key = captions.audio_key(audio) + "-small"
+        with open(os.path.join(d, "words-%s.json" % key), "w") as f:
+            json.dump([[1.0, 1.2, "old", 0.9]], f)
+        with open(os.path.join(d, "words-%s-gpu.json" % key), "w") as f:
+            json.dump([[1.0, 1.2, "new", 0.9]], f)
+        self.assertEqual(texts(captions.transcribe(audio, d, log=lambda *a: None)), ["old"])
+
+    def test_off_switch(self):
+        import whisper_gpu
+        old = os.environ.get("SHORTS_WHISPER_CPP")
+        os.environ["SHORTS_WHISPER_CPP"] = "off"
+        try:
+            self.assertEqual(whisper_gpu.find("small"), "")
+        finally:
+            if old is None:
+                del os.environ["SHORTS_WHISPER_CPP"]
+            else:
+                os.environ["SHORTS_WHISPER_CPP"] = old
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

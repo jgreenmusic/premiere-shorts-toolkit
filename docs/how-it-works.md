@@ -44,7 +44,7 @@ synced copy, in which only caption start and end numbers differ; it is read back
 | Part | How |
 |---|---|
 | **Reading the project** | A `.prproj` is gzipped XML. The toolkit reads clips, markers and captions straight from it — Premiere does not need to be open. |
-| **Speech** | faster-whisper (`small`) gives a time for every word; the Silero voice detector bundled with it says where there is a voice at all. Repetition loops the model invents are removed. |
+| **Speech** | faster-whisper (`small`) gives a time for every word; the Silero voice detector bundled with it says where there is a voice at all. Repetition loops the model invents are removed. With a graphics card build of Whisper (below) new transcripts are made on the graphics card instead, with the same model, voice filter and word timing. |
 | **Listen again** | Whisper `large-v3-turbo` on just one Short, without the voice filter (the filter discards speech under loud game audio). |
 | **Finding moments** | Every second is scored for loudness, talking, word rate, screams and laughs. A suggestion is built around a payoff about two thirds in, and snapped to a marker or a pause. |
 | **Music** | No speech model. From the sound itself: *beats* are sudden arrivals of new sound (spectral flux, 50 times a second); *changes* are where the eight seconds after sound different from the eight before; *gaps* are a second or more at least 35 dB under the loud parts. A second scores high when it is loud, busy, or something just came in. The pulse is found from how regularly the beats repeat; when it is clear, a Short is made a whole number of four-beat bars long. The sound-event model marks plain talking (reads "speech", not "music") so it is left out. |
@@ -76,6 +76,26 @@ Everything after the first analysis reads from the cache.
 
 Rendering uses the whole CPU already: running several renders at once was measured and is no
 faster (6 Shorts: 58 s one at a time, 56 s three at a time), so they run one after another.
+
+### Transcribing on the graphics card (optional)
+
+faster-whisper only uses NVIDIA cards. For AMD (and Intel) cards the toolkit can use a
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp) build with Vulkan instead
+(`whisper_gpu.py`): put `whisper-cli.exe` and its DLLs in `%USERPROFILE%\tools\whisper-vulkan\`
+(or point `SHORTS_WHISPER_CPP` at the folder; `SHORTS_WHISPER_CPP=off` turns it off). Models
+download into its `models\` folder on first use. If it is missing or fails, the processor is used.
+
+Measured on an RX 9070 XT, on an 87-minute gaming recording:
+
+| Model | Time | Words heard |
+|---|---|---|
+| `small`, processor (faster-whisper) | ~8 min per hour (above) | 6,300 |
+| `small`, graphics card | 3.2 min | 6,150 |
+| `large-v3-turbo`, graphics card | 1.9 min | 7,175 |
+
+Word times agree with the processor's to 0.02 s (median). A transcript already made on the
+processor is always used first, because caption edits are keyed by caption start and different
+words could orphan them; graphics card transcripts are cached as `words-<key>-gpu.json`.
 
 ## Code map
 

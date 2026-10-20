@@ -120,13 +120,31 @@ def timeline_audio(seq, log=print, rate=RATE, window=None, cache_dir=None):
 def transcribe(audio, cache_dir, model="small", log=print, vad=True):
     """faster-whisper word timestamps, cached by audio content + model. vad=False hears
     speech under loud game sound that the voice filter throws away (used for re-listens:
-    on one Short it found 11 lines where the filtered pass found 1)."""
+    on one Short it found 11 lines where the filtered pass found 1).
+    With a graphics card build of Whisper (whisper_gpu.py) new transcripts are made there and
+    cached as words-<key>-gpu.json. A transcript made on the processor is still used first:
+    caption edits are keyed by caption start, and different words could orphan them."""
+    import whisper_gpu
     key = audio_key(audio) + "-" + model + ("" if vad else "-novad")
     cache = os.path.join(cache_dir, "words-%s.json" % key)
-    if os.path.exists(cache):
-        log("  using cached transcript %s" % os.path.basename(cache))
-        with open(cache, encoding="utf-8") as f:
-            return json.load(f)
+    gpu_cache = os.path.join(cache_dir, "words-%s-gpu.json" % key)
+    for c in (cache, gpu_cache):
+        if os.path.exists(c):
+            log("  using cached transcript %s" % os.path.basename(c))
+            with open(c, encoding="utf-8") as f:
+                return json.load(f)
+    exe = whisper_gpu.find(model)
+    if exe:
+        log("  transcribing with Whisper '%s' on the graphics card" % model)
+        try:
+            words = whisper_gpu.transcribe(exe, audio, model=model, vad=vad, log=log)
+        except Exception as e:
+            log("  ! graphics card Whisper failed (%s) - using the processor" % e)
+        else:
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(gpu_cache, "w", encoding="utf-8") as f:
+                json.dump(words, f)
+            return words
     from faster_whisper import WhisperModel
     log("  transcribing with Whisper '%s' on CPU - this is the slow step" % model)
     wm = WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=os.cpu_count() or 4)
