@@ -87,6 +87,8 @@ DEFAULTS = {
     "caption_adds": [],           # [{"start": s, "end": s, "text": "..."}] captions you added (e.g. missed words)
     "caption_dismissed": [],      # starts (s) of "missing words" suggestions you dismissed
     "caption_heard_skip": [],     # caption keys whose "heard" suggestion (re-listen) you turned down
+    "whisper_model": "",          # "" = the model of the transcript the project has (new: large-v3-turbo on
+                                  # a graphics card, else small); set by "Transcribe again" in step 2
 }
 
 

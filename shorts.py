@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.31.0"
+__version__ = "0.32.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -85,7 +85,7 @@ def parse_time(t):
 def load_ctx(args, need_words=True):
     import pipeline
     return pipeline.load(args.project, sequence=getattr(args, "sequence", None),
-                         model=getattr(args, "model", "small"), need_words=need_words)
+                         model=getattr(args, "model", None), need_words=need_words)
 
 
 def scream_plan(ctx, args=None):
@@ -297,6 +297,42 @@ def cmd_relisten(args):
     words = [[round(w[0] + a, 3), round(w[1] + a, 3), w[2], w[3]] for w in words]
     pipeline.save_relisten(outdir, a, b, words)
     print("Heard %d words." % len(words))
+
+
+def cmd_transcribe(args):
+    """Step 2 "Transcribe again": the whole project with another Whisper model. The old
+    transcript is kept, so naming its model again switches back without listening again.
+    Says which caption fixes stop lining up: they are keyed by caption start, and when the
+    toolkit made the captions, different words can move those starts."""
+    import json
+    import config
+    import pipeline
+    ctx = pipeline.load(args.project, args.sequence, need_words=False)
+    outdir, cfg = ctx.outdir, ctx.cfg
+    old_model, old_file = cap.project_model(outdir, cfg), cap.words_file(outdir, cfg)
+    regions = cap.voice_regions(ctx.audio, outdir)
+
+    def lost(words):                          # caption fixes with no caption at their start
+        if ctx.seq.captions or words is None:  # Premiere's captions do not move with the words
+            return set()
+        keys = {cap.caption_key(c) for c in cap.auto_captions(cap.clean_loops(words, regions, cap.retyped(cfg)))[0]}
+        return {k for k, e in (cfg.get("caption_edits") or {}).items() if e and k not in keys}
+
+    before = None
+    if old_file:
+        with open(old_file, encoding="utf-8") as f:
+            before = json.load(f)
+    config.update(outdir, {"whisper_model": args.model})
+    print("Transcribing with Whisper '%s' (was '%s')" % (args.model, old_model))
+    words = cap.transcribe(ctx.audio, outdir, model=args.model)
+    print("%d words heard%s." % (len(words), " (%d before)" % len(before) if before is not None else ""))
+    newly = sorted(lost(words) - lost(before), key=float)
+    if newly:
+        print("! %d of your caption fixes no longer line up with a caption (at %s)." % (
+            len(newly), ", ".join(cap.fmt(float(k)) for k in newly[:8]) + (" ..." if len(newly) > 8 else "")))
+        print("  To keep them, switch back to '%s' in step 2 - its transcript is kept." % old_model)
+    elif cfg.get("caption_edits"):
+        print("Your caption fixes all still line up.")
 
 
 def cmd_markers(args):
@@ -901,8 +937,7 @@ def main():
     c = sub.add_parser("captions", help="check caption timing against the audio (and --fix it)")
     c.add_argument("project", help="saved .prproj file")
     c.add_argument("--sequence", help="sequence name, if more than one has captions")
-    c.add_argument("--model", default="small",
-                   help="Whisper model: tiny, base, small (default), medium, large-v3")
+    c.add_argument("--model", help="Whisper model (default: the project's own - see `transcribe`)")
     c.add_argument("--fix", action="store_true", help="write <project>_captions-synced.prproj")
     c.add_argument("--all", action="store_true", help="with --fix: retime every caption, not just flagged ones")
     c.add_argument("--no-durations", action="store_true",
@@ -912,7 +947,7 @@ def main():
         p.add_argument("project", help="saved .prproj file, or any video clip (.mp4 .mov .mkv ...)")
         p.add_argument("--sequence", help="sequence name (default: the one with captions)")
         if words:
-            p.add_argument("--model", default="small", help="Whisper model (must match the cached transcript)")
+            p.add_argument("--model", help="Whisper model (default: the project's own - see `transcribe`)")
 
     k = sub.add_parser("screams", help="growing-letter scream captions (plan + .srt)")
     common(k)
@@ -978,6 +1013,11 @@ def main():
     rl.add_argument("--end", type=float, required=True)
     rl.add_argument("--model", default="large-v3-turbo")
     rl.set_defaults(func=cmd_relisten)
+
+    tr = sub.add_parser("transcribe", help="step 2: transcribe the whole project again with another Whisper model")
+    common(tr, words=False)
+    tr.add_argument("--model", default=cap.BEST_MODEL, choices=["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"])
+    tr.set_defaults(func=cmd_transcribe)
 
     po = sub.add_parser("post", help="step 7: write titles/descriptions/tags per platform (Post Studio), optionally schedule")
     common(po, words=False)

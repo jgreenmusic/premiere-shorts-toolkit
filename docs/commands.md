@@ -26,6 +26,7 @@ project has several. Add `-h` to any command for all its options. Times are `6:1
 | `captions <project>` | Check Premiere caption timing against the speech (report only). |
 | `captions <project> --fix [--all] [--no-durations]` | Write a synced copy of the project. The original is never changed. |
 | `relisten <project> --start SECONDS --end SECONDS` | Hear one stretch again with the bigger model (the caption editor's **Listen again**). |
+| `transcribe <project> [--model large-v3-turbo]` | Transcribe the whole project again with another Whisper model (step 2 **Transcribe again**). The old transcript is kept; naming its model switches back. Says if any caption fixes stop lining up. |
 | `screams <project> [--loud X]` | Scream plan and a replacement `.srt`. |
 | `speech <project>` | Timeline words for the Premiere panels. |
 

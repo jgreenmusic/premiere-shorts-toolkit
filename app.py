@@ -158,7 +158,18 @@ def project_info(path):
                 kinds=[dict(id=k, label=v["label"], about=v["about"]) for k, v in config.KINDS.items()],
                 sequences=[dict(name=s.name, captions=len(s.captions), video=len(s.video), audio=len(s.audio),
                                 markers=len(s.markers), seconds=round(s.end_s, 1)) for s in seqs],
-                results=results(outdir, base_of(path) + "_shorts", cfg))
+                results=results(outdir, base_of(path) + "_shorts", cfg), transcript=transcript_info(outdir, cfg))
+
+
+def transcript_info(outdir, cfg):
+    """Step 2's Transcript card: which Whisper model the words come from, and what else is kept."""
+    import captions as cap
+    import whisper_gpu
+    files, cur = cap.words_files(outdir), cap.words_file(outdir, cfg)
+    on = next(((m, g) for p, m, g in files if p == cur), ("", False))
+    return dict(model=cap.project_model(outdir, cfg), current=on[0], gpu=on[1],
+                kept=sorted({m for _, m, _ in files if m and m != on[0]}), best=cap.BEST_MODEL,
+                gpu_found=bool(whisper_gpu.find(cap.BEST_MODEL)))
 
 
 def marker_segments(path):
@@ -520,6 +531,8 @@ def command(action, o):
         return ["speech", p]
     if action == "relisten":
         return ["relisten", p, "--start", "%.2f" % float(o["start"]), "--end", "%.2f" % float(o["end"])]
+    if action == "transcribe":
+        return ["transcribe", p, "--model", str(o.get("model") or "large-v3-turbo")]
     if action == "post":
         c = ["post", p]
         if o.get("indexes"):

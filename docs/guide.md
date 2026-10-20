@@ -92,6 +92,12 @@ Optional. Skip it and the toolkit writes its own captions from the speech, 1–3
   shows how far off Premiere's captions are.
 - **Finishing in Premiere instead:** **Create synced copy** writes the same fix into a new copy of
   the project. Your original is untouched.
+- **Transcript:** says which Whisper model the project's words come from. New projects use
+  `large-v3-turbo` when Whisper runs on the graphics card (else `small`); a project you
+  transcribed before keeps its words and is never transcribed again by itself.
+  **Transcribe again with large-v3-turbo** redoes it when you want: the old transcript is kept
+  (**Use small again** switches straight back), and the log says if any of your caption fixes
+  stop lining up — that can happen only when the toolkit wrote the captions.
 
 ## 3 · Shorts
 

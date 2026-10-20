@@ -2,6 +2,20 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.32.0 - 2026-10-20
+
+- **New projects are transcribed with large-v3-turbo on the graphics card.** There it is both
+  better and faster than `small`: on an 87-minute recording 112 s and 7,175 words, against 193 s
+  and 6,150 (and 6,300 for `small` on the processor). Without a graphics card build new projects
+  stay on `small`, because `large-v3-turbo` on the processor is slower.
+- **Older projects are left as they are.** A project's model is the one of the transcript it
+  already has, so nothing is transcribed again by itself and caption fixes keep their place.
+- **Transcribe again, when you want it.** Step 2 has a **Transcript** card: which model the words
+  come from, **Transcribe again with large-v3-turbo**, and **Use small again** for a kept
+  transcript (instant). Because caption fixes are keyed by caption start, the log says which
+  fixes no longer line up and keeps itself open; that can only happen when the toolkit wrote the
+  captions. Also `shorts.py transcribe <project> [--model ...]`.
+
 ## 0.31.0 - 2026-10-20
 
 - **Transcribing can use the graphics card.** The first transcription was the slow step

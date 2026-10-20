@@ -2053,8 +2053,8 @@ function viewCaptions() {
   const I = S.info, R = I.results, seq = I.sequences.find(s => s.name === I.sequence) || {};
   const name = I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, "");
   const synced = S.projects.filter(p => p.base === name.replace(/_captions-synced(-v\d+)?$/, "") && p.version !== "original");
-  if (!seq.captions && I.clip) return viewClipCaptions();
-  if (!seq.captions) return viewMakeCaptions();
+  if (!seq.captions && I.clip) { viewClipCaptions(); return transcriptCard(); }
+  if (!seq.captions) { viewMakeCaptions(); return transcriptCard(); }
   $("#view").innerHTML = `
   <div class="card">
     <div class="card-head"><div class="grow"><h3>Check caption timing</h3><p>Compares every Premiere caption with when the words are actually spoken. Changes nothing.</p></div>
@@ -2081,6 +2081,26 @@ function viewCaptions() {
     ${R.too_short ? `<p class="hint" style="margin:12px 0 0">${R.too_short} captions are too short to read and have no room to grow. <button class="btn link" data-open="${esc(I.outdir)}\\too-short-captions.txt">See list</button></p>` : ""}
   </div>`;
   $("#fitTiming").onchange = e => saveCfg({ fit_timing: e.target.checked }, false).then(() => toast(e.target.checked ? "Caption timing is fitted in renders" : "Renders use Premiere's own caption timing", true));
+  transcriptCard();
+}
+
+// ---- Transcript: which Whisper model the words come from. An older project keeps its own
+// transcript; "Transcribe again" (shorts.py transcribe) is only ever done when you press it.
+function transcriptCard() {
+  const T = S.info.transcript;
+  if (!T || !S.info.speech) return;
+  const where = g => g ? "on the graphics card" : "on the processor";
+  const pace = T.gpu_found ? "about 2 minutes per 90 minutes of video on the graphics card" : "about 9 minutes per hour of video on the processor";
+  const up = T.current && T.current !== T.best && !T.kept.includes(T.best);     // kept: the row below switches to it
+  $("#view").insertAdjacentHTML("beforeend", `<div class="card">
+    <div class="card-head"><div class="grow"><h3>Transcript</h3>
+      <p>${T.current ? `This project's words come from Whisper <b>${esc(T.current)}</b>, ${where(T.gpu)}.`
+        : `Not transcribed yet. The first step that needs the words uses Whisper <b>${esc(T.model)}</b>${T.gpu_found ? " on the graphics card" : ""}.`}
+      ${up ? ` <b>${esc(T.best)}</b> usually hears more (on an 87-minute recording: 7,175 words against 6,300 with small) and takes ${pace}. The current transcript is kept, so you can switch back. If the toolkit wrote this project's captions, the log says whether any of your caption fixes stop lining up.` : ""}</p></div>
+      ${up ? `<button class="btn" data-transcribe="${esc(T.best)}" ${dis()}>Transcribe again with ${esc(T.best)}</button>` : ""}</div>
+    ${T.kept.length ? `<div class="row">${T.kept.map(m => `<button class="btn sm" data-transcribe="${esc(m)}" ${dis()}>Use ${esc(m)} again</button>`).join("")}<span class="hint">kept, so switching back is quick</span></div>` : ""}
+  </div>`);
+  $$("[data-transcribe]").forEach(b => b.onclick = () => run("transcribe", { model: b.dataset.transcribe }));
 }
 
 // ---- A plain recording: the toolkit's own captions need nothing here; or Premiere writes
@@ -2323,6 +2343,7 @@ async function run(action, data = {}) {
     else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
   if (action === "relisten") { body.start = data.start; body.end = data.end; }
+  if (action === "transcribe") { body.model = data.model; body.title = "Transcribing with Whisper " + data.model; }
   if (action === "post") { Object.assign(body, data); if (data.schedule) body.title = "Writing + scheduling posts"; }
   if (action === "burn") { body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; if (!body.video) return toast("Pick the video you exported from Premiere first."); }
   try { await api("/api/run", body); } catch (e) { return toast(e.message); }
@@ -2355,6 +2376,7 @@ async function poll(from) {
   else {
     setStatus(j.code === 0 ? "ok" : "bad", j.code === 0 ? `${j.title} — done` : `${j.title} — failed (see log)`);
     if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
+    if (j.code === 0 && /no longer line up/.test(pre.textContent)) { openLog(true); toast("Some of your caption fixes no longer line up — the log says which, and how to switch back."); }
   }
   T.loadedFor = null; T.tl = null;
   if (S.afterJob && !j.stopped && j.code === 0) { S.tab = S.afterJob; store.set("tab", S.tab); }   // captions arrived -> checked -> step 3

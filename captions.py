@@ -117,14 +117,63 @@ def timeline_audio(seq, log=print, rate=RATE, window=None, cache_dir=None):
 
 
 # -- 2. words with timestamps ---------------------------------------------------
-def transcribe(audio, cache_dir, model="small", log=print, vad=True):
+# Which Whisper model a project uses. New projects get the best model when Whisper runs on the
+# graphics card (there it is better AND faster: 87 min in 112 s, 7,175 words, against 'small'
+# 193 s, 6,150). An older project keeps the model of the transcript it already has - it is
+# never transcribed again by itself; "Transcribe again" in step 2 (shorts.py transcribe) does it.
+BEST_MODEL = "large-v3-turbo"
+_WORDS_NAME = re.compile(r"^words-[0-9a-f]{16}-(.+?)(-novad)?(-gpu)?\.json$")
+
+
+def words_files(outdir):
+    """This project's cached transcripts, oldest first: [(path, model, made on the GPU)]."""
+    import glob
+    out = []
+    for p in sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime):
+        m = _WORDS_NAME.match(os.path.basename(p))
+        out.append((p, m.group(1), bool(m.group(3))) if m else (p, "", False))
+    return out
+
+
+def default_model():
+    """For a project with no transcript yet."""
+    import whisper_gpu
+    return BEST_MODEL if whisper_gpu.find(BEST_MODEL) else "small"
+
+
+def project_model(outdir, cfg=None):
+    """The model chosen in step 2 (toolkit.json whisper_model), else the one of the newest
+    transcript, else default_model()."""
+    if cfg is None:
+        import config
+        cfg = config.load(outdir)
+    if cfg.get("whisper_model"):
+        return cfg["whisper_model"]
+    have = [m for _, m, _ in words_files(outdir) if m]
+    return have[-1] if have else default_model()
+
+
+def words_file(outdir, cfg=None):
+    """The transcript every step reads: the newest one of the project's model (an older one
+    is kept, so switching back needs no new transcription), else the newest, else None."""
+    files = words_files(outdir)
+    if not files:
+        return None
+    model = project_model(outdir, cfg)
+    mine = [p for p, m, _ in files if m == model]
+    return (mine or [files[-1][0]])[-1]
+
+
+def transcribe(audio, cache_dir, model=None, log=print, vad=True):
     """faster-whisper word timestamps, cached by audio content + model. vad=False hears
     speech under loud game sound that the voice filter throws away (used for re-listens:
     on one Short it found 11 lines where the filtered pass found 1).
     With a graphics card build of Whisper (whisper_gpu.py) new transcripts are made there and
     cached as words-<key>-gpu.json. A transcript made on the processor is still used first:
-    caption edits are keyed by caption start, and different words could orphan them."""
+    caption edits are keyed by caption start, and different words could orphan them.
+    model=None: the project's own (project_model)."""
     import whisper_gpu
+    model = model or project_model(cache_dir)
     key = audio_key(audio) + "-" + model + ("" if vad else "-novad")
     cache = os.path.join(cache_dir, "words-%s.json" % key)
     gpu_cache = os.path.join(cache_dir, "words-%s-gpu.json" % key)

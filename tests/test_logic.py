@@ -287,6 +287,36 @@ class GraphicsCardWhisper(unittest.TestCase):
             json.dump([[1.0, 1.2, "new", 0.9]], f)
         self.assertEqual(texts(captions.transcribe(audio, d, log=lambda *a: None)), ["old"])
 
+    def test_which_model_a_project_uses(self):
+        import json
+        import tempfile
+        import time
+        import whisper_gpu
+        d = tempfile.mkdtemp()
+        old_find = whisper_gpu.find
+        try:
+            whisper_gpu.find = lambda model="small": "whisper-cli.exe"
+            self.assertEqual(captions.project_model(d), "large-v3-turbo")      # new project, graphics card
+            whisper_gpu.find = lambda model="small": ""
+            self.assertEqual(captions.project_model(d), "small")               # new project, processor only
+            whisper_gpu.find = lambda model="small": "whisper-cli.exe"
+            small = os.path.join(d, "words-0123456789abcdef-small.json")
+            with open(small, "w") as f:
+                json.dump([], f)
+            self.assertEqual(captions.project_model(d), "small")               # an older project stays as it is
+            self.assertEqual(captions.words_file(d), small)
+            time.sleep(0.02)
+            turbo = os.path.join(d, "words-0123456789abcdef-large-v3-turbo-gpu.json")
+            with open(turbo, "w") as f:
+                json.dump([], f)
+            cfg = {"whisper_model": "large-v3-turbo"}                          # "Transcribe again"
+            self.assertEqual(captions.words_file(d, cfg), turbo)
+            self.assertEqual(captions.words_file(d, {"whisper_model": "small"}), small)   # switched back
+            self.assertEqual([(m, g) for _, m, g in captions.words_files(d)],
+                             [("small", False), ("large-v3-turbo", True)])
+        finally:
+            whisper_gpu.find = old_find
+
     def test_off_switch(self):
         import whisper_gpu
         old = os.environ.get("SHORTS_WHISPER_CPP")

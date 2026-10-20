@@ -56,7 +56,8 @@ def fit_times(project_path, seq, outdir, cfg, words=None, regions=None):
     stem = os.path.splitext(os.path.basename(project_path))[0]
     if not seq.captions or not cfg.get("fit_timing", True) or re.search(r"_captions-synced(-v\d+)?$", stem):
         return {}
-    wfile = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
+    w = cap.words_file(outdir, cfg)
+    wfile = [w] if w else []
     vfile = sorted(glob.glob(os.path.join(outdir, "voice-*.json")), key=os.path.getmtime)
     if not wfile or not vfile:
         return {}
@@ -105,10 +106,10 @@ def caption_list(project_path, start=None, end=None, seq=None):
         caps, source = seq.captions, "premiere"
         fit = fit_times(project_path, seq, outdir, cfg)
     else:
-        cached = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
+        cached = cap.words_file(outdir, cfg)
         if not cached:
             return dict(source="none", captions=[])
-        with open(cached[-1], encoding="utf-8") as f:
+        with open(cached, encoding="utf-8") as f:
             words = json.load(f)
         voice = sorted(glob.glob(os.path.join(outdir, "voice-*.json")), key=os.path.getmtime)
         regions = None
@@ -182,17 +183,16 @@ def heard_words(outdir, rel=None):
 
 
 def _cached_words(outdir):
-    """The newest cached Whisper words for this project, loops cleaned, or []."""
-    import glob
+    """The project's cached Whisper words (cap.words_file), or []."""
     import json
-    cached = sorted(glob.glob(os.path.join(outdir, "words-*.json")), key=os.path.getmtime)
+    cached = cap.words_file(outdir)
     if not cached:
         return []
-    with open(cached[-1], encoding="utf-8") as f:
+    with open(cached, encoding="utf-8") as f:
         return json.load(f)
 
 
-def load(project_path, sequence=None, model="small", log=print, need_words=True):
+def load(project_path, sequence=None, model=None, log=print, need_words=True):
     base, outdir = outdir_for(project_path)
     os.makedirs(outdir, exist_ok=True)
     cfg = config.load(outdir)
