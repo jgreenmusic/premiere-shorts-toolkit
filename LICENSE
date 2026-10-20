@@ -20,7 +20,8 @@ Viewing and forking this repository on GitHub, as GitHub's Terms of Service
 allow, is not affected. A fork gives no rights beyond the ones above.
 
 Third-party components that ship with the app (the fonts in fonts/, and the
-libraries it is built on) remain under their own licences.
+libraries it is built on) remain under their own licences. They are listed, with
+where their licence texts are, in THIRD-PARTY-NOTICES.md.
 
 The software is provided "as is", without warranty of any kind. See TERMS.md.
 

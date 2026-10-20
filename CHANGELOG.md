@@ -2,6 +2,16 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## Unreleased
+
+- **Third-party notices for selling the app.** `THIRD-PARTY-NOTICES.md` lists every part the
+  installer ships that is not Julian's (FFmpeg, PyAV's codec libraries, Python and its runtime
+  libraries, 43 Python libraries, the PANNs laugh model, the AudioSet class names, the fonts),
+  with its licence and where its source is. The build now runs `tools\collect_licenses.py`,
+  which copies the licence text of every library the build actually packed into
+  `licenses\` next to the app, and copies the notices file there too. Four libraries ship no
+  licence file of their own; their texts are in `packaging\licenses-extra\`.
+
 ## 0.32.0 - 2026-10-20
 
 - **New projects are transcribed with large-v3-turbo on the graphics card.** There it is both
