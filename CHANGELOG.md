@@ -2,7 +2,20 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
-## Unreleased
+## 0.32.1 - 2026-10-24
+
+- **TikTok stopped posting for a week.** `Desktop\Projects` was renamed `Desktop\Adobe_Projects`
+  and every queued TikTok from Oct 18 on failed "the video file is missing", with nothing telling
+  Julian. The queue was repaired (paths moved, the 6 missed Shorts got new slots after the last
+  one), and the poster now looks for a moved video (same folder name holding the same file, under
+  Desktop, Videos or Documents) before failing; it never guesses between two candidates.
+- **Hashtags follow a researched plan.** The poosic voice now has a per-platform hashtag plan
+  (`hashtags` in Post Studio's `voices/poosic.json`): Julian's staples #fyp #funnyshorts #gaming
+  first, then the game, then one rotating funny/gaming tag - 5 in all, TikTok's per-post limit.
+  The reasons and sources are in `hashtags_why` in the same file.
+- Third-party notices (below).
+
+## Unreleased (folded into 0.32.1)
 
 - **Third-party notices for selling the app.** `THIRD-PARTY-NOTICES.md` lists every part the
   installer ships that is not Julian's (FFmpeg, PyAV's codec libraries, Python and its runtime
