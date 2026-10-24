@@ -2,6 +2,16 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.32.2 - 2026-10-24
+
+- **Titles say the game and skip filler.** About 15 of 39 queued titles were filler lines ("Keep
+  going", "Oh my god.", "No way.") that nobody searches and that don't hook. Post Studio now skips a
+  title made only of filler words for another style, drops a lone full stop at the end, and adds
+  " – Game" when the game is confirmed (search reads words, not only hashtags; voice setting
+  `title_game`). The queued Chained Together Shorts were rewritten from their transcripts (39
+  TikTok captions, 5 YouTube Shorts scheduled Oct 25-29; undo data in
+  `%LOCALAPPDATA%\PostStudio\undo-retitle-2026-10-24.json`).
+
 ## 0.32.1 - 2026-10-24
 
 - **TikTok stopped posting for a week.** `Desktop\Projects` was renamed `Desktop\Adobe_Projects`
