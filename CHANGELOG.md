@@ -2,6 +2,15 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.32.3 - 2026-10-25
+
+- **No game name in titles; YouTube titles keep his hashtags.** 0.32.2's " – Chained Together" was
+  wrong (Julian: don't), and it had pushed his title hashtags out. He was fixing each one by hand in
+  Studio. Post Studio's poosic voice now has `title_game: false` and `title_hashtags` for YouTube
+  Shorts (`#fyp #funnyshorts #gamingshorts #funny`, from his own upload of 2026-10-25), added after
+  the line. The 25 Shorts already scheduled on YouTube and the 38 queued TikTok captions were fixed
+  the same day (undo file `%LOCALAPPDATA%\PostStudio\undo-titles-2026-10-25.json`).
+
 ## 0.32.2 - 2026-10-24
 
 - **Titles say the game and skip filler.** About 15 of 39 queued titles were filler lines ("Keep
