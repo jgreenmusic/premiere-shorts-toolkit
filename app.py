@@ -768,6 +768,34 @@ def premiere_view():
     return dict(PREMIERE, lines=list(PREMIERE["lines"]), installed=bool(premiere_auto.exe()))
 
 
+# step 6's "Send to Premiere": after the files are written, Premiere makes "<name> - Shorts.prproj"
+# with the Shorts in it (premiere_auto.shorts_project)
+SHORTS_PRJ = dict(running=False, lines=[], project=None, message=None, error=None)
+
+
+def premiere_shorts(path):
+    import premiere_auto
+    with LOCK:
+        if SHORTS_PRJ["running"]:
+            return "Premiere is already making the Shorts project - wait for it."
+        SHORTS_PRJ.update(running=True, lines=[], project=None, message=None, error=None)
+
+    def work():
+        try:
+            SHORTS_PRJ["project"], SHORTS_PRJ["message"] = premiere_auto.shorts_project(
+                base_of(path) + "_premiere", os.path.basename(base_of(path)),
+                say=lambda text: SHORTS_PRJ["lines"].append(time.strftime("%H:%M:%S ") + text))
+        except premiere_auto.Problem as e:
+            SHORTS_PRJ["error"] = str(e)
+        except Exception as e:                           # noqa: BLE001 - shown in the app, kept for Copy log
+            note_error("Premiere Shorts project")
+            SHORTS_PRJ["error"] = str(e)
+        finally:
+            SHORTS_PRJ["running"] = False
+    threading.Thread(target=work, daemon=True).start()
+    return None
+
+
 # -- HTTP -------------------------------------------------------------------------------------
 LAST_SEEN = [time.time()]
 # installable-app files (phones fetch these before pairing)
@@ -861,6 +889,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(dict(bridge.status(), installed=premiere_install.installed()))
             if u.path == "/api/bridge/auto":
                 return self.send_json(premiere_view())
+            if u.path == "/api/bridge/shorts":
+                return self.send_json(dict(SHORTS_PRJ, lines=list(SHORTS_PRJ["lines"])))
             if u.path == "/api/diag":
                 return self.send_json({"text": diagnostics()})
             if u.path == "/api/state":
@@ -1180,6 +1210,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/bridge/auto":
                 err = premiere_captions(b["path"], "short" if b.get("style") == "short" else "premiere")
                 return self.send_json({"error": err} if err else premiere_view(), 409 if err else 200)
+            if u.path == "/api/bridge/shorts":
+                err = premiere_shorts(b["path"])
+                return self.send_json({"error": err} if err else dict(SHORTS_PRJ, lines=[]), 409 if err else 200)
             if u.path == "/api/bridge/auto/stop":
                 PREMIERE["stop"] = True
                 return self.send_json({"ok": True})

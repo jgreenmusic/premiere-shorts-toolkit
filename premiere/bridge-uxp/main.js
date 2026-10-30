@@ -12,7 +12,7 @@ const uxp = require("uxp");
 // where the apps listen: the Shorts Toolkit window uses the first free one of the first four
 // (app.BRIDGE_PORTS), Shorts Auto Run one of the last three (autorun.PORTS). Both can be open.
 const PORTS = [8765, 8767, 8768, 8769, 8772, 8773, 8774];
-const VERSION = "1.0.4";
+const VERSION = "1.0.5";
 const live = new Set();       // ports that answered the last time they were asked
 const todo = [];              // what the apps asked for, one at a time: {port, cmd}
 let busy = false;
@@ -256,7 +256,50 @@ async function projectFromClip(port, cmd) {
   return reply(true, `Made ${baseName(cmd.project)} with the timeline "${cmd.sequence}".`);
 }
 
-const OPS = { transcribe, markers: placeMarkers, open: openProject, newproject: projectFromClip };
+// Shorts sent to Premiere: make (or open) "<name> - Shorts.prproj", import the timeline file - each
+// Short becomes a timeline - and the plain-text captions into a bin of their own, open the first
+// new timeline, save
+async function shortsProject(port, cmd) {
+  const reply = (ok, message) => { log(message); return post(port, "/api/bridge/report", { rid: cmd.rid, ok, message }); };
+  show("Making the Shorts project…", "busy");
+  let project = await ppro.Project.getActiveProject();
+  if (!project || norm(project.path) !== norm(cmd.project)) {
+    doing = (cmd.exists ? "opening " : "making ") + baseName(cmd.project);
+    project = cmd.exists ? await ppro.Project.open(cmd.project) : await ppro.Project.createProject(cmd.project);
+  }
+  if (!project) return reply(false, `Premiere couldn't make ${baseName(cmd.project)}.`);
+  const before = new Set((await project.getSequences()).map((s) => s.guid.toString()));
+  doing = "importing the Shorts";
+  log("Importing " + cmd.xml);
+  if (!(await project.importFiles([cmd.xml], true))) return reply(false, `Premiere couldn't import ${baseName(cmd.xml)}.`);
+  let added = [];
+  for (let n = 0; n < 120 && added.length < cmd.count; n++) {     // the timelines show up a moment after the import returns
+    added = (await project.getSequences()).filter((s) => !before.has(s.guid.toString()));
+    if (added.length < cmd.count) await new Promise((r) => setTimeout(r, 250));
+  }
+  if (!added.length) return reply(false, `Premiere read ${baseName(cmd.xml)} but no timeline showed up.`);
+  if (cmd.srts && cmd.srts.length) {
+    doing = "importing the caption files";
+    const BIN = "Shorts Toolkit captions (text)";
+    const root = await project.getRootItem();
+    let bin = (await rootItems(project)).find((x) => x.name === BIN);
+    if (!bin) {
+      try {
+        project.lockedAccess(() => project.executeTransaction((ca) => ca.addAction(root.createBinAction(BIN, true)), "Add caption bin"));
+        bin = (await rootItems(project)).find((x) => x.name === BIN);
+      } catch (e) { log("No caption bin: " + e); }
+    }
+    const folder = bin && ppro.FolderItem.cast(bin.it);
+    try { await project.importFiles(cmd.srts, true, folder || root); }
+    catch (e) { log("Caption files not imported: " + e); }
+  }
+  try { await project.setActiveSequence(added[0]); } catch (e) { /* stays on whatever was open */ }
+  doing = "saving the project";
+  await project.save();
+  return reply(true, `${baseName(cmd.project)} has ${added.length} new timeline${added.length === 1 ? "" : "s"}.`);
+}
+
+const OPS = { transcribe, markers: placeMarkers, open: openProject, newproject: projectFromClip, shortsproject: shortsProject };
 
 function work() {
   if (busy || !todo.length) return;

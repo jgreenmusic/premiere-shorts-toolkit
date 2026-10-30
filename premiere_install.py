@@ -33,7 +33,7 @@ UPIA = os.path.join(os.environ.get("CommonProgramFiles", r"C:\Program Files\Comm
                     "Adobe Desktop Common", "RemoteComponents", "UPI", "UnifiedPluginInstallerAgent",
                     "UnifiedPluginInstallerAgent.exe")
 CSXS = (9, 10, 11, 12, 13)          # Premiere 2019 ... 2026+ read one of these
-PANELS = "1.0.4"                    # the version both panels carry (their manifests and main.js)
+PANELS = "1.0.5"                    # the version both panels carry (their manifests and main.js)
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 

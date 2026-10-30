@@ -84,10 +84,11 @@ def plain(text):
     return re.sub(r"\{[^}]*\}", "", text).replace("\\N", " ").replace("\\n", " ").strip()
 
 
-def caption_clips(events, a, b):
+def caption_clips(events, a, b, with_style=False):
     """[(start, end, text)] relative to a: one entry per caption as it appears on screen.
     A caption is drawn as several events (the highlight moves word by word; screams, laughs
-    and held "Ohhh"s grow a letter at a time) - those are joined back into one clip."""
+    and held "Ohhh"s grow a letter at a time) - those are joined back into one clip.
+    with_style: (start, end, text, "Main" / "Scream" / "Laugh") instead."""
     out = []
     for s, e, sty, text in events:
         if e <= a or s >= b:
@@ -101,7 +102,70 @@ def caption_clips(events, a, b):
                 out[-1] = (ps, e, t, sty)
                 continue
         out.append((s, e, t, sty))
-    return [(s, e, t) for s, e, t, _ in out if e - s > 0.005]
+    return [x if with_style else x[:3] for x in out if x[1] - x[0] > 0.005]
+
+
+# what the toolkit did to each Short, shown in Premiere as timeline markers + clip colours
+LABEL = dict(check="Yellow", beep="Rose", yours="Mango", retimed="Caribbean", reaction="Violet")
+TITLE = dict(check="CHECK", beep="BEEP", yours="YOUR EDIT", retimed="RE-TIMED", reaction="")
+
+
+def changes(ctx, events, a, b, spans):
+    """[(start, end, kind, name, comment)] relative to a, sorted. kind = a LABEL key.
+    spans = the Short's beeps (bleep.spans)."""
+    import captions as cap
+    bl = bleep.settings(ctx.cfg)
+    bad = bleep.matcher(bl)
+    out = []
+    def say(s, e, kind, name, comment=""):
+        if e > a and s < b:                              # only what shows inside this Short
+            out.append((max(0.0, s - a), min(e, b) - a, kind, (TITLE[kind] + ": " if TITLE[kind] else "") + name, comment))
+    if bl.get("on") and bl.get("sound") != "none":       # each beep, with the word it covers
+        for w in getattr(ctx, "words", None) or []:
+            if w[1] > a and w[0] < b and bad(w[2]):
+                say(w[0], w[1], "beep", w[2].strip(), "Whisper heard this word here. The beep (A2) covers %.2f-%.2f s; "
+                    "stretch it if the word is still audible." % (max(0.0, w[0] - 0.04 - a), min(b, w[1] + 0.04) - a))
+    edits = ctx.cfg.get("caption_edits") or {}
+    fit = getattr(ctx, "fit", None) or {}
+    n_own = len(ctx.seq.captions) if not getattr(ctx, "auto", False) else 0
+    near_beep = lambda s, e: any(x + a < e + 0.3 and y + a > s - 0.3 for x, y in spans)
+    for c, m in zip(ctx.captions, ctx.matches):
+        if c.end_s <= a or c.start_s >= b:
+            continue
+        own = edits.get(cap.caption_key(c)) or {}
+        if own.get("hide"):
+            say(c.start_s, c.end_s, "yours", "caption removed", "You took this caption out: " + c.text)
+            continue
+        if c.index >= n_own and n_own:
+            say(c.start_s, c.end_s, "yours", "caption added", c.text)
+        if own.get("text") is not None and own["text"].strip() != c.text:
+            say(c.start_s, c.end_s, "yours", "text changed", "Was: %s  >>  Now: %s" % (c.text, own["text"].strip()))
+        if own.get("start") is not None or own.get("end") is not None:
+            say(c.start_s, c.end_s, "yours", "timing set by you", c.text)
+        times = fit.get(c.index) if c.index < n_own else None
+        if times:
+            ds, de = (times[0] - c.start) / TICKS, (times[1] - c.end) / TICKS
+            ds, de = (0 if own.get("start") is not None else ds), (0 if own.get("end") is not None else de)
+            if abs(ds) >= 0.1 or abs(de) >= 0.1:
+                say(times[0] / TICKS, times[1] / TICKS, "retimed", "caption fitted to the speech",
+                    "%s  >>  start %+.2f s, end %+.2f s from Premiere's caption." % (c.text, ds, de))
+        text = (own.get("text") or c.text).strip()
+        if re.search(r"\b0{4,}\b", text):
+            say(c.start_s, c.end_s, "check", "transcript placeholder",
+                "Premiere's transcript wrote \"%s\" here - nobody said that. Fix or remove it." % text)
+        if bl.get("on") and bl.get("sound") != "none" and any(bad(w) for w in text.split()) and not near_beep(c.start_s, c.end_s):
+            say(c.start_s, c.end_s, "check", "censored in the caption, NO beep",
+                "%s  >>  the caption hides the word but Whisper didn't hear it, so nothing beeps. Add a beep by hand "
+                "(copy one from A2)." % text)
+    for s, e, t, sty in caption_clips(events, a, b, with_style=True):
+        if sty in ("Scream", "Laugh"):
+            say(s + a, e + a, "reaction", sty.upper() + ": " + t, "Drawn by the toolkit from the sound.")
+    return sorted(out)
+
+
+def marker(s, e, name, comment, rate):
+    return ("<marker><comment>%s</comment><name>%s</name><in>%d</in><out>%d</out></marker>"
+            % (escape(comment), escape(name), rate.f(s), rate.f(e) if e - s >= 0.05 else -1))
 
 
 def write_srt(path, clips):
@@ -216,10 +280,10 @@ class Xml:
         self.n += 1
         return "clipitem-%d" % self.n
 
-    def clip(self, name, path, start, end, src_in, enabled=True, scale=None, cid=None, channel=None, links=()):
+    def clip(self, name, path, start, end, src_in, enabled=True, scale=None, cid=None, channel=None, links=(), label=None):
         """One clipitem; start/end on the sequence and src_in in the file, all in seconds.
         channel: the source channel (1/2) of an audio clip; links: [(clip id, track, position)]
-        that Premiere joins into one stereo clip."""
+        that Premiere joins into one stereo clip. label: a Premiere label colour name (LABEL)."""
         r = self.rate
         st, en = r.f(start), r.f(end)
         i = r.f(src_in)
@@ -238,20 +302,22 @@ class Xml:
                      "<effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype>"
                      "<parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin>"
                      "<valuemax>1000</valuemax><value>%.3f</value></parameter></effect></filter>" % scale)
+        if label:
+            x.append("<labels><label2>%s</label2></labels>" % label)
         x.append("</clipitem>")
         return "".join(x)
 
     def sound(self, clips, first):
         """One stereo track the way Premiere writes it: two XML tracks (left, right) whose clips
-        are linked in pairs. clips = [(name, path, start, end, src_in, enabled)]; first = this
+        are linked in pairs. clips = [(name, path, start, end, src_in, enabled, label)]; first = this
         track's number among the sequence's XML audio tracks. Returns [left track, right track]."""
         ids = [(self.next_id(), self.next_id()) for _ in clips]
         tracks = []
         for ch in (1, 2):
             items = []
-            for pos, ((name, path, s, e, src, on), pair) in enumerate(zip(clips, ids), 1):
+            for pos, ((name, path, s, e, src, on, lab), pair) in enumerate(zip(clips, ids), 1):
                 links = [(pair[0], first, pos), (pair[1], first + 1, pos)]
-                items.append(self.clip(name, path, s, e, src, on, cid=pair[ch - 1], channel=ch, links=links))
+                items.append(self.clip(name, path, s, e, src, on, cid=pair[ch - 1], channel=ch, links=links, label=lab))
             tracks.append('<track currentExplodedTrackIndex="%d" totalExplodedTrackCount="2" premiereTrackType="Stereo">'
                           '%s<enabled>TRUE</enabled><locked>FALSE</locked><outputchannelindex>%d</outputchannelindex>'
                           '</track>' % (ch - 1, "".join(items), ch))
@@ -262,7 +328,7 @@ def track(items):
     return "<track>" + "".join(items) + "<enabled>TRUE</enabled><locked>FALSE</locked></track>"
 
 
-def sequence(xml, name, dur, video_tracks, audio_tracks):
+def sequence(xml, name, dur, video_tracks, audio_tracks, markers=()):
     r = xml.rate
     return ('<sequence id="sequence-%d"><name>%s</name><duration>%d</duration>%s<media>'
             '<video><format><samplecharacteristics>%s<width>%d</width><height>%d</height>'
@@ -273,13 +339,13 @@ def sequence(xml, name, dur, video_tracks, audio_tracks):
             '<outputs><group><index>1</index><numchannels>1</numchannels><downmix>0</downmix>'
             '<channel><index>1</index></channel></group><group><index>2</index><numchannels>1</numchannels>'
             '<downmix>0</downmix><channel><index>2</index></channel></group></outputs>%s</audio>'
-            '</media></sequence>'
+            '</media>%s</sequence>'
             % (xml.n, escape(name), r.f(dur), r.xml(), r.xml(), W, H,
-               "".join(video_tracks), "".join(audio_tracks)))
+               "".join(video_tracks), "".join(audio_tracks), "".join(markers)))
 
 
 def short_sequence(ctx, events, name, a, b, d, xml, log=print):
-    """Write one Short's media into d. Returns (its <sequence>, its .srt)."""
+    """Write one Short's media into d. Returns (its <sequence>, its .srt or None)."""
     seq, blur_trim = ctx.seq, ctx.cfg["layout"]["blur_trim"]
     os.makedirs(d, exist_ok=True)
     fps = xml.rate
@@ -291,7 +357,8 @@ def short_sequence(ctx, events, name, a, b, d, xml, log=print):
     if clips:
         log("  captions layer (%d captions)" % len(clips))
         capfile = caption_layer(ctx, events, a, b, fps.text, capfile)
-    srt = write_srt(os.path.join(d, safe(name) + ".srt"), clips)
+    # no captions = no .srt: Premiere stops on an empty one with a "File Import Failure" box
+    srt = write_srt(os.path.join(d, safe(name) + ".srt"), clips) if clips else None
 
     v1 = [xml.clip("Blurred background", bg, 0, b - a, 0)]
     v2 = []
@@ -302,19 +369,27 @@ def short_sequence(ctx, events, name, a, b, d, xml, log=print):
             # Premiere's Scale 100 = the file's own size; the render scales the gameplay to fg_h tall
             v2.append(xml.clip(os.path.basename(it.path), it.path, t0 - a, t1 - a, render._src(it, t0),
                                scale=100.0 * fg_h / m["h"]))
-    v3 = [xml.clip(t or "caption", capfile, s, e, s) for s, e, t in clips]
-
     bl = bleep.settings(ctx.cfg)
     spans = bleep.spans(getattr(ctx, "words", None), bl, a, b)
+    marks = changes(ctx, events, a, b, spans)
+
+    def label(s, e):
+        """A caption clip's colour: the most important change under it."""
+        kinds = {k for ms, me, k, _, _ in marks if ms < e and me > s and k != "beep"}
+        return next((LABEL[k] for k in ("check", "yours", "retimed", "reaction") if k in kinds), None)
+    v3 = [xml.clip(t or "caption", capfile, s, e, s, label=label(s, e)) for s, e, t in clips]
     at = xml.sound([("censored" if cen else os.path.basename(it.path), it.path, t0 - a, t1 - a,
-                     render._src(it, t0), not cen) for it, t0, t1, cen in audio_pieces(seq, a, b, spans)], 1)
+                     render._src(it, t0), not cen, LABEL["beep"] if cen else None)
+                    for it, t0, t1, cen in audio_pieces(seq, a, b, spans)], 1)
     if spans and bl.get("sound") == "beep":
         beep = beep_file(os.path.dirname(d))
-        at += xml.sound([("beep", beep, s, min(e, s + 10), 0, True) for s, e in spans], 3)
+        at += xml.sound([("beep", beep, s, min(e, s + 10), 0, True, LABEL["beep"]) for s, e in spans], 3)
     if spans:
         log("  %d censored word(s)" % len(spans))
+    if marks:
+        log("  %d change(s) marked" % len(marks))
     vt = [track(v1), track(v2)] + ([track(v3)] if v3 else [])
-    return sequence(xml, name, b - a, vt, at), srt
+    return sequence(xml, name, b - a, vt, at, [marker(s, e, n, c, xml.rate) for s, e, _, n, c in marks]), srt
 
 
 def safe(name):
@@ -335,7 +410,8 @@ def export(ctx, events, jobs, log=print, out=None):
         log("[%d/%d] %s" % (n, len(jobs), name))
         x, srt = short_sequence(ctx, events, name, a, b, os.path.join(d, safe(name)), xml, log)
         seqs.append(x)
-        srts.append(srt)
+        if srt:
+            srts.append(srt)
     title = jobs[0][0] if len(jobs) == 1 else "Shorts"
     path = os.path.join(d, safe(title) + ".xml")
     with open(path, "w", encoding="utf-8") as f:

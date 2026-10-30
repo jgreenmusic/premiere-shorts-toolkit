@@ -1491,14 +1491,17 @@ function viewRender() {
         <b style="font-size:15px">Fix by hand in Premiere:</b>
         <button class="btn" id="pAll">Send all ${list.length}</button>
         <button class="btn" id="pPick" ${pickIdx.length ? "" : "disabled"}>Send the ${pickIdx.length} ticked</button>
-        <button class="btn link" id="pImport" title="Bring the Shorts you sent last into the project open in Premiere">Import into Premiere again</button>
+        <button class="btn link" id="pOpen" title="Open the Shorts you sent last in their own Premiere project (made if it isn't there)">Open in Premiere</button>
+        <button class="btn link" id="pImport" title="Add the Shorts you sent last to whatever project is open in Premiere right now">Add to the open Premiere project</button>
       </div>
       <details class="hint" style="margin:-4px 0 12px"><summary>What lands in Premiere</summary>
+        Premiere opens (it starts by itself) with a project of their own, <b>${esc((I.path.split(/[\\/]/).pop() || "").replace(/\.[^.]+$/, ""))} - Shorts.prproj</b>
+        in the Premiere folder, and saves it. Sending again adds the new timelines to that project.
         Each Short becomes its own 1080×1920 timeline laid out like the render: V1 blurred background, V2 your recording,
         V3 the captions in your look, one clip per caption (slide or trim one to fix its timing), A1 your sound with each
         censored word cut out, A2 one beep clip per censored word (stretch or move it). A plain-text caption file comes too,
-        for a caption track you can retype. With the <b>Shorts Toolkit - Captions</b> panel open in Premiere they go straight
-        into the open project; otherwise File › Import the .xml in the Premiere folder. The toolkit's own render is unchanged.</details>
+        for a caption track you can retype. By hand instead: File › Import the .xml in the Premiere folder into any project.
+        The toolkit's own render is unchanged.</details>
       <div class="result" id="rProg" style="display:none;margin-bottom:12px"></div>
       <div class="scroll" style="max-height:max(320px, calc(100vh - 480px))"><table><thead><tr><th><input type="checkbox" id="rPickAll" title="Tick all" ${pickIdx.length && pickIdx.length === list.length ? "checked" : ""}></th><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
         ${list.map((s, i) => `<tr class="${i === S.renderSel ? "sel" : ""}" data-rsel="${i}" style="cursor:pointer">
@@ -1533,6 +1536,7 @@ function viewRender() {
   $("#pPick").onclick = () => pickIdx.length && run("to-premiere", { indexes: pickIdx });
   $$("[data-pone]").forEach(b => b.onclick = () => run("to-premiere", { index: b.dataset.pone }));
   $("#pImport").onclick = e => importToPremiere(e.target);
+  $("#pOpen").onclick = () => openShortsProject();
   $$("[data-rsel]").forEach(tr => tr.onclick = e => { if (e.target.closest("button, input")) return; S.renderSel = +tr.dataset.rsel; render(); });
   syncRenderButtons();
 }
@@ -2362,6 +2366,20 @@ async function importToPremiere(btn) {
   } finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
 }
 
+// after "Send to Premiere": Premiere makes / opens "<name> - Shorts.prproj" with them in it, and saves
+async function openShortsProject() {
+  try { await api("/api/bridge/shorts", { path: S.current }); } catch (e) { return toast(e.message); }
+  setStatus("run", "Premiere is making the Shorts project…");
+  toast("Opening Premiere with your Shorts — the first time Premiere starts this takes a minute.", true);
+  const tick = async () => {
+    let r; try { r = await api("/api/bridge/shorts"); } catch (e) { return setTimeout(tick, 2000); }
+    if (r.running) { setStatus("run", (r.lines.at(-1) || "Premiere…").replace(/^\S+ /, "")); return setTimeout(tick, 1500); }
+    if (r.error) { setStatus("bad", "Premiere project — failed"); toast("Premiere: " + r.error); }
+    else { setStatus("ok", "Premiere project — done"); toast("Premiere: " + r.message + " (" + r.project + ")", true); }
+  };
+  setTimeout(tick, 1500);
+}
+
 function wireCommon() {
   $$("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset));
   $$("[data-open]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.open, how: "file" }).catch(e => toast(e.message)));
@@ -2438,7 +2456,7 @@ async function poll(from) {
     toast(n > 0 ? `Placed ${n} new marker${n === 1 ? "" : "s"}` : "No more good moments at that length — try a different length, or remove markers you don't want.", n > 0);
   }
   S.mkBefore = null;
-  if (S.afterPremiere && !j.stopped && j.code === 0) importToPremiere();
+  if (S.afterPremiere && !j.stopped && j.code === 0) openShortsProject();
   S.afterPremiere = false;
   followJob(); setTimeout(followJob, 1500);        // a job that starts by itself (quick run's render, autopilot) shows up like any other
 }

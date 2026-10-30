@@ -180,7 +180,10 @@ Makes the finished 1080×1920 videos in `<project>_shorts\`.
 ### Edit in Premiere
 
 To fix things by hand in Premiere (a caption a little early, a beep that doesn't cover a whole word),
-send Shorts there: **Send all to Premiere**, **Send the ticked**, or a Short's **Premiere** button.
+send Shorts there: **Send all**, **Send the ticked**, or a Short's **Premiere** button. Premiere starts by
+itself and makes `<project> - Shorts.prproj` in `<project>_premiere\` with every Short in it, saved - open that
+file any time later. Sending again adds the new timelines to it. **Open in Premiere** opens it again without
+sending; **Add to the open Premiere project** puts the last Shorts sent into whatever project is open instead.
 Each Short becomes its own 1080×1920 timeline, laid out like the render:
 
 | Track | What's on it |
@@ -194,9 +197,14 @@ Each Short becomes its own 1080×1920 timeline, laid out like the render:
 A plain `.srt` of the same captions goes into the bin *Shorts Toolkit captions (text)*: drag it onto
 the timeline when you want a Premiere caption track whose words you can retype (hide V3 then).
 
-With the **Shorts Toolkit - Captions** panel open in Premiere, the Shorts go straight into the project
-that's open there and the first one opens. Without it: **File › Import** the `.xml` in
-`<project>_premiere\`. Export from Premiere when you're done; the toolkit's own render is unchanged.
+**What the toolkit changed is marked on each timeline** (Premiere's Markers panel lists them with notes):
+BEEP (the word Whisper heard and where the beep sits), YOUR EDIT (text changed / caption added / removed /
+timing you set), RE-TIMED (caption fitted to the speech, by how much), SCREAM / LAUGH, and CHECK - a caption
+that hides a curse with no beep under it (Whisper didn't hear the word: add a beep by hand) or a transcript
+placeholder like `000000`. Clips are coloured the same way: beeps and cut-out pieces Rose, your edits Mango,
+re-timed captions Caribbean, screams/laughs Violet, CHECK Yellow.
+
+By hand instead: **File › Import** the `.xml` in `<project>_premiere\` into any project. Export from Premiere when you're done; the toolkit's own render is unchanged.
 
 Sending again after a change makes new timelines next to the old ones (delete the old ones in
 Premiere if you don't need them). Files Premiere still has open are kept, and the new ones are named

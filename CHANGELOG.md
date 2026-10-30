@@ -2,6 +2,23 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.34.1 - 2026-10-29
+
+- **"It didn't make a Premiere project."** Julian sent all 35 Shorts with Premiere closed: the files were
+  written, but 0.34.0 only imported into a project already open in Premiere, so there was no project to
+  open. Now Premiere starts by itself and makes `<project> - Shorts.prproj` in `<project>_premiere\`
+  with every Short placed on its own timeline, and saves it (Speech panel 1.0.5, new `shortsproject`
+  job; both panels move to 1.0.5 and are put in place by the toolkit). Step 6 shows Premiere's progress;
+  **Open in Premiere** re-opens it, **Add to the open Premiere project** keeps the old route.
+- **The changes are marked in each Short.** Julian wanted to see everything the toolkit did. Each timeline
+  gets markers with notes - BEEP (word + where), YOUR EDIT (text / added / removed / timing), RE-TIMED (by
+  how much), SCREAM / LAUGH, CHECK (a caption hiding a curse with no beep under it, a "0000" transcript
+  placeholder) - and the clips carry matching Premiere label colours. Checked in Premiere 26.5: markers and
+  per-clip colours survive the import.
+- **An empty caption file stopped Premiere.** Short 11 has no captions; its empty `.srt` made Premiere show
+  "File Import Failure - the importer reported a generic error" and wait there. No `.srt` is written for a
+  Short without captions now (test: the whole-run Short).
+
 ## 0.34.0 - 2026-10-29
 
 - **Send Shorts to Premiere to fix them by hand.** Julian found timing slips and curse words the beep

@@ -1,7 +1,7 @@
 {
   "id": "com.jgreenmusic.shortstoolkit.speech",
   "name": "Shorts Toolkit - Speech",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "main": "index.html",
   "manifestVersion": 5,
   "host": { "app": "premierepro", "minVersion": "25.6.0" },

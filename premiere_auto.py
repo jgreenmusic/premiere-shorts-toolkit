@@ -215,3 +215,44 @@ def captions(path, sequence=None, style="premiere", punct="keep", say=print, sto
                       "Save the project in Premiere (Ctrl+S), then press Continue.")
     say("%d captions written by Premiere." % n)
     return project
+
+
+def shorts_project(folder, name, say=print, start=None):
+    """Shorts sent to Premiere (premiere_export) as a project of their own: "<name> - Shorts.prproj" in that folder,
+    made the first time, opened after that. The Shorts listed in its import.txt are imported
+    as timelines (earlier ones in that project stay) and the project is saved.
+    Returns (project path, Premiere's message)."""
+    import premiere_install
+    with open(os.path.join(folder, "import.txt"), encoding="utf-8") as f:
+        lines = [l.strip() for l in f if l.strip()]
+    if not lines:
+        raise Problem("Nothing has been sent to Premiere yet.")
+    program = exe()
+    if not program and start is None:
+        raise Problem("Premiere isn't installed on this PC. The timeline file is " + lines[0])
+    if start is None:
+        if not premiere_install.current():
+            say("Putting the toolkit's Premiere panels in place…")
+            r = premiere_install.install()
+            if not r["ok"]:
+                raise Problem("The toolkit's Premiere panels couldn't be put in place: " + " ".join(r["lines"][:-1]))
+        start = lambda: subprocess.Popen([program])
+    project = os.path.normpath(os.path.join(folder, "%s - Shorts.prproj" % name))
+    with open(lines[0], encoding="utf-8") as f:
+        count = f.read().count("<sequence ")         # Shorts in the timeline file
+
+    fresh = not running() and not bridge.connected("uxp")
+    if fresh:
+        say("Starting Premiere…")
+        start()
+    end = time.time() + (WAIT["premiere"] if fresh else WAIT["panel"])
+    while not bridge.panel("uxp") and time.time() < end:
+        time.sleep(0.5)
+    if not bridge.panel("uxp"):
+        raise Problem(SPEECH_HELP if running() else "Premiere didn't start. Open it yourself, then try again.")
+    say("Premiere is putting the Shorts into %s…" % os.path.basename(project))
+    ok, msg = bridge.call("uxp", dict(op="shortsproject", project=project, exists=os.path.exists(project),
+                                      xml=lines[0], srts=lines[1:], count=count), WAIT["ask"] + 300)
+    if not ok:
+        raise Problem("Premiere couldn't make the Shorts project. " + (msg or SPEECH_HELP))
+    return project, msg

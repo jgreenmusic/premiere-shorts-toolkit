@@ -146,6 +146,26 @@ class QuickPremiereExport(unittest.TestCase):
                          [(1.0, 1.9, "Walk away"), (1.9, 2.5, "Next line"), (3.0, 3.5, "AAAH")])
         self.assertEqual(clips(10.5, 11.0), [(0.0, 0.4, "Walk away"), (0.4, 0.5, "Next line")])
 
+    def test_changes_are_marked(self):
+        """Markers say what the toolkit did - and where a caption hides a curse nobody beeps."""
+        import premiere_export as px
+        from types import SimpleNamespace
+        from prproj import Caption, TICKS
+        caps = [Caption(0, 11 * TICKS, 12 * TICKS, "oh shit man"),        # Whisper heard it: beeped
+                Caption(1, 14 * TICKS, 15 * TICKS, "what the fuck"),      # Whisper missed it: no beep
+                Caption(2, 16 * TICKS, 17 * TICKS, "0000."),              # transcript placeholder
+                Caption(3, 18 * TICKS, 19 * TICKS, "nice"),               # retimed by the toolkit
+                Caption(4, 25 * TICKS, 26 * TICKS, "outside the Short")]
+        ctx = SimpleNamespace(cfg={"bleep": {"on": True}, "caption_edits": {"18.00": {"text": "nice one"}}},
+                              words=[(11.4, 11.7, "shit")], captions=caps, matches=[{}] * 5,
+                              seq=SimpleNamespace(captions=caps), fit={3: (int(18.3 * TICKS), 19 * TICKS)}, auto=False)
+        got = [(round(s, 2), k, n) for s, e, k, n, c in px.changes(ctx, [], 10.0, 20.0, [(1.36, 1.74)])]
+        self.assertEqual(got, [(1.4, "beep", "BEEP: shit"),
+                               (4.0, "check", "CHECK: censored in the caption, NO beep"),
+                               (6.0, "check", "CHECK: transcript placeholder"),
+                               (8.0, "yours", "YOUR EDIT: text changed"),
+                               (8.3, "retimed", "RE-TIMED: caption fitted to the speech")])
+
     def test_sound_is_cut_around_each_censored_word(self):
         import premiere_export as px
         from types import SimpleNamespace
@@ -178,7 +198,8 @@ class QuickPremiereExport(unittest.TestCase):
         px._INFO["r.mp4"] = dict(w=3072, h=1728, fps="60/1", dur=100.0, channels=2, rate=48000)
         x = px.Xml(px.Rate("60/1"))
         seq = px.sequence(x, "S & 1", 5.0, [px.track([x.clip("r", "r.mp4", 0, 5, 10, scale=58.0)])],
-                          x.sound([("r", "r.mp4", 0, 2, 10, True), ("censored", "r.mp4", 2, 2.5, 12, False)], 1))
+                          x.sound([("r", "r.mp4", 0, 2, 10, True, None), ("censored", "r.mp4", 2, 2.5, 12, False, "Rose")], 1),
+                          [px.marker(2, 2.5, "BEEP: word", "a < b", x.rate), px.marker(3, 3, "CHECK", "", x.rate)])
         s = ET.fromstring(seq)
         self.assertEqual(s.findtext("name"), "S & 1")
         self.assertEqual(s.findtext("media/video/format/samplecharacteristics/width"), "1080")
@@ -191,6 +212,9 @@ class QuickPremiereExport(unittest.TestCase):
         pair = [l.findtext("linkclipref") for l in left.findall("clipitem")[1].findall("link")]
         self.assertEqual(pair, [left.findall("clipitem")[1].get("id"), right.findall("clipitem")[1].get("id")])
         self.assertEqual(len(s.findall(".//file[pathurl]")), 1)                       # the file in full once
+        self.assertEqual([c.findtext("labels/label2") for c in right.findall("clipitem")], [None, "Rose"])
+        self.assertEqual([(m.findtext("name"), m.findtext("in"), m.findtext("out"), m.findtext("comment")) for m in s.findall("marker")],
+                         [("BEEP: word", "120", "150", "a < b"), ("CHECK", "180", "-1", "")])
 
 
 class QuickPublish(unittest.TestCase):
@@ -382,7 +406,7 @@ class WholeRun(Served, unittest.TestCase):
                                            "-of", "json", bg], capture_output=True, check=True).stdout)["streams"][0]
         self.assertEqual((probe["width"], probe["height"], probe.get("sample_aspect_ratio", "1:1")), (1080, 1920, "1:1"))
         self.assertEqual(len(seq.findall("media/audio/track")), 2)            # the recording's sound, left + right
-        self.assertEqual(listed[0], os.path.join(folder, "Test short.xml"))
+        self.assertEqual(listed, [os.path.join(folder, "Test short.xml")])         # a tone has no captions: no empty .srt (0.34.1)
 
 
 if __name__ == "__main__":
