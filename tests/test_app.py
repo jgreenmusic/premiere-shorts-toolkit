@@ -217,6 +217,101 @@ class QuickPremiereExport(unittest.TestCase):
                          [("BEEP: word", "120", "150", "a < b"), ("CHECK", "180", "-1", "")])
 
 
+class QuickSpeakers(unittest.TestCase):
+    """Who's talking (speakers.py) and multi-track recordings (tracks.py)."""
+
+    def setUp(self):
+        import speakers
+        self.tmp = tempfile.mkdtemp(prefix="spk-")
+        self.keep = speakers.SETTINGS
+        speakers.SETTINGS = os.path.join(self.tmp, "settings.json")
+
+    def tearDown(self):
+        import speakers
+        speakers.SETTINGS = self.keep
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_box_text_stays_readable(self):
+        import speakers
+        self.assertEqual(speakers.text_on("7B5CFF"), "FFFFFF")          # purple: white text
+        self.assertEqual(speakers.text_on("A3E635"), "141414")          # lime: dark text
+
+    def test_caption_goes_to_who_talks_most_and_the_mic_wins(self):
+        import config
+        import speakers
+        out = os.path.join(self.tmp, "p_captions")
+        os.makedirs(out)
+        speakers.save(out, dict(voices={"v1": dict(secs=9), "v2": dict(secs=5), "me": dict(secs=2)},
+                                turns=[[0, 4, "v1"], [4, 6, "v2"], [10, 12, "v1"], [10.5, 11.0, "me"]]))
+        cfg = dict(config.DEFAULTS, speakers=dict(on=True, who={}))
+        w = speakers.Who(out, cfg)
+        self.assertEqual(w.voice_at(3.5, 5.8), "v2")                   # 0.5 s of v1, 1.8 s of v2
+        self.assertEqual(w.voice_at(10, 11.5), "me")                    # the mic covers a third
+        self.assertIsNone(w.voice_at(30, 31))
+        self.assertEqual(w.colour(10, 11.5), speakers.ME_COLOUR)
+        self.assertNotEqual(w.colour(0, 3), w.colour(4, 6))             # two friends, two colours
+        self.assertIsNone(speakers.Who(out, dict(cfg, speakers=dict(on=False))).colour(0, 3))
+
+    def test_naming_a_voice_learns_it_and_gives_a_colour(self):
+        import config
+        import speakers
+        out = os.path.join(self.tmp, "p_captions")
+        os.makedirs(out)
+        pr = [1.0] + [0.0] * 255
+        speakers.save(out, dict(voices={"v1": dict(secs=9, print=pr), "me": dict(secs=3)}, turns=[[0, 4, "v1"]]))
+        speakers.name_voice(out, "me", "Julian")
+        speakers.name_voice(out, "v1", "Sam")
+        ppl = speakers.people()
+        self.assertTrue(ppl["Julian"]["me"])
+        self.assertEqual(ppl["Julian"]["colour"], speakers.ME_COLOUR)
+        self.assertEqual(ppl["Sam"]["colour"], speakers.PALETTE[0][1])
+        self.assertEqual(speakers.recognise({"x": dict(print=pr)}, ppl), {"x": "Sam"})
+        self.assertEqual(speakers.recognise({"x": dict(print=[0.0, 1.0] + [0.0] * 254)}, ppl), {})
+        speakers.name_voice(out, "v1", "")                              # un-named: really gone, not merged back
+        self.assertEqual(config.load(out)["speakers"]["who"], {"me": "Julian"})
+
+    def test_premiere_speakers_land_on_the_timeline(self):
+        import speakers
+        t = json.dumps(dict(speakers=[dict(id="a", name="Speaker 1"), dict(id="b", name="Sam")],
+                            segments=[dict(start=10, duration=2, speaker="a"), dict(start=13, duration=1, speaker="b")]))
+        items = [dict(key="r.mp4", start=100, end=200, **{"in": 9, "out": 109})]
+        d = speakers.from_premiere({"r.mp4": t}, items)
+        self.assertEqual(d["turns"], [[101, 103, "a"], [104, 105, "b"]])
+        self.assertEqual(speakers.premiere_names(d), {"b": "Sam"})       # "Speaker 1" is Premiere's, not a name
+
+    def test_speaker_colour_in_the_look(self):
+        import style
+        st = style.look({})
+        box = style.speaker_look(dict(st, hl_mode="box"), "A3E635")
+        self.assertEqual((box["highlight"], box["loud_col"], box["hl_text"]), ("A3E635", "A3E635", "141414"))
+        plain = style.speaker_look(st, "14B8A6", highlight=False)
+        ev = style.line_events(["hi", "there"], [0, 0.5], 0, 1, False, plain, highlight=False)
+        self.assertIn("\\1c&H00A6B814", ev[0][3])                       # the whole line in teal
+        self.assertIs(style.speaker_look(st, None), st)
+
+    def test_multi_track_recording_is_mixed_once_and_the_mic_track_read(self):
+        import numpy as np
+        from types import SimpleNamespace
+        import captions as cap
+        import tracks
+        from prproj import AudioItem, TICKS
+        f = os.path.join(self.tmp, "two.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+                        "-f", "lavfi", "-i", "sine=frequency=1500:duration=2", "-map", "0:a", "-map", "1:a",
+                        "-c:a", "aac", f], check=True)
+        self.assertEqual(tracks.audio_streams(f), 2)
+        items = [AudioItem(t, 0, 2 * TICKS, 0, 2 * TICKS, f) for t in (1, 2)]   # as Premiere lays it: one clip per track
+        seq = SimpleNamespace(audio=items)
+        self.assertEqual(len(tracks.mix_items(items)), 1)
+        peak = lambda x: np.argmax(np.abs(np.fft.rfft(x[4000:20000]))) * 16000 / 16000
+        mix = cap.timeline_audio(seq, log=lambda *a: None)
+        mic = cap.timeline_audio(seq, log=lambda *a: None, track=2)
+        self.assertAlmostEqual(peak(mix), 440, delta=5)                 # track 1, once (not doubled)
+        self.assertAlmostEqual(peak(mic), 1500, delta=5)
+        self.assertLess(np.abs(mix).max(), 0.19)                        # ffmpeg's sine peaks at 0.125; twice = 0.25
+        self.assertIsNone(cap.timeline_audio(seq, log=lambda *a: None, track=3))
+
+
 class QuickPublish(unittest.TestCase):
     """Step 8: where each Short stands on YouTube. No network - the channel and queue are faked."""
 

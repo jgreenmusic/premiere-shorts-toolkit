@@ -12,6 +12,7 @@ import subprocess
 from prproj import TICKS
 import bleep
 import style
+import tracks
 
 W, H = 1080, 1920
 
@@ -120,16 +121,16 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
 
     inputs, fl = [], []
     sw, sh, fps = _picture(seq, a, b, inputs, fl)
-    # sound: every audio clip in range, delayed into place and mixed
+    # sound: every audio clip in range, delayed into place and mixed (track 1 of a multi-track file, once)
     alabels = []
-    for it in seq.audio:
+    for it in tracks.mix_items(seq.audio):
         s, e = max(a, it.start / TICKS), min(b, it.end / TICKS)
         if e - s <= 0.001:
             continue
         inputs += ["-ss", "%.4f" % _src(it, s), "-t", "%.4f" % (e - s), "-i", it.path]
         idx = sum(1 for x in inputs if x == "-i") - 1
         ms = int(round((s - a) * 1000))
-        fl.append("[%d:a]aresample=48000,asetpts=PTS-STARTPTS,adelay=%d:all=1[a%d]" % (idx, ms, len(alabels)))
+        fl.append("[%d:a:0]aresample=48000,asetpts=PTS-STARTPTS,adelay=%d:all=1[a%d]" % (idx, ms, len(alabels)))
         alabels.append("[a%d]" % len(alabels))
     if alabels:
         fl.append("%samix=inputs=%d:normalize=0:duration=longest,apad,atrim=0:%.4f[amix]"
@@ -201,13 +202,13 @@ def snippet(ctx, a, b, out_path):
     """Short mp3 of the timeline audio, for listening to a scream candidate in the app."""
     seq = ctx.seq
     inputs, fl, labels = [], [], []
-    for it in seq.audio:
+    for it in tracks.mix_items(seq.audio):
         s, e = max(a, it.start / TICKS), min(b, it.end / TICKS)
         if e - s <= 0.001:
             continue
         inputs += ["-ss", "%.4f" % _src(it, s), "-t", "%.4f" % (e - s), "-i", it.path]
         k = len(labels)
-        fl.append("[%d:a]asetpts=PTS-STARTPTS,adelay=%d:all=1[a%d]" % (k, int((s - a) * 1000), k))
+        fl.append("[%d:a:0]asetpts=PTS-STARTPTS,adelay=%d:all=1[a%d]" % (k, int((s - a) * 1000), k))
         labels.append("[a%d]" % k)
     if not labels:
         return None

@@ -261,8 +261,25 @@ def line_events(shown, times, start, end, loud, st, highlight=True):
         else:
             head = base
         tags = head + (out if n == len(steps) - 1 else "")
+        if st.get("line_col"):                       # a speaker's colour on a line with no highlight
+            tags = "\\1c%s" % ass_color(st["line_col"]) + tags
         ev.append((a, b, "Main", "{%s}%s" % (tags, " ".join(words))))
     return ev
+
+
+def speaker_look(st, col, highlight=True):
+    """The look for one caption said by someone with colour `col`: their colour lights the
+    spoken word (or its box, or the whole line when nothing is highlighted). Loud lines keep it
+    too - bigger and in capitals as before - so a shout still shows who shouted."""
+    if not col:
+        return st
+    import speakers
+    s = dict(st, highlight=col, loud_col=col)
+    if st.get("hl_mode") == "box":
+        s["hl_text"] = speakers.text_on(col)
+    if not highlight:
+        s["text"] = s["line_col"] = col
+    return s
 
 
 def pop_from(d, st, loud):
@@ -418,8 +435,10 @@ def build(ctx, plan):
     """All caption events for the sequence (timeline seconds), from the loaded project
     (pipeline.load) and its scream plan (screams.plan_screams)."""
     import laughs as lg
+    import speakers
     st = look(ctx.cfg)
     lk = ctx.cfg.get("look", {})
+    who = speakers.Who(getattr(ctx, "outdir", None), ctx.cfg)    # colours by who is talking (off = the look's own)
     normal = sc.talk_level(ctx.audio, ctx.regions)
     lplan = lg.plan_laughs(ctx.captions, ctx.audio, getattr(ctx, "sounds", None), ctx.regions,
                            ctx.cfg.get("laughs", {}), screams_on=[(p["start"], p["end"]) for p in plan if p["on"]])
@@ -451,7 +470,9 @@ def build(ctx, plan):
             continue
         loud = bool(lk.get("loud_lines", True) and normal
                     and sc.loudness(ctx.audio, c.start_s, c.end_s) / normal >= st["loud_ratio"])
-        events += caption_events(c, m, c.start_s, c.end_s, loud, st, lk.get("highlight", True))
+        hl = lk.get("highlight", True)
+        col = who.colour(c.start_s, c.end_s, own.get("speaker"))
+        events += caption_events(c, m, c.start_s, c.end_s, loud, speaker_look(st, col, hl), hl)
         if own.get("end") is not None:
             mine_until = max(mine_until, c.end_s)
             holds.append((c.start_s, c.end_s))

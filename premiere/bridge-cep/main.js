@@ -8,7 +8,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const VERSION = "1.0.5";
+const VERSION = "1.0.6";
 
 // what the panel did, in %TEMP%\shorts-toolkit-captions-panel.log (Premiere's own CEP logs
 // don't say why a panel stops)

@@ -1,3 +1,4 @@
 faster-whisper>=1.2
 numpy
 psutil
+sherpa-onnx  # step 5 voice analysis (speakers.py)

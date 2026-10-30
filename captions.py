@@ -38,17 +38,27 @@ def _remember_key(audio, key):
         pass
 
 
-def timeline_audio(seq, log=print, rate=RATE, window=None, cache_dir=None):
+def timeline_audio(seq, log=print, rate=RATE, window=None, cache_dir=None, track=1):
     """Mix every audio clip into one mono array laid out on the sequence timeline.
     window=(start s, end s): only that stretch (index 0 = window start) - for one Short.
     cache_dir: keep the decoded audio there (audio-*.f32, ~230 MB per hour) so the next command
     reads it back instead of decoding the whole recording again (6 s for 2 h of video). It is
-    the exact same samples; a different edit or a changed source file makes a new one."""
-    items = sorted(seq.audio, key=lambda a: a.start)
+    the exact same samples; a different edit or a changed source file makes a new one.
+    track: which sound track of each file (tracks.py). 1 = the mix, as always; another one
+    (e.g. tracks.MIC_TRACK) only comes from files that have it, silence elsewhere, never cached."""
+    import tracks
+    items = sorted(tracks.mix_items(seq.audio), key=lambda a: a.start)
+    if track != 1:
+        items = [a for a in items if tracks.audio_streams(a.path) >= track]
+        cache_dir = None
+        if not items:
+            return None
     if window:
         w0, w1 = int(window[0] * TICKS), int(window[1] * TICKS)
         items = [a for a in items if a.end > w0 and a.start < w1]
     if not items:
+        if track != 1:
+            return None
         raise SystemExit("This sequence has no audio clips.")
     for a in items:
         if not a.speed_ok:
@@ -96,7 +106,7 @@ def timeline_audio(seq, log=print, rate=RATE, window=None, cache_dir=None):
         dur = (r["end"] - r["start"]) / TICKS
         pcm = subprocess.run(
             ["ffmpeg", "-v", "error", "-ss", "%.6f" % (r["src_in"] / TICKS), "-t", "%.6f" % dur,
-             "-i", r["path"], "-vn", "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"],
+             "-i", r["path"], "-map", "0:a:%d" % (track - 1), "-ac", "1", "-ar", str(rate), "-f", "f32le", "-"],
             capture_output=True, check=True).stdout
         x = np.frombuffer(pcm, dtype=np.float32)
         i = int(round(r["start"] / TICKS * rate))

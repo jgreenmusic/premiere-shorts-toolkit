@@ -12,7 +12,7 @@ const uxp = require("uxp");
 // where the apps listen: the Shorts Toolkit window uses the first free one of the first four
 // (app.BRIDGE_PORTS), Shorts Auto Run one of the last three (autorun.PORTS). Both can be open.
 const PORTS = [8765, 8767, 8768, 8769, 8772, 8773, 8774];
-const VERSION = "1.0.5";
+const VERSION = "1.0.6";
 const live = new Set();       // ports that answered the last time they were asked
 const todo = [];              // what the apps asked for, one at a time: {port, cmd}
 let busy = false;
@@ -87,23 +87,8 @@ async function info() {
   return i;
 }
 
-async function transcribe(port, cmd) {
-  const say = (line) => { log(line); return post(port, "/api/bridge/report", { job: cmd.job, line }); };
-  const fail = (error, click) => { log(error); return post(port, "/api/bridge/report", { job: cmd.job, error, click: !!click }); };
-
-  if (!ppro.Transcript || !ppro.Transcript.transcribeClipProjectItem) {
-    return fail("This Premiere can't transcribe from a script (needs Premiere 26.5 or newer). Use 'Toolkit speech' in the app instead.");
-  }
-  const project = await ppro.Project.getActiveProject();
-  if (!project) return fail("No project is open in Premiere.");
-  if (cmd.project && !same(project.path, cmd.project)) {
-    return fail(`Premiere has "${project.name}" open - open ${baseName(cmd.project)} in Premiere, then try again.`);
-  }
-  const seqs = await project.getSequences();
-  const seq = seqs.find((s) => s.name === cmd.sequence) || (await project.getActiveSequence());
-  if (!seq) return fail(`No sequence named "${cmd.sequence}" in this project.`);
-
-  // every clip you can hear, and where it sits on the timeline
+// every clip you can hear, and where it sits on the timeline
+async function audioClips(seq) {
   const items = [];
   const clips = new Map();
   const tracks = await seq.getAudioTrackCount();
@@ -128,6 +113,55 @@ async function transcribe(port, cmd) {
       });
     }
   }
+  return { items, clips };
+}
+
+// who talks when: the transcripts Premiere already has (made in its Text panel with Speaker
+// labeling on, speakers named there). Nothing is transcribed here - that would be without labels.
+async function speakers(port, cmd) {
+  const reply = (ok, message, extra) => { log(message); return post(port, "/api/bridge/report", { rid: cmd.rid, ok, message, ...(extra || {}) }); };
+  if (!ppro.Transcript || !ppro.Transcript.exportToJSON) return reply(false, "This Premiere can't hand out transcripts to a script (needs Premiere 26.5 or newer).");
+  const project = await ppro.Project.getActiveProject();
+  if (!project) return reply(false, "No project is open in Premiere.");
+  if (cmd.project && !same(project.path, cmd.project)) {
+    return reply(false, `Premiere has "${project.name}" open - open ${baseName(cmd.project)} in Premiere, then try again.`);
+  }
+  const seqs = await project.getSequences();
+  const seq = seqs.find((s) => s.name === cmd.sequence) || (await project.getActiveSequence());
+  if (!seq) return reply(false, `No sequence named "${cmd.sequence}" in this project.`);
+  const { items, clips } = await audioClips(seq);
+  const transcripts = {};
+  const missing = [];
+  for (const [key, clip] of clips) {
+    let has = false;
+    try { has = await ppro.Transcript.hasTranscript(clip); } catch (e) { /* treat as missing */ }
+    if (!has) { missing.push(baseName(key)); continue; }
+    transcripts[key] = await ppro.Transcript.exportToJSON(clip);
+  }
+  if (!Object.keys(transcripts).length) {
+    return reply(false, `"${seq.name}" has no transcript yet. In Premiere's Text panel, transcribe it with Speaker labeling on, then try again.`);
+  }
+  return reply(true, `${Object.keys(transcripts).length} transcript(s) read` + (missing.length ? ` (none yet for ${missing.join(", ")})` : ""),
+               { transcripts, items });
+}
+
+async function transcribe(port, cmd) {
+  const say = (line) => { log(line); return post(port, "/api/bridge/report", { job: cmd.job, line }); };
+  const fail = (error, click) => { log(error); return post(port, "/api/bridge/report", { job: cmd.job, error, click: !!click }); };
+
+  if (!ppro.Transcript || !ppro.Transcript.transcribeClipProjectItem) {
+    return fail("This Premiere can't transcribe from a script (needs Premiere 26.5 or newer). Use 'Toolkit speech' in the app instead.");
+  }
+  const project = await ppro.Project.getActiveProject();
+  if (!project) return fail("No project is open in Premiere.");
+  if (cmd.project && !same(project.path, cmd.project)) {
+    return fail(`Premiere has "${project.name}" open - open ${baseName(cmd.project)} in Premiere, then try again.`);
+  }
+  const seqs = await project.getSequences();
+  const seq = seqs.find((s) => s.name === cmd.sequence) || (await project.getActiveSequence());
+  if (!seq) return fail(`No sequence named "${cmd.sequence}" in this project.`);
+
+  const { items, clips } = await audioClips(seq);
   if (!clips.size) return fail(`"${seq.name}" has no audio clips that aren't muted.`);
   await say(`${clips.size} clip${clips.size === 1 ? "" : "s"} to transcribe in "${seq.name}"`);
 
@@ -299,7 +333,7 @@ async function shortsProject(port, cmd) {
   return reply(true, `${baseName(cmd.project)} has ${added.length} new timeline${added.length === 1 ? "" : "s"}.`);
 }
 
-const OPS = { transcribe, markers: placeMarkers, open: openProject, newproject: projectFromClip, shortsproject: shortsProject };
+const OPS = { transcribe, markers: placeMarkers, open: openProject, newproject: projectFromClip, shortsproject: shortsProject, speakers };
 
 function work() {
   if (busy || !todo.length) return;

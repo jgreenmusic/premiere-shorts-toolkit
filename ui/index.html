@@ -2020,6 +2020,70 @@ function wireCaptionStyle() {
   };
 }
 
+// ---- Who's talking (speakers.py): voices -> people -> colours
+const mmss = s => s >= 60 ? Math.floor(s / 60) + " min " + Math.round(s % 60) + " s" : Math.round(s) + " s";
+function speakerCard() {
+  const D = S.spk && S.spk.path === S.current ? S.spk : null;
+  const head = `<div class="card-head"><div class="grow"><h3>Who's talking</h3><p>Colour each caption by who said it: you in purple, each friend in their own colour. The spoken word (or its box) takes the colour; loud lines keep it too. Names and colours are kept for every project.</p></div>
+    ${D && D.voices.length ? `<label class="switch" title="Colour captions by speaker"><input type="checkbox" id="spkOn" ${D.on ? "checked" : ""}><span></span></label>` : ""}</div>`;
+  if (!D) return `<div class="card" id="spkCard">${head}<p class="hint">Loading…</p></div>`;
+  const people = Object.entries(D.people || {});
+  const track = D.mic ? `<p class="hint" style="margin:0 0 10px">Your mic is on its own track in this recording, so captions where it hears you are yours — exactly.${D.friends_track ? " Friends are told apart on their own (Discord) track." : ""}</p>`
+    : `<p class="hint" style="margin:0 0 10px">This recording has one sound track, so voices are told apart by analysis. Play the samples to check each one. If one person shows up as two voices, give both the same name.</p>`;
+  const find = `<div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <button class="btn primary" data-run="speakers" ${dis()} title="Voice analysis on this PC (free models, about 2 min per hour of recording)">Analyse voices on Albert</button>
+      <label class="field">People talking<input class="text" id="spkN" type="number" min="0" max="12" value="${D.asked || 0}" style="width:70px"></label>
+      <span class="hint" style="align-self:center">0 = let it decide</span>
+      <button class="btn" id="spkPremiere" ${dis()} title="Reads the speakers from Premiere's own transcript">Get speakers from Premiere</button>
+    </div>
+    <p class="hint" style="margin:-4px 0 12px">For Premiere: transcribe the sequence in Premiere's Text panel with <b>Speaker labeling</b> on (rename the speakers there if you like), then press the button.</p>`;
+  const src = { albert: "Albert's voice analysis", "mic+albert": "your mic track + Albert's voice analysis", premiere: "Premiere's transcript" }[D.source] || "";
+  const rows = D.voices.map(v => `<tr>
+      <td><span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#${v.colour};vertical-align:middle"></span></td>
+      <td><b>${esc(v.label)}</b><br><small class="hint">${mmss(v.secs)} of talking</small></td>
+      <td style="white-space:nowrap">${v.samples.map((s, i) => `<button class="btn sm" data-spkplay="${s[0]},${s[1]}" title="Play ${tc(s[0])}">▶ ${i + 1}</button>`).join(" ")}</td>
+      <td><input class="text" list="spkPeople" data-spkvoice="${esc(v.id)}" value="${esc(v.person)}" placeholder="${v.id === "me" ? "Your name" : "Who is this?"}" style="max-width:170px"></td></tr>`).join("");
+  const voices = D.voices.length ? `<p class="hint" style="margin:0 0 6px">${D.voices.length} voice${D.voices.length === 1 ? "" : "s"} from ${src}.</p>
+      <div class="scroll" style="max-height:340px"><table><tbody>${rows}</tbody></table></div>
+      <datalist id="spkPeople">${people.map(([n]) => `<option value="${esc(n)}">`).join("")}</datalist>`
+    : `<p class="hint">No speakers yet — use one of the buttons above.</p>`;
+  const ppl = people.length ? `<div style="margin-top:14px"><b style="font-size:15.5px">People</b><div class="row" style="gap:14px;flex-wrap:wrap;margin-top:8px">${people.map(([n, p]) =>
+      `<label class="row" style="gap:6px;font-size:15.5px"><input type="color" data-spkcol="${esc(n)}" value="#${p.colour || D.me_colour}"> ${esc(n)}${p.me ? " (you)" : ""}
+       ${p.me ? "" : `<button class="btn sm" data-spkme="${esc(n)}" title="Mark ${esc(n)} as you">This is me</button>`}</label>`).join("")}</div>
+      <p class="hint" style="margin-top:8px">Suggested colours that go with your purple and orange: ${D.palette.map(c => `<span title="${esc(c.name)}" style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#${c.colour};vertical-align:middle;margin-right:3px"></span>`).join("")}</p></div>` : "";
+  return `<div class="card" id="spkCard">${head}${track}${find}${voices}${ppl}<audio id="spkSnd" style="display:none"></audio></div>`;
+}
+async function loadSpeakers(force) {
+  if (!force && S.spk && S.spk.path === S.current) return;
+  const path = S.current;
+  try { S.spk = { ...(await api("/api/speakers?path=" + encodeURIComponent(path))), path }; }
+  catch (e) { S.spk = { path, voices: [], people: {}, palette: [], error: e.message }; }
+  if (S.tab === "look" && S.current === path && $("#spkCard")) { $("#spkCard").outerHTML = speakerCard(); wireSpeakers(); }
+}
+function wireSpeakers() {
+  const card = $("#spkCard"); if (!card) return;
+  const post = async body => {
+    try { S.spk = { ...(await api("/api/speakers", { path: S.current, ...body })), path: S.current, mic: S.spk.mic, friends_track: S.spk.friends_track }; }
+    catch (e) { return toast(e.message); }
+    $("#spkCard").outerHTML = speakerCard(); wireSpeakers();
+  };
+  card.querySelectorAll("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset));
+  const on = $("#spkOn"); if (on) on.onchange = () => post({ on: on.checked }).then(() => toast(on.checked ? "Captions are coloured by speaker — render a preview to see it" : "Speaker colours off", true));
+  card.querySelectorAll("[data-spkplay]").forEach(b => b.onclick = async () => {
+    const [s, e] = b.dataset.spkplay.split(",").map(Number);
+    try { const r = await api("/api/snippet", { path: S.current, start: s, end: e }); const a = $("#spkSnd"); a.src = media(r.path); a.play(); } catch (err) { toast(err.message); }
+  });
+  card.querySelectorAll("[data-spkvoice]").forEach(i => i.onchange = () => post({ voice: i.dataset.spkvoice, person: i.value.trim() }));
+  card.querySelectorAll("[data-spkcol]").forEach(i => i.onchange = () => post({ name: i.dataset.spkcol, colour: i.value.slice(1).toUpperCase() }));
+  card.querySelectorAll("[data-spkme]").forEach(b => b.onclick = () => post({ name: b.dataset.spkme, me: true }));
+  const pr = $("#spkPremiere"); if (pr) pr.onclick = async () => {
+    pr.disabled = true; pr.textContent = "Asking Premiere…";
+    try { S.spk = { ...(await api("/api/speakers/premiere", { path: S.current })), path: S.current, mic: S.spk.mic, friends_track: S.spk.friends_track }; toast("Speakers read from Premiere", true); }
+    catch (e) { toast(e.message); }
+    $("#spkCard").outerHTML = speakerCard(); wireSpeakers();
+  };
+}
+
 // ---- Look
 function viewLook() {
   if (!S.lookOpts) lookOptions().then(() => { if (S.tab === "look") render(); });
@@ -2040,6 +2104,7 @@ function viewLook() {
       </div>
     </div>
     ${captionStyleCard(L)}
+    ${I.speech ? speakerCard() : ""}
     <div class="card">
       <div class="card-head"><div class="grow"><h3>Censor (bleep)</h3><p>Off unless you turn it on. Curse words become <b>#$@&amp;%!</b> in the captions and a TV beep in the sound. Saved per project.</p></div></div>
       <div class="settings">
@@ -2072,6 +2137,7 @@ function viewLook() {
   for (const [id, key] of [["blLevel", "level"], ["blLook", "look"], ["blSound", "sound"], ["blExtra", "extra"]])
     $("#" + id).onchange = e => saveCfg({ bleep: { [key]: e.target.value } }, false);
   wireCaptionStyle();
+  if (I.speech) { wireSpeakers(); loadSpeakers(); }
   $("#pvAt").onchange = e => store.set("pvAt", e.target.value);
   $("#pvS").onchange = e => store.set("pvS", e.target.value);
   $$("[data-pv]").forEach(b => b.onclick = () => {
@@ -2412,6 +2478,7 @@ async function run(action, data = {}) {
     else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
   if (action === "relisten") { body.start = data.start; body.end = data.end; }
+  if (action === "speakers") { body.people = +(($("#spkN") || {}).value || 0); body.title = "Finding who's talking"; S.spk = null; }
   if (action === "transcribe") { body.model = data.model; body.title = "Transcribing with Whisper " + data.model; }
   if (action === "post") { Object.assign(body, data); if (data.schedule) body.title = "Writing + scheduling posts"; }
   if (action === "burn") { body.video = $("#video").value.trim(); body.start = $("#start").value.trim() || "0"; if (!body.video) return toast("Pick the video you exported from Premiere first."); }

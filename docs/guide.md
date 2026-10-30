@@ -164,6 +164,19 @@ How the captions and the frame look. Saved per project.
   spoken-word highlight (colour, bigger, box or fill), outline, shadow, spacing, background box.
 - **Punctuation:** keep, soften (keeps ? and !), or remove.
 - **Layout:** gameplay size over a blurred fill.
+- **Who's talking:** colour each caption by who said it. The spoken word (or its box) takes the
+  speaker's colour, loud lines too. Two ways to find the speakers:
+  - **Analyse voices on Albert:** voice analysis on this PC with free models (downloaded once,
+    about 33 MB). About 3 minutes for an hour and a half of recording. Set how many people talk,
+    or leave 0 to let it decide. If one person comes out as two voices, give both the same name.
+  - **Get speakers from Premiere:** first transcribe the sequence in Premiere's Text panel with
+    **Speaker labeling** on (name the speakers there if you like), then press the button.
+
+  Play each voice's samples (▶ 1, 2, 3), type who it is, and pick colours under **People**. You
+  start in purple. Friends get colours that go with purple and orange. People, colours and voice
+  prints are kept for every project, so a friend can be recognised in the next recording.
+  If your mic is recorded on its own track (OBS: Settings > Output > Recording > Audio Track 2),
+  captions where it hears you are yours exactly. Friends on their own track (Discord) are told apart more reliably.
 - **Censor (bleep):** off unless you turn it on. Curse words become `#$@&%!` and a TV beep. Add your own words.
 - **Preview:** renders a short test clip. The last five stay so you can compare.
 

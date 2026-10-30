@@ -53,7 +53,8 @@ def parts(cfg, short, seq=None):
         captions=_h([edits, adds, bool(cfg.get("fit_timing", True))]),
         reactions=_h([sc.get("loud"), pick(sc, "on"), pick(sc, "off"), [x for x in sc.get("add") or [] if over(x)], keyed(sc, "letters"),
                       pick(lg, "on"), pick(lg, "off"), [x for x in lg.get("add") or [] if over(x)], keyed(lg, "style")]),
-        look=_h([cfg.get("look"), cfg.get("layout"), cfg.get("bleep"), cfg.get("kind"), cfg.get("music")]))
+        look=_h([cfg.get("look"), cfg.get("layout"), cfg.get("bleep"), cfg.get("kind"), cfg.get("music")]
+                + ([cfg.get("speakers")] if (cfg.get("speakers") or {}).get("on") else [])))
     if seq is not None:
         ta, tb = a * TICKS, b * TICKS
         items = sorted((it.track, it.start, it.end, it.src_in, os.path.normcase(it.path or ""))

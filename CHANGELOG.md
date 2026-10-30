@@ -2,6 +2,34 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.35.0 - 2026-10-30
+
+- **Captions coloured by who is talking.** Julian: "colors for all of my friends when they talk and have
+  myself be purple ... a palette that works with purple and orange." Step 5 has a **Who's talking** card,
+  with two ways to find the speakers (he asked for both):
+  - **Analyse voices on Albert:** sherpa-onnx (pyannote segmentation 3.0 + WeSpeaker ResNet34, free models,
+    ~33 MB, downloaded once to `~\tools\speaker-models`). On the 2026-10-10 recording (87 min, one mixed
+    track, game sound + Discord): 167 s. Measured: left to decide it found 6 voices, where pairs scored
+    0.93-0.94 alike (likely one person split in two) and different voices 0.65-0.90. Splitting is fixed by
+    naming two voices the same person; merging two people can't be, so "let it decide" is the default.
+  - **Get speakers from Premiere:** reads Premiere's own transcript (Speech panel 1.0.6, new `speakers` job,
+    nothing is transcribed by it). Needs Speaker labeling on in the Text panel; names given there carry over.
+    The 2026-10-10 transcript has one speaker ("Unknown") - it was made with labeling off.
+  The spoken word (or its box, with dark text on light colours) takes the speaker's colour, loud lines keep
+  it, screams stay orange. You are purple (7B5CFF); friends get Teal, Pink, Lime, Sky, Gold, Mint, Red,
+  Blue (none near purple or orange). People, colours and voice prints live in `~\.shorts-toolkit.json`
+  for every project; a voice that matches a named person closely (0.92, clearly ahead) is filled in.
+  Command: `speakers <project> [--people N]`.
+- **The mic on its own track.** Julian's OBS had the mic routed alone (Voicemeeter bus B1) but recorded
+  only track 1. OBS now records 1 everything / 2 mic / 3 Discord / 4 the rest (checked with a 10 s test
+  recording: four tracks, sound on each). With track 2 the toolkit knows exactly where he talks (Silero
+  voice filter on the mic track), and analyses friends on track 3.
+- **A multi-track recording is mixed once.** Dropped on a Premiere timeline, each track is its own clip;
+  mixing them all would play the mix plus every single track on top. The timeline decode, renders,
+  snippets and the Premiere export now take track 1 of such a file once (`tracks.py`; test with a
+  generated two-track file).
+- Not yet tried on a real multi-track recording or with a Premiere transcript that has speakers.
+
 ## 0.34.1 - 2026-10-29
 
 - **"It didn't make a Premiere project."** Julian sent all 35 Shorts with Premiere closed: the files were

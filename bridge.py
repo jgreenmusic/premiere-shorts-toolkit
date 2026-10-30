@@ -73,7 +73,7 @@ def start(project, outdir, sequence, engine, style, punct="keep"):
     return None
 
 
-SCRIPT = {"n": 0, "results": {}}
+SCRIPT = {"n": 0, "results": {}, "data": {}}
 # script -> (marker name prefix, Premiere colour index, csv the toolkit keeps next to the project)
 MARKER_SCRIPTS = {"suggested-markers.jsx": ("Suggested: ", 4, "suggested-markers.csv"),
                   "shorts-to-markers.jsx": ("Short: ", 3, "shorts-markers.csv")}
@@ -111,8 +111,14 @@ def panel(kind):
 def call(kind, cmd, timeout=30):
     """Ask a panel to do one thing and wait for its answer. Returns (ok, message);
     message None = the panel isn't there, so nothing was asked."""
+    ok, msg, _ = call_data(kind, cmd, timeout)
+    return ok, msg
+
+
+def call_data(kind, cmd, timeout=30):
+    """call() that also returns everything else the panel sent with its answer (a dict)."""
     if not connected(kind):
-        return False, None
+        return False, None, {}
     with LOCK:
         SCRIPT["n"] += 1
         rid = SCRIPT["n"]
@@ -121,11 +127,12 @@ def call(kind, cmd, timeout=30):
     while now() < end:
         with LOCK:
             if rid in SCRIPT["results"]:
-                return SCRIPT["results"].pop(rid)
+                ok, msg = SCRIPT["results"].pop(rid)
+                return ok, msg, SCRIPT["data"].pop(rid, {})
         time.sleep(0.2)
     with LOCK:                                   # never picked up: don't run it later by surprise
         QUEUE[kind][:] = [q for q in QUEUE[kind] if q.get("rid") != rid]
-    return False, "Premiere didn't answer in %d s - is it busy (rendering, a dialog open)?" % timeout
+    return False, "Premiere didn't answer in %d s - is it busy (rendering, a dialog open)?" % timeout, {}
 
 
 def cancel():
@@ -156,8 +163,9 @@ def fail(msg):
 
 def report(kind, r):
     """Progress from a panel."""
-    if r.get("rid"):                             # answer to run_script
+    if r.get("rid"):                             # answer to run_script / call
         with LOCK:
+            SCRIPT["data"][r["rid"]] = {k: v for k, v in r.items() if k not in ("rid", "ok", "message", "kind")}
             SCRIPT["results"][r["rid"]] = (bool(r.get("ok")), r.get("message") or "")
         return
     if r.get("job") != JOB["id"] or JOB["step"] not in ("speech", "words", "srt", "import"):

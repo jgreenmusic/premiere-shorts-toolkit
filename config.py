@@ -82,6 +82,10 @@ DEFAULTS = {
         "sound": "beep",          # audio: beep (1 kHz) / mute / none
         "extra": "",              # more words to bleep, comma separated
     },
+    "speakers": {                 # colour captions by who is talking (speakers.py) - off until analysed
+        "on": False,
+        "who": {},                # {voice id in speakers.json: person name} - people/colours in ~/.shorts-toolkit.json
+    },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
                                   # made in the app; null = back to the original. Also "start"/"end" (s): timing fixes
     "caption_adds": [],           # [{"start": s, "end": s, "text": "..."}] captions you added (e.g. missed words)

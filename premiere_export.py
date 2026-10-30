@@ -239,9 +239,11 @@ def beep_file(d):
 
 
 def audio_pieces(seq, a, b, spans):
-    """[(item, t0, t1, censored)] timeline seconds: every audio clip in range, cut at the spans."""
+    """[(item, t0, t1, censored)] timeline seconds: every audio clip in range, cut at the spans.
+    A multi-track recording's stretch counts once (tracks.mix_items)."""
+    import tracks
     out = []
-    for it in seq.audio:
+    for it in tracks.mix_items(seq.audio):
         s, e = max(a, it.start / TICKS), min(b, it.end / TICKS)
         if e - s <= 0.001:
             continue

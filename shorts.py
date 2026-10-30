@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.34.1"
+__version__ = "0.35.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -484,6 +484,16 @@ def cmd_to_premiere(args):
     path = premiere_export.export(ctx, events, jobs, out=args.out)
     print("\nDone. In Premiere: File > Import > %s" % path)
     print("Each Short is a timeline in the bin \"Shorts Toolkit - %s\"." % os.path.basename(ctx.base))
+
+
+def cmd_speakers(args):
+    """Who is talking, analysed on this PC (speakers.py): voices found, then named from the
+    voices you named before. The app's Look step shows them to name and colour."""
+    import speakers
+    ctx = load_ctx(args, need_words=False)
+    data = speakers.analyse(ctx, n=args.people)
+    speakers.after_new(ctx.outdir, data)
+    print("\nDone. Name each voice in step 5 (Look) - play its samples to hear who it is.")
 
 
 def cmd_shorts(args):
@@ -1042,6 +1052,11 @@ def main():
     tl.add_argument("--max", type=float, default=30, help="longest suggestion, s (default 30)")
     tl.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     tl.set_defaults(func=cmd_timeline)
+
+    vo = sub.add_parser("speakers", help="step 5: find who is talking when (voice analysis on this PC) to colour captions by speaker")
+    common(vo, words=False)
+    vo.add_argument("--people", type=int, default=0, help="how many people talk, you included (default: let the analysis decide)")
+    vo.set_defaults(func=cmd_speakers)
 
     sp = sub.add_parser("speech", help="words for Premiere captions (used by the app's Premiere bridge)")
     common(sp)

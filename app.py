@@ -540,6 +540,8 @@ def command(action, o):
                 "--max", str(o.get("max", 30))]
     if action == "speech":
         return ["speech", p]
+    if action == "speakers":
+        return ["speakers", p, "--people", str(int(o.get("people") or 0))]
     if action == "relisten":
         return ["relisten", p, "--start", "%.2f" % float(o["start"]), "--end", "%.2f" % float(o["end"])]
     if action == "transcribe":
@@ -666,6 +668,35 @@ def make_snippet(path, a, b):
     if not os.path.exists(out):
         render.snippet(SimpleNamespace(seq=seq), max(0, a - 0.5), b + 0.5, out)
     return out
+
+
+def premiere_speakers(path):
+    """Step 5 "Get speakers from Premiere": read who talks when from the transcript Premiere
+    made with Speaker labeling on (speakers.py). Returns (answer, http status)."""
+    import bridge
+    import config
+    import premiere_auto
+    import speakers
+    outdir = base_of(path) + "_captions"
+    cfg = config.load(outdir)
+    if not bridge.connected("uxp"):
+        return dict(error=premiere_auto.SPEECH_HELP if premiere_auto.exe() else "Premiere isn't installed on this PC."), 409
+    seq = pick(project(path), cfg)
+    p = bridge.panel("uxp") or {}
+    if os.path.normcase(os.path.normpath(p.get("project") or "")) != os.path.normcase(os.path.normpath(path)):
+        bridge.call("uxp", dict(op="open", project=path), 120)      # bring the project to the front
+    ok, msg, data = bridge.call_data("uxp", dict(op="speakers", project=path, sequence=seq.name), 180)
+    if not ok:
+        return dict(error=msg or premiere_auto.SPEECH_HELP), 409
+    result = speakers.from_premiere(data.get("transcripts") or {}, data.get("items") or [])
+    if len(result["voices"]) < 2:
+        return dict(error="Premiere's transcript has %s. In Premiere's Text panel, transcribe this sequence again "
+                          "with Speaker labeling turned on, then press this again. Names you give the speakers "
+                          "there (Speaker 1 > a name) carry over."
+                          % ("no speakers" if not result["voices"] else "only one speaker")), 409
+    speakers.save(outdir, result)
+    speakers.after_new(outdir, result)
+    return dict(speakers.summary(outdir), message=msg), 200
 
 
 # -- native file dialog --------------------------------------------------------------------
@@ -933,6 +964,17 @@ class Handler(BaseHTTPRequestHandler):
                 if not fp:
                     return self.send_json({"error": "no such font"}, 404)
                 return self.send_file(fp, "font/ttf")
+            if u.path == "/api/speakers":                  # step 5: who is talking, their names and colours
+                import config
+                import speakers
+                import tracks
+                outdir = base_of(q["path"]) + "_captions"
+                cfg = config.load(outdir)
+                d = speakers.summary(outdir, cfg)
+                seq = pick(project(q["path"]), cfg)
+                d["mic"] = tracks.has_track(seq, tracks.MIC_TRACK)
+                d["friends_track"] = tracks.has_track(seq, tracks.FRIENDS_TRACK)
+                return self.send_json(d)
             if u.path == "/api/captions":
                 import config
                 import pipeline
@@ -1174,6 +1216,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(cfg)
             if u.path == "/api/snippet":
                 return self.send_json({"path": make_snippet(b["path"], float(b["start"]), float(b["end"]))})
+            if u.path == "/api/speakers":
+                import speakers
+                outdir = base_of(b["path"]) + "_captions"
+                if "voice" in b:                           # who this voice is ("" = not named)
+                    speakers.name_voice(outdir, b["voice"], b.get("person"), b.get("me"))
+                if b.get("name"):                          # a person's colour / "this is me"
+                    speakers.set_person(b["name"], b.get("colour"), b.get("me"))
+                if "on" in b:
+                    import config
+                    config.update(outdir, {"speakers": {"on": bool(b["on"])}})
+                return self.send_json(speakers.summary(outdir))
+            if u.path == "/api/speakers/premiere":
+                return self.send_json(*premiere_speakers(b["path"]))
             if u.path == "/api/stop":
                 return self.send_json({"stopped": stop_job()})
             if u.path == "/api/pause":
