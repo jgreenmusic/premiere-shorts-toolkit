@@ -225,6 +225,39 @@ class QuickServer(Served, unittest.TestCase):
         self.assertEqual((code, body), (206, data[1000:]))
         self.assertEqual(self.get(u, {"Range": "bytes=5000-"})[0], 416)     # wholly past the end
 
+    def test_render_replaces_a_video_the_player_is_streaming(self):
+        """0.33.0: Re-render failed with "Access is denied" because the player still had the old
+        video open through /media. A stalled stream must not stop the new render going in."""
+        import socket
+        import time
+        import render
+        from urllib.parse import quote
+        folder = os.path.join(self.tmp, "y_shorts")
+        os.makedirs(folder, exist_ok=True)
+        p, part = os.path.join(folder, "Short 01.mp4"), os.path.join(folder, "Short 01.part.mp4")
+        with open(p, "wb") as f:
+            f.write(b"o" * (8 << 20))                # big enough that the server can't send it all at once
+        with open(part, "wb") as f:
+            f.write(b"new")
+        port = self.server.server_address[1]
+        s = socket.create_connection(("127.0.0.1", port))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+        s.sendall(("GET /media?path=%s HTTP/1.1\r\nHost: x\r\n\r\n" % quote(p)).encode())
+        s.recv(1024)                                 # the stream has started; now stop reading, like a paused player
+        time.sleep(0.5)
+        try:
+            render.put_in_place(part, p, wait=2)
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"new")
+            self.assertFalse(os.path.exists(part))
+        finally:
+            s.close()
+        for _ in range(20):                          # the moved-aside old one goes once the server lets go
+            if not glob.glob(os.path.join(folder, "*.old.part.mp4")):
+                break
+            time.sleep(0.25)
+        self.assertEqual(sorted(os.listdir(folder)), ["Short 01.mp4"])
+
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg and ffprobe on PATH")
 class WholeRun(Served, unittest.TestCase):

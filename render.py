@@ -146,8 +146,39 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
     log("  rendering %s (%.1fs, %d video piece(s), %d audio clip(s))"
         % (os.path.basename(out_path), b - a, len(vid), len(alabels)))
     subprocess.run(cmd, cwd=work, check=True)
-    os.replace(part, out_path)                   # only a finished video gets the real name
+    put_in_place(part, out_path)                 # only a finished video gets the real name
     return out_path
+
+
+class InUse(Exception):
+    """The old video can't be replaced: another program has it open."""
+
+
+def put_in_place(part, out_path, wait=5.0):
+    """Rename the finished render over the old video. Windows refuses that while the old one is
+    open - e.g. the app's own player streaming it (app.send_file opens with share-delete for
+    this) - but lets the old one be moved aside, so do that and delete it."""
+    import time
+    old = os.path.splitext(out_path)[0] + ".old.part.mp4"     # *.part.mp4 = cleared by the next make
+    give_up = time.time() + wait
+    while True:
+        try:
+            return os.replace(part, out_path)
+        except PermissionError:
+            pass
+        try:
+            os.replace(out_path, old)
+            os.replace(part, out_path)
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+            return
+        except PermissionError:
+            if time.time() > give_up:
+                raise InUse("%s is open in another program (a video player, Explorer's preview...) - "
+                            "close it and render this Short again." % os.path.basename(out_path))
+            time.sleep(0.5)
 
 
 def snippet(ctx, a, b, out_path):

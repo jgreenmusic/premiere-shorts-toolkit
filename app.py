@@ -158,7 +158,7 @@ def project_info(path):
                 kinds=[dict(id=k, label=v["label"], about=v["about"]) for k, v in config.KINDS.items()],
                 sequences=[dict(name=s.name, captions=len(s.captions), video=len(s.video), audio=len(s.audio),
                                 markers=len(s.markers), seconds=round(s.end_s, 1)) for s in seqs],
-                results=results(outdir, base_of(path) + "_shorts", cfg), transcript=transcript_info(outdir, cfg))
+                results=results(outdir, base_of(path) + "_shorts", cfg, cur), transcript=transcript_info(outdir, cfg))
 
 
 def transcript_info(outdir, cfg):
@@ -189,7 +189,8 @@ def marker_segments(path):
     return ranges + between
 
 
-def results(outdir, shorts_dir, cfg):
+def results(outdir, shorts_dir, cfg, seq=None):
+    """seq: the read sequence - with it each render also says whether its timeline changed (stale.py)."""
     r = {}
     rep = os.path.join(outdir, "caption-report.csv")
     if os.path.exists(rep):
@@ -239,11 +240,17 @@ def results(outdir, shorts_dir, cfg):
     previews.prune(outdir)                       # old previews go; the newest always stays
     r["previews"] = previews.listing(outdir)
     from shorts import safe_name
+    import stale
     r["renders"] = {}
+    recs = stale.load(outdir)
     for s in cfg.get("shorts", []):
         f = os.path.join(shorts_dir, safe_name(s["name"]) + ".mp4")
         if os.path.exists(f):
-            r["renders"][s["name"]] = dict(path=f, when=os.path.getmtime(f))
+            try:                                 # what changed since it was rendered (step 6 "Re-render the changed")
+                why = stale.status(cfg, s, f, seq, recs)["why"]
+            except Exception:
+                why = []
+            r["renders"][s["name"]] = dict(path=f, when=os.path.getmtime(f), why=why)
     return r
 
 
@@ -1222,7 +1229,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(end - start + 1))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        with open(path, "rb") as f:
+        with open_shared(path) as f:
             f.seek(start)
             left = end - start + 1
             while left > 0:
@@ -1234,6 +1241,26 @@ class Handler(BaseHTTPRequestHandler):
                 except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
                     return                       # the player stopped reading - normal when it seeks
                 left -= len(chunk)
+
+
+def open_shared(path):
+    """open(path, "rb"), but on Windows the file may still be renamed or deleted while it is open.
+    The player keeps a video open as long as it streams it; a re-render of that Short then
+    moves it aside (render.put_in_place) instead of failing with "Access is denied"."""
+    if os.name != "nt":
+        return open(path, "rb")
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.CreateFileW.restype = wintypes.HANDLE
+    k.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                              wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    # GENERIC_READ, share read + write + delete, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL
+    h = k.CreateFileW(path, 0x80000000, 0x7, None, 3, 0x80, None)
+    if h is None or h == wintypes.HANDLE(-1).value:
+        return open(path, "rb")                  # let Python raise its usual error
+    return os.fdopen(msvcrt.open_osfhandle(h, os.O_RDONLY | os.O_BINARY), "rb")
 
 
 def make_server(port, host="127.0.0.1"):

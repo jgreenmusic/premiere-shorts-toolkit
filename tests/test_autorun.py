@@ -157,7 +157,10 @@ class QuickPeer(Sandbox, unittest.TestCase):
                     pass
             p.wait()
             p.stdout.close()
-            psutil.wait_procs([psutil.Process(real)] if psutil.pid_exists(real) else [], timeout=5)
+            try:                                 # it may be gone between the check and the wait
+                psutil.wait_procs([psutil.Process(real)], timeout=5)
+            except psutil.NoSuchProcess:
+                pass
         self.assertIsNone(peer.read("toolkit"), "a file left by a program that has gone must be ignored")
         self.assertIsNone(peer.busy_with("autorun"))
 

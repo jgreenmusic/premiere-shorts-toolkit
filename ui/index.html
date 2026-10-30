@@ -1465,6 +1465,9 @@ const QUALITY = [["veryfast", "Fast (quick checks)"], ["medium", "Balanced (reco
 function viewRender() {
   const I = S.info, list = I.config.shorts, R = I.results.renders || {};
   const todo = list.map((_, i) => i).filter(i => !R[list[i].name]);
+  const changed = list.map((_, i) => i).filter(i => (R[list[i].name]?.why || []).length);
+  if (!S.renderPick || S.renderPick.path !== S.current) S.renderPick = { path: S.current, names: new Set() };
+  const picked = S.renderPick.names, pickIdx = list.map((_, i) => i).filter(i => picked.has(list[i].name));
   if (S.renderSel == null || !list[S.renderSel]) S.renderSel = list.findIndex(s => R[s.name]);
   const cur = list[S.renderSel], playing = cur && R[cur.name];
   $("#view").innerHTML = `
@@ -1475,17 +1478,22 @@ function viewRender() {
       ${list.length ? `
       <div class="toolbar" id="renderBar">
         <button class="btn primary" id="rAll">Render all ${list.length}</button>
+        <button class="btn" id="rChanged" ${changed.length ? "" : "disabled"} title="Shorts you changed after they were rendered">Re-render the ${changed.length} changed</button>
         <button class="btn" id="rTodo" ${todo.length ? "" : "disabled"}>Render the ${todo.length} not done yet</button>
+        <button class="btn" id="rPick" ${pickIdx.length ? "" : "disabled"} title="Tick Shorts in the list, then render just those, one after another">Render the ${pickIdx.length} ticked</button>
         <button class="btn" id="rPause" style="display:none">❚❚ Pause</button>
         <button class="btn danger" id="rStop" style="display:none">■ Stop</button>
         <span style="flex:1"></span>
         <label class="row hint" style="gap:6px">Quality <select class="text" id="rQual" style="width:auto">${QUALITY.map(([k, l]) => `<option value="${k}" ${store.get("preset", "medium") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       </div>
       <div class="result" id="rProg" style="display:none;margin-bottom:12px"></div>
-      <div class="scroll" style="max-height:max(320px, calc(100vh - 480px))"><table><thead><tr><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="scroll" style="max-height:max(320px, calc(100vh - 480px))"><table><thead><tr><th><input type="checkbox" id="rPickAll" title="Tick all" ${pickIdx.length && pickIdx.length === list.length ? "checked" : ""}></th><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
         ${list.map((s, i) => `<tr class="${i === S.renderSel ? "sel" : ""}" data-rsel="${i}" style="cursor:pointer">
+          <td><input type="checkbox" data-rpick="${i}" ${picked.has(s.name) ? "checked" : ""}></td>
           <td><b>${esc(s.name)}</b><div class="hint">${tc(s.start)} → ${tc(s.end)}</div></td><td class="muted">${Math.round(s.end - s.start)}s</td>
-          <td>${R[s.name] ? `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>` : `<span class="badge">Not yet</span>`}</td>
+          <td>${!R[s.name] ? `<span class="badge">Not yet</span>` : (R[s.name].why || []).length
+            ? `<span class="badge warn">Changed since rendered</span><div class="hint">${esc(R[s.name].why.join(", "))}</div>`
+            : `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>`}</td>
           <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-rone="${i}">${R[s.name] ? "Re-render" : "Render"}</button></td></tr>`).join("")}
       </tbody></table></div>
       <div class="row" style="margin-top:10px"><button class="btn link" data-folder="${esc(I.shorts_dir)}">Open the Shorts folder</button></div>`
@@ -1498,11 +1506,15 @@ function viewRender() {
   if (!list.length) return;
   $("#rAll").onclick = () => run("make", {});
   $("#rTodo").onclick = () => run("make", { indexes: todo });
+  $("#rChanged").onclick = () => changed.length && run("make", { indexes: changed });
+  $("#rPick").onclick = () => pickIdx.length && run("make", { indexes: pickIdx });
+  $("#rPickAll").onchange = e => { list.forEach(s => e.target.checked ? picked.add(s.name) : picked.delete(s.name)); render(); };
+  $$("[data-rpick]").forEach(c => c.onchange = () => { const n = list[+c.dataset.rpick].name; c.checked ? picked.add(n) : picked.delete(n); render(); });
   $("#rQual").onchange = e => store.set("preset", e.target.value);
   $("#rPause").onclick = () => $("#pauseJob").click();
   $("#rStop").onclick = () => $("#stopJob").click();
   $$("[data-rone]").forEach(b => b.onclick = () => run("make", { index: b.dataset.rone }));
-  $$("[data-rsel]").forEach(tr => tr.onclick = e => { if (e.target.closest("button")) return; S.renderSel = +tr.dataset.rsel; render(); });
+  $$("[data-rsel]").forEach(tr => tr.onclick = e => { if (e.target.closest("button, input")) return; S.renderSel = +tr.dataset.rsel; render(); });
   syncRenderButtons();
 }
 // ---- Post (step 7): Post Studio writes each Short's title/description/tags/hashtags per platform,
@@ -1790,7 +1802,7 @@ async function viewPublish(refresh, opt = {}) {
 function syncRenderButtons() {
   const busy = S.busy && /^Rendering/.test(S.jobTitle || "");
   const show = (id, on) => { const el = $("#" + id); if (el) el.style.display = on ? "" : "none"; };
-  show("rAll", !S.busy); show("rTodo", !S.busy); show("rPause", busy); show("rStop", busy);
+  ["rAll", "rChanged", "rTodo", "rPick"].forEach(id => show(id, !S.busy)); show("rPause", busy); show("rStop", busy);
   const p = $("#rPause"); if (p) p.textContent = S.paused ? "▶ Resume" : "❚❚ Pause";
   $$("[data-rone]").forEach(b => b.disabled = S.busy);
 }

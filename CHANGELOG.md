@@ -2,6 +2,22 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.33.0 - 2026-10-29
+
+- **Re-render many Shorts with one press.** Julian was re-rendering the 2026-10-10 project by
+  pressing each Short's Re-render button and waiting for it before pressing the next. Step 6 now has
+  **Re-render the N changed** (every rendered Short whose trim, captions, screams/laughs, look or
+  timeline changed since it was rendered - the same check Auto Run uses, `stale.py`) and tick boxes
+  with **Render the N ticked**. Each changed Short says "Changed since rendered" and what changed.
+  Renders made before 0.29.0 have no record, so they show as plain "Rendered".
+- **Re-render failed with "Access is denied".** Short 05 rendered fine, then could not replace its
+  old video: the app's own player had that old video open (pressing Re-render shows the Short in the
+  player, and the server held the file for as long as the stream was open). The server now opens
+  videos so Windows lets them be moved while they stream, and the render moves the old one aside and
+  deletes it. If another program really has the file open, that Short is skipped with a message and
+  the rest of the batch still renders (before, one locked file stopped the whole job).
+  Test: `test_render_replaces_a_video_the_player_is_streaming` (fails with the old code).
+
 ## 0.32.3 - 2026-10-25
 
 - **No game name in titles; YouTube titles keep his hashtags.** 0.32.2's " – Chained Together" was

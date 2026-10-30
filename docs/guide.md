@@ -171,7 +171,9 @@ How the captions and the frame look. Saved per project.
 
 Makes the finished 1080×1920 videos in `<project>_shorts\`.
 
-- **Render all**, **Render the ones not done yet**, or one Short.
+- **Render all**, **Re-render the ones changed** since they were rendered, **Render the ones not
+  done yet**, or tick any Shorts and **Render the ones ticked**. They render one after another.
+- Each Short says whether it's up to date or "Changed since rendered", and what changed.
 - **Pause / Resume / Stop**, with a progress bar.
 - Change anything and render again to replace a video.
 

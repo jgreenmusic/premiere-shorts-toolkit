@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.32.3"
+__version__ = "0.33.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -440,17 +440,25 @@ def cmd_make(args):
             os.remove(leftover)
         except OSError:
             pass
+    failed = []
     for n, (name, a, b) in enumerate(jobs, 1):
         if b <= a:
             print("  skipping %r: end is before start" % name)
             continue
         print("[%d/%d] %s  (%s - %s)" % (n, len(jobs), name, cap.fmt(a), cap.fmt(b)))
         path = os.path.join(out, safe_name(name) + ".mp4")
-        render.make_short(ctx, a, b, path, events, preset=args.preset)
+        try:
+            render.make_short(ctx, a, b, path, events, preset=args.preset)
+        except render.InUse as e:                # one locked file must not stop the rest of the batch
+            print("  NOT REPLACED: %s" % e)
+            failed.append(name)
+            continue
         if not args.out:                         # what this video was made from, so a later change shows (stale.py)
             import stale
             stale.record(ctx.outdir, name, stale.parts(ctx.cfg, dict(start=a, end=b), ctx.seq))
         print("  -> %s" % path)
+    if failed:
+        sys.exit("\n%d Short(s) could not be replaced: %s" % (len(failed), ", ".join(failed)))
     print("\nDone. Shorts are in %s" % out)
 
 
