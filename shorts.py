@@ -469,7 +469,7 @@ def cmd_to_premiere(args):
     import style
     ctx = load_ctx(args)
     plan = scream_plan(ctx, args)
-    record = [] if (ctx.cfg.get("premiere") or {}).get("animated") else None
+    record = [] if (ctx.cfg.get("premiere") or {}).get("animated") or args.one_timeline else None
     events = style.build(ctx, plan, record)
     items = ctx.cfg["shorts"]
     if args.index is not None:
@@ -486,6 +486,10 @@ def cmd_to_premiere(args):
         import ae_template
         if ae_template.install_fonts():
             print("  New caption fonts were installed: restart Premiere if it is open, or it won't draw them.")
+    if args.one_timeline:
+        path, listing = premiere_export.export_one(ctx, events, jobs, record, out=args.out)
+        print("\nDone. Timeline file: %s\nCaptions list: %s" % (path, listing))
+        return
     path = premiere_export.export(ctx, events, jobs, out=args.out, record=record)
     print("\nDone. In Premiere: File > Import > %s" % path)
     print("Each Short is a timeline in the bin \"Shorts Toolkit - %s\"." % os.path.basename(ctx.base))
@@ -1019,6 +1023,7 @@ def main():
     m.set_defaults(func=cmd_make)
 
     m = sub.add_parser("to-premiere", help="write Shorts as Premiere timelines (captions layer, beeps, framing) to edit there")
+    m.add_argument("--one-timeline", action="store_true", help="every Short end to end on one timeline, every caption a clip on it")
     common(m)
     m.add_argument("--index", type=int, help="only this Short from the project's list")
     m.add_argument("--indexes", help="these Shorts, e.g. 0,3,5")

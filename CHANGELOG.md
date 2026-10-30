@@ -21,6 +21,8 @@ Each problem found in real use gets an entry here: what went wrong, and what cha
 - The toolkit's fonts are installed for your Windows user when you send (no admin rights). Premiere only sees
   them after a restart, and draws a serif fallback until then.
 - **The installer tried to close Premiere.** A Premiere started by the installed app loaded the app's own DLLs, so an update couldn't replace them and Setup tried to shut Premiere down, with unsaved work open (it failed, Premiere was unharmed, Setup rolled back). The toolkit now starts Premiere on its own.
+- **Animated captions landed on random copies.** Sending again keeps earlier timelines, and the script took "the last timeline with that name", but Premiere's list is in no useful order: on Julian's project 34 Shorts got theirs on one of three copies at random. Each send now has its own dated bin and captions go only to timelines in that bin.
+- **Every Short on one timeline.** Julian: "I don't see them in the timeline for me to directly edit." New `to-premiere --one-timeline`: all Shorts end to end, every caption and beep a clip on that timeline, a marker where each Short starts, reusing the media already sent. 38 Shorts, 810 captions: 16 s to write, 572 s to place (a single long timeline gets slower as it fills: 0.7 s a caption).
 - Not yet tried: editing by hand in Essential Graphics, live playback speed, and the toolkit's real fonts in
   Premiere. A background box behind a whole line (Dark Box, TikTok Box) isn't in the template.
 

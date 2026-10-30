@@ -15,10 +15,12 @@ timeline for a Premiere caption track whose words you can retype.
 
 Files go in the <project>_premiere folder (one folder per Short + beep.wav). Exporting again replaces them.
 """
+import glob
 import json
 import os
 import re
 import subprocess
+import time
 import urllib.parse
 from xml.sax.saxutils import escape
 
@@ -347,31 +349,57 @@ def sequence(xml, name, dur, video_tracks, audio_tracks, markers=()):
                "".join(video_tracks), "".join(audio_tracks), "".join(markers)))
 
 
+def latest(path):
+    """The newest copy of a file place() wrote ("name.ext", "name 2.ext"...), or None."""
+    stem, ext = os.path.splitext(path)
+    found = glob.glob(glob.escape(stem) + ext) + glob.glob(glob.escape(stem) + " *" + ext)
+    return max(found, key=os.path.getmtime) if found else None
+
+
 def short_sequence(ctx, events, name, a, b, d, xml, log=print, animated=False):
     """Write one Short's media into d. Returns (its <sequence>, its .srt or None).
     animated: leave room for the animated template's clips on V4."""
+    p = short_parts(ctx, events, a, b, d, xml, name, log)
+    vt = [track(p["v1"]), track(p["v2"])] + ([track(p["v3"])] if p["v3"] else [])
+    if animated and p["v3"]:                     # V4 waits for the template clips (premiere/place-captions.jsx)
+        vt.append(track([]))
+    at = xml.sound(p["voice"], 1)
+    if p["beeps"]:
+        at += xml.sound(p["beeps"], 3)
+    return sequence(xml, name, b - a, vt, at, p["marks"]), p["srt"]
+
+
+def short_parts(ctx, events, a, b, d, xml, name, log=print, off=0.0, reuse=False):
+    """One Short's clips, laid on a timeline from off seconds. Writes its media into d, or with
+    reuse takes what an earlier send left there. Returns {v1, v2, v3: <clipitem>s, voice, beeps:
+    clips for Xml.sound, marks: <marker>s, srt}."""
     seq, blur_trim = ctx.seq, ctx.cfg["layout"]["blur_trim"]
     os.makedirs(d, exist_ok=True)
     fps = xml.rate
     bg = os.path.join(d, "background.mp4")
-    log("  background")
-    bg = background(ctx, a, b, bg)
+    if reuse and latest(bg):
+        bg = latest(bg)
+    else:
+        log("  background")
+        bg = background(ctx, a, b, bg)
     capfile = os.path.join(d, "captions.mov")
     clips = caption_clips(events, a, b)
-    if clips:
+    if clips and reuse and latest(capfile):
+        capfile = latest(capfile)
+    elif clips:
         log("  captions layer (%d captions)" % len(clips))
         capfile = caption_layer(ctx, events, a, b, fps.text, capfile)
     # no captions = no .srt: Premiere stops on an empty one with a "File Import Failure" box
     srt = write_srt(os.path.join(d, safe(name) + ".srt"), clips) if clips else None
 
-    v1 = [xml.clip("Blurred background", bg, 0, b - a, 0)]
+    v1 = [xml.clip("Blurred background", bg, off, off + b - a, 0)]
     v2 = []
     for t0, t1, it in render._pieces(seq.video, a, b):
         if it:
             m = media(it.path)
             fg_w, fg_h = render.fg_size(m["w"], m["h"], blur_trim)
             # Premiere's Scale 100 = the file's own size; the render scales the gameplay to fg_h tall
-            v2.append(xml.clip(os.path.basename(it.path), it.path, t0 - a, t1 - a, render._src(it, t0),
+            v2.append(xml.clip(os.path.basename(it.path), it.path, off + t0 - a, off + t1 - a, render._src(it, t0),
                                scale=100.0 * fg_h / m["h"]))
     bl = bleep.settings(ctx.cfg)
     spans = bleep.spans(getattr(ctx, "words", None), bl, a, b)
@@ -381,21 +409,20 @@ def short_sequence(ctx, events, name, a, b, d, xml, log=print, animated=False):
         """A caption clip's colour: the most important change under it."""
         kinds = {k for ms, me, k, _, _ in marks if ms < e and me > s and k != "beep"}
         return next((LABEL[k] for k in ("check", "yours", "retimed", "reaction") if k in kinds), None)
-    v3 = [xml.clip(t or "caption", capfile, s, e, s, label=label(s, e)) for s, e, t in clips]
-    at = xml.sound([("censored" if cen else os.path.basename(it.path), it.path, t0 - a, t1 - a,
-                     render._src(it, t0), not cen, LABEL["beep"] if cen else None)
-                    for it, t0, t1, cen in audio_pieces(seq, a, b, spans)], 1)
+    v3 = [xml.clip(t or "caption", capfile, off + s, off + e, s, label=label(s, e)) for s, e, t in clips]
+    voice = [("censored" if cen else os.path.basename(it.path), it.path, off + t0 - a, off + t1 - a,
+              render._src(it, t0), not cen, LABEL["beep"] if cen else None)
+             for it, t0, t1, cen in audio_pieces(seq, a, b, spans)]
+    beeps = []
     if spans and bl.get("sound") == "beep":
         beep = beep_file(os.path.dirname(d))
-        at += xml.sound([("beep", beep, s, min(e, s + 10), 0, True, LABEL["beep"]) for s, e in spans], 3)
+        beeps = [("beep", beep, off + s, off + min(e, s + 10), 0, True, LABEL["beep"]) for s, e in spans]
     if spans:
         log("  %d censored word(s)" % len(spans))
     if marks:
         log("  %d change(s) marked" % len(marks))
-    vt = [track(v1), track(v2)] + ([track(v3)] if v3 else [])
-    if animated and v3:                          # V4 waits for the template clips (premiere/place-captions.jsx)
-        vt.append(track([]))
-    return sequence(xml, name, b - a, vt, at, [marker(s, e, n, c, xml.rate) for s, e, _, n, c in marks]), srt
+    return dict(v1=v1, v2=v2, v3=v3, voice=voice, beeps=beeps, srt=srt,
+                marks=[marker(off + s, off + e, n, c, xml.rate) for s, e, _, n, c in marks])
 
 
 def safe(name):
@@ -426,15 +453,60 @@ def export(ctx, events, jobs, log=print, out=None, record=None):
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(ae_template.clips(events, record, a, b, ctx.cfg), f)
             animated.append("%s\t%s" % (name, p))
-    with open(os.path.join(d, "animated.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(animated) + "\n")
     title = jobs[0][0] if len(jobs) == 1 else "Shorts"
+    # a bin of its own per send: names repeat between sends, and Premiere's timeline list is in no useful
+    # order, so this bin is how place-captions.jsx knows which timelines are the ones just sent
+    folder = "Shorts Toolkit - %s - sent %s" % (os.path.basename(ctx.base), time.strftime("%Y-%m-%d %H.%M.%S"))
     path = os.path.join(d, safe(title) + ".xml")
     with open(path, "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<xmeml version="4"><bin><name>%s</name>'
                 '<children>%s</children></bin></xmeml>\n'
-                % (escape("Shorts Toolkit - " + os.path.basename(ctx.base)), "".join(seqs)))
+                % (escape(folder), "".join(seqs)))
+    with open(os.path.join(d, "animated.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(["BIN\t" + folder] + animated) + "\n")
     # what the Premiere script imports (premiere/import-shorts.jsx)
     with open(os.path.join(d, "import.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join([path] + srts) + "\n")
     return path
+
+
+def export_one(ctx, events, jobs, record, name="All Shorts - editable", log=print, out=None):
+    """Every Short end to end on ONE timeline, with every caption and beep a clip you can reach
+    without opening anything, and a marker where each Short starts. Uses the media of the last
+    send where it can. Returns (the XML's path, its animated.txt for place-captions.jsx)."""
+    import ae_template
+    d = out or out_dir(ctx)
+    os.makedirs(d, exist_ok=True)
+    _INFO.clear()
+    first = next((it for it in ctx.seq.video if it.path), None)
+    if not first:
+        raise SystemExit("No video on the timeline.")
+    xml = Xml(Rate(media(first.path)["fps"]))
+    off, v1, v2, v3, voice, beeps, marks, caps = 0.0, [], [], [], [], [], [], []
+    for n, (short, a, b) in enumerate(jobs, 1):
+        log("[%d/%d] %s" % (n, len(jobs), short))
+        p = short_parts(ctx, events, a, b, os.path.join(d, safe(short)), xml, short, log, off=off, reuse=True)
+        v1 += p["v1"]
+        v2 += p["v2"]
+        v3 += p["v3"]
+        voice += p["voice"]
+        beeps += p["beeps"]
+        marks += [marker(off, off, short, "This Short starts here.", xml.rate)] + p["marks"]
+        for c in ae_template.clips(events, record, a, b, ctx.cfg):
+            caps.append(dict(c, start=round(c["start"] + off, 3), end=round(c["end"] + off, 3)))
+        off += b - a
+    vt = [track(v1), track(v2), track(v3), track([])]
+    at = xml.sound(voice, 1) + (xml.sound(beeps, 3) if beeps else [])
+    folder = "Shorts Toolkit - %s - one timeline %s" % (os.path.basename(ctx.base), time.strftime("%Y-%m-%d %H.%M.%S"))
+    path = os.path.join(d, safe(name) + ".xml")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<xmeml version="4"><bin><name>%s</name>'
+                '<children>%s</children></bin></xmeml>\n' % (escape(folder), sequence(xml, name, off, vt, at, marks)))
+    data = os.path.join(d, safe(name) + ".json")
+    with open(data, "w", encoding="utf-8") as f:
+        json.dump(caps, f)
+    listing = os.path.join(d, "animated-one.txt")
+    with open(listing, "w", encoding="utf-8") as f:
+        f.write("BIN\t%s\n%s\t%s\n" % (folder, name, data))
+    log("%d Shorts, %d captions, %d beeps, %.0f s" % (len(jobs), len(caps), len(beeps), off))
+    return path, listing

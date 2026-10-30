@@ -290,7 +290,7 @@ def place_animated(folder, project, say=print):
     if not os.path.exists(listing):
         return None
     with open(listing, encoding="utf-8") as f:
-        rows = [l.rstrip("\r\n").split("\t") for l in f if l.strip()]
+        rows = [l.rstrip("\r\n").split("\t") for l in f if l.strip() and not l.startswith("BIN\t")]
     if not rows:
         return None
     end = time.time() + WAIT["captions_panel"]
