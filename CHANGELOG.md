@@ -2,6 +2,36 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.34.0 - 2026-10-29
+
+- **Send Shorts to Premiere to fix them by hand.** Julian found timing slips and curse words the beep
+  didn't fully cover, and wanted to open the Shorts in Premiere and change details himself - while
+  still editing and rendering in the toolkit. Before, the beeps, the censored captions and the caption
+  look only existed inside the toolkit's render, so Premiere had nothing to edit. Step 6 now has
+  **Send all / Send the ticked / Premiere** (per Short), and `shorts.py to-premiere`. Each Short
+  becomes its own 1080×1920 timeline (FCP XML, in `<project>_premiere\`): V1 the blurred background,
+  V2 the recording scaled like the render, V3 the captions in his look on a see-through layer
+  (QuickTime Animation with alpha, ffmpeg's `ass` filter needs `alpha=1` for that) cut into one clip
+  per caption, A1 his sound cut around each censored word with those pieces switched off, A2 one beep
+  clip per word; plus a plain `.srt` for a retypeable Premiere caption track. With the Captions panel
+  open the Shorts go straight into the open project (`premiere/import-shorts.jsx`).
+  Learned while testing in Premiere 26.5: a stereo track must be written the way Premiere writes it
+  (two XML tracks, left/right clips linked in pairs) or the sound is dropped without a word; the
+  blur's 2560:2559 pixel shape is read by Premiere as 0.56 and draws the background squeezed (now
+  square); Premiere keeps imported files open, so sending again writes `background 2.mp4` etc.
+  Tests: 4 new quick checks + the whole-run test sends its Short to Premiere too.
+- Found on the way, not changed: Adobe's transcript put 6 placeholder lines like "000000." into the
+  2026-10-10 project's captions (13:20, 37:01, 37:07, 59:09, 1:10:53, 1:21:55) - Whisper heard
+  nothing there. They show in the rendered Shorts too; fix or hide them in the caption editor.
+
+## 0.33.1 - 2026-10-29
+
+- **Step 7 platform buttons gave "Cannot read properties of undefined (reading 'post')".** Julian hit it
+  on YouTube Shorts, TikTok, Instagram Reels and Facebook. The choice was saved, but `saveCfg` returned
+  nothing and step 7 reads the new settings off its result, so the page threw before redrawing. The
+  same happened on every step 7 box (Subject, Base tags, Never mention...). `saveCfg` now returns the
+  saved settings.
+
 ## 0.33.0 - 2026-10-29
 
 - **Re-render many Shorts with one press.** Julian was re-rendering the 2026-10-10 project by

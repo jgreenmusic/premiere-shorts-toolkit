@@ -43,6 +43,7 @@ Why two: Adobe only lets one kind of panel (UXP) start transcription, and only t
 | Auto Run › Captions: **Premiere writes them** | The same, as the first step of a run - for a project or a plain recording |
 | Step 2 › **Watch for captions** | Nothing — the toolkit waits for captions you make by hand, then carries on |
 | Step 3 › **Send to Premiere** | Range markers named "Short: …" |
+| Step 6 › **Send to Premiere** (all / ticked / one) | Each Short as its own 1080×1920 timeline: background, recording, captions layer cut per caption, sound cut around censored words, beeps - see the guide, *Edit in Premiere* |
 
 A toolkit action replaces only the markers it made before. Your own markers are left alone.
 
@@ -61,11 +62,14 @@ VS Code + Adobe's **ExtendScript Debugger** → open the `.jsx` → **Ctrl+Shift
 | `cut-at-markers.jsx` | Razors every unlocked track at every marker |
 | `shorts-to-markers.jsx` | Your Shorts as named range markers |
 | `import-captions.jsx` | Imports an `.srt` as a new caption track |
+| `import-shorts.jsx` | Imports the Shorts last sent to Premiere (`<project>_premiere\import.txt`): the `.xml` as timelines + the `.srt` files |
 | `animate-captions.jsx` | After *Upgrade Caption to Graphic*: pop-in and fade per caption, bigger for loud lines, wobble for screams. `MODE = "remove"` undoes it |
 | `match-scale-vertical.jsx` | Sets the sequence to 1080×1920 and gives every clip the first clip's Scale |
 
 **Tested so far:** placing markers through the Speech panel has been run in Premiere on a real
-project. The scripts above have not yet been run there end to end — try them on a copy of your
+project. `import-shorts.jsx` was run in Premiere 26.5 on a throwaway project with two real Shorts:
+tracks, clips, scale, switched-off pieces and beeps read back from Premiere, and a frame from its
+timeline matched the toolkit's render. The scripts above have not yet been run there end to end — try them on a copy of your
 project first.
 
 **Finishing in Premiere instead of rendering here** (*Or: finish in Premiere* tab): **Prepare for

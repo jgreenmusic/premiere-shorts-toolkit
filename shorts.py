@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.33.0"
+__version__ = "0.34.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -460,6 +460,30 @@ def cmd_make(args):
     if failed:
         sys.exit("\n%d Short(s) could not be replaced: %s" % (len(failed), ", ".join(failed)))
     print("\nDone. Shorts are in %s" % out)
+
+
+def cmd_to_premiere(args):
+    """Write Shorts as Premiere timelines (FCP XML + media) you can keep editing in Premiere."""
+    import config
+    import premiere_export
+    import style
+    ctx = load_ctx(args)
+    plan = scream_plan(ctx, args)
+    events = style.build(ctx, plan)
+    items = ctx.cfg["shorts"]
+    if args.index is not None:
+        items = [items[args.index]]
+    elif args.indexes:
+        items = [items[int(i)] for i in args.indexes.split(",") if i.strip() and int(i) < len(items)]
+    jobs = [(s["name"], float(s["start"]), float(s["end"])) for s in items if float(s["end"]) > float(s["start"])]
+    if not jobs:
+        sys.exit("No Shorts to send - add some in the app first.")
+    if not ctx.cfg.get("sequence") and not args.out:
+        # importing adds timelines to this project; keep the toolkit reading the main one
+        config.update(ctx.outdir, {"sequence": ctx.seq.name})
+    path = premiere_export.export(ctx, events, jobs, out=args.out)
+    print("\nDone. In Premiere: File > Import > %s" % path)
+    print("Each Short is a timeline in the bin \"Shorts Toolkit - %s\"." % os.path.basename(ctx.base))
 
 
 def cmd_shorts(args):
@@ -978,6 +1002,14 @@ def main():
     m.add_argument("--preset", default="medium", help="x264 speed: veryfast (quick) ... slow (smaller file)")
     m.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     m.set_defaults(func=cmd_make)
+
+    m = sub.add_parser("to-premiere", help="write Shorts as Premiere timelines (captions layer, beeps, framing) to edit there")
+    common(m)
+    m.add_argument("--index", type=int, help="only this Short from the project's list")
+    m.add_argument("--indexes", help="these Shorts, e.g. 0,3,5")
+    m.add_argument("--out", help="folder for the files (default: <project>_premiere)")
+    m.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    m.set_defaults(func=cmd_to_premiere)
 
     t = sub.add_parser("shorts", help="list / add Shorts, or import them from sequence markers")
     common(t, words=False)

@@ -131,6 +131,68 @@ class QuickParts(unittest.TestCase):
                     self.assertIsNone(bad.search(line), "%s line %d" % (os.path.basename(p), n))
 
 
+class QuickPremiereExport(unittest.TestCase):
+    """Send to Premiere (0.34.0): the pieces that decide what lands on each track."""
+
+    def test_caption_clips_join_the_steps_of_one_caption(self):
+        import premiere_export as px
+        ev = [(10.0, 10.4, "Main", r"{\fad(70,0)}{\1c&H00FF5C7B}Walk{\1c&H00FFFFFF} away"),   # highlight on word 1
+              (10.4, 10.9, "Main", r"{\fscx100}Walk {\1c&H00FF5C7B}away{\1c&H00FFFFFF}"),        # ...then word 2
+              (10.9, 11.5, "Main", r"{\fad(70,0)}Next line"),                                     # a new caption
+              (12.0, 12.2, "Scream", r"{\frz1}AA"), (12.2, 12.5, "Scream", r"{\frz-1}AAAH"),      # a scream growing
+              (30.0, 31.0, "Main", "after the Short")]
+        clips = lambda a, b: [(round(s, 3), round(e, 3), t) for s, e, t in px.caption_clips(ev, a, b)]
+        self.assertEqual(clips(9.0, 20.0),
+                         [(1.0, 1.9, "Walk away"), (1.9, 2.5, "Next line"), (3.0, 3.5, "AAAH")])
+        self.assertEqual(clips(10.5, 11.0), [(0.0, 0.4, "Walk away"), (0.4, 0.5, "Next line")])
+
+    def test_sound_is_cut_around_each_censored_word(self):
+        import premiere_export as px
+        from types import SimpleNamespace
+        from prproj import TICKS
+        item = SimpleNamespace(start=0, end=100 * TICKS, path="r.mp4", src_in=0)
+        got = [(round(t0, 2), round(t1, 2), cen) for _, t0, t1, cen in
+               px.audio_pieces(SimpleNamespace(audio=[item]), 10.0, 20.0, [(2.0, 2.5), (9.8, 11.0)])]
+        self.assertEqual(got, [(10.0, 12.0, False), (12.0, 12.5, True), (12.5, 19.8, False), (19.8, 20.0, True)])
+
+    def test_a_file_premiere_holds_gets_a_new_name(self):
+        import premiere_export as px
+        d = tempfile.mkdtemp(prefix="shorts-premiere-test-")
+        try:
+            p = os.path.join(d, "captions.mov")
+            for name, text in (("captions.mov", b"old"), ("a.part", b"new"), ("b.part", b"newer")):
+                with open(os.path.join(d, name), "wb") as f:
+                    f.write(text)
+            with open(p, "rb"):                          # open without share-delete, like Premiere
+                got = px.place(os.path.join(d, "a.part"), p)
+            self.assertEqual(got, os.path.join(d, "captions 2.mov"))
+            self.assertEqual(px.place(os.path.join(d, "b.part"), p), p)     # free again: the plain name
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"newer")
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_xml_has_a_stereo_track_as_premiere_writes_it(self):
+        import premiere_export as px
+        import xml.etree.ElementTree as ET
+        px._INFO["r.mp4"] = dict(w=3072, h=1728, fps="60/1", dur=100.0, channels=2, rate=48000)
+        x = px.Xml(px.Rate("60/1"))
+        seq = px.sequence(x, "S & 1", 5.0, [px.track([x.clip("r", "r.mp4", 0, 5, 10, scale=58.0)])],
+                          x.sound([("r", "r.mp4", 0, 2, 10, True), ("censored", "r.mp4", 2, 2.5, 12, False)], 1))
+        s = ET.fromstring(seq)
+        self.assertEqual(s.findtext("name"), "S & 1")
+        self.assertEqual(s.findtext("media/video/format/samplecharacteristics/width"), "1080")
+        self.assertEqual(s.find("media/video/track/clipitem/filter/effect/parameter/value").text, "58.000")
+        left, right = s.findall("media/audio/track")
+        self.assertEqual([c.findtext("sourcetrack/trackindex") for c in left.findall("clipitem")], ["1", "1"])
+        self.assertEqual([c.findtext("sourcetrack/trackindex") for c in right.findall("clipitem")], ["2", "2"])
+        self.assertEqual([c.findtext("enabled") for c in left.findall("clipitem")], ["TRUE", "FALSE"])
+        self.assertEqual(left.findall("clipitem")[1].findtext("start"), "120")          # 2 s at 60 fps
+        pair = [l.findtext("linkclipref") for l in left.findall("clipitem")[1].findall("link")]
+        self.assertEqual(pair, [left.findall("clipitem")[1].get("id"), right.findall("clipitem")[1].get("id")])
+        self.assertEqual(len(s.findall(".//file[pathurl]")), 1)                       # the file in full once
+
+
 class QuickPublish(unittest.TestCase):
     """Step 8: where each Short stands on YouTube. No network - the channel and queue are faked."""
 
@@ -301,6 +363,26 @@ class WholeRun(Served, unittest.TestCase):
         self.assertEqual(code, 200, caps)
         code, h, body = self.get("/media?path=" + quote(made[0]), {"Range": "bytes=0-99"})
         self.assertEqual((code, len(body)), (206, 100))
+
+        # the same Short sent to Premiere: a timeline file + its own media (Premiere itself not needed)
+        import xml.etree.ElementTree as ET
+        code, out = cli("to-premiere", self.clip)
+        self.assertEqual(code, 0, out)
+        folder = info["premiere_dir"]
+        with open(os.path.join(folder, "import.txt"), encoding="utf-8") as f:
+            listed = f.read().splitlines()
+        seq = ET.parse(os.path.join(folder, "Test short.xml")).getroot().find("bin/children/sequence")
+        self.assertEqual(seq.findtext("name"), "Test short")
+        self.assertEqual(int(seq.findtext("duration")), 180)                    # 6 s at 30 fps
+        files = [urllib.request.url2pathname(u.text[len("file://localhost/"):]) for u in seq.iter("pathurl")]
+        self.assertTrue(all(os.path.exists(p) for p in files), files)
+        bg = os.path.join(folder, "Test short", "background.mp4")
+        self.assertIn(os.path.normcase(bg), [os.path.normcase(p) for p in files])
+        probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height,sample_aspect_ratio",
+                                           "-of", "json", bg], capture_output=True, check=True).stdout)["streams"][0]
+        self.assertEqual((probe["width"], probe["height"], probe.get("sample_aspect_ratio", "1:1")), (1080, 1920, "1:1"))
+        self.assertEqual(len(seq.findall("media/audio/track")), 2)            # the recording's sound, left + right
+        self.assertEqual(listed[0], os.path.join(folder, "Test short.xml"))
 
 
 if __name__ == "__main__":

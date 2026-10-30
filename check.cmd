@@ -6,7 +6,7 @@ cd /d "%~dp0"
 set FAILED=0
 .venv\Scripts\python.exe tests\test_logic.py || set FAILED=1
 if /i "%~1"=="quick" (
-  .venv\Scripts\python.exe tests\test_app.py QuickParts QuickPublish QuickServer || set FAILED=1
+  .venv\Scripts\python.exe tests\test_app.py QuickParts QuickPremiereExport QuickPublish QuickServer || set FAILED=1
   .venv\Scripts\python.exe tests\test_music.py QuickListening QuickSuggestions QuickSettings || set FAILED=1
   .venv\Scripts\python.exe tests\test_autorun.py QuickStale QuickPeer QuickPages QuickPremiere || set FAILED=1
 ) else (

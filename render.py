@@ -52,20 +52,30 @@ def probe(path):
         return 1920, 1080, "30/1"
 
 
-def layout_filter(src_w, src_h, blur_trim):
-    """Gameplay centred over a blurred copy. blur_trim shrinks the blur bands:
+def fg_size(src_w, src_h, blur_trim):
+    """(width, height) of the gameplay laid over the blur. blur_trim shrinks the blur bands:
     0 = whole gameplay visible, 1 = gameplay fills the height (sides cropped)."""
     full_h = W * src_h / src_w                    # gameplay height at full width
     band = max(0.0, (H - full_h) / 2) * (1 - max(0.0, min(1.0, blur_trim)))
     fg_h = int(round((H - 2 * band) / 2)) * 2
-    fg_w = int(round(fg_h * src_w / src_h / 2)) * 2
-    crop = "crop=%d:%d" % (min(fg_w, W), fg_h) if fg_w > W else "null"
+    return int(round(fg_h * src_w / src_h / 2)) * 2, fg_h
+
+
+def blur_filter():
+    """The blurred, darkened full-frame copy behind the gameplay."""
     # the blur is done at quarter size then scaled up - looks the same (checked side by side)
     # and a 30 s Short renders in 8 s instead of 22 s on the 9950X
     bw, bh = W // 4, H // 4
-    return ("split[bg][fg];[bg]scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,boxblur=6:2,"
-            "eq=brightness=-0.06,scale=%d:%d[b];[fg]scale=%d:%d,%s[f];[b][f]overlay=(W-w)/2:(H-h)/2"
-            % (bw, bh, bw, bh, W, H, fg_w, fg_h, crop))
+    return ("scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,boxblur=6:2,eq=brightness=-0.06,scale=%d:%d"
+            % (bw, bh, bw, bh, W, H))
+
+
+def layout_filter(src_w, src_h, blur_trim):
+    """Gameplay centred over a blurred copy (sizes from fg_size)."""
+    fg_w, fg_h = fg_size(src_w, src_h, blur_trim)
+    crop = "crop=%d:%d" % (min(fg_w, W), fg_h) if fg_w > W else "null"
+    return ("split[bg][fg];[bg]%s[b];[fg]scale=%d:%d,%s[f];[b][f]overlay=(W-w)/2:(H-h)/2"
+            % (blur_filter(), fg_w, fg_h, crop))
 
 
 def fade_filter(cfg, dur):
@@ -81,18 +91,14 @@ def fade_filter(cfg, dur):
     return ",".join(parts) or "anull"
 
 
-def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
-    seq = ctx.seq
+def _picture(seq, a, b, inputs, fl):
+    """ffmpeg inputs + graph lines for the timeline's picture from a to b as [vcat]: one input
+    per piece, gaps are black. Returns (width, height, frame rate) of the first clip."""
     vid = _pieces(seq.video, a, b)
     if not any(p[2] for p in vid):
         raise SystemExit("No video on the timeline between %.1fs and %.1fs." % (a, b))
     first = next(p[2] for p in vid if p[2])
     sw, sh, fps = probe(first.path)
-    work = os.path.join(ctx.outdir, "work")
-    os.makedirs(work, exist_ok=True)
-
-    inputs, fl = [], []
-    # picture: one input per piece, gaps are black
     vlabels = []
     for i, (t0, t1, it) in enumerate(vid):
         dur = t1 - t0
@@ -104,6 +110,16 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
         fl.append("[%d:v]scale=%d:%d,setsar=1,fps=%s,setpts=PTS-STARTPTS[v%d]" % (idx, sw, sh, fps, i))
         vlabels.append("[v%d]" % i)
     fl.append("%sconcat=n=%d:v=1:a=0[vcat]" % ("".join(vlabels), len(vlabels)))
+    return sw, sh, fps
+
+
+def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
+    seq = ctx.seq
+    work = os.path.join(ctx.outdir, "work")
+    os.makedirs(work, exist_ok=True)
+
+    inputs, fl = [], []
+    sw, sh, fps = _picture(seq, a, b, inputs, fl)
     # sound: every audio clip in range, delayed into place and mixed
     alabels = []
     for it in seq.audio:
@@ -144,7 +160,7 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
     cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p",
             "-movflags", "+faststart", "-t", "%.4f" % (b - a), os.path.abspath(part)]
     log("  rendering %s (%.1fs, %d video piece(s), %d audio clip(s))"
-        % (os.path.basename(out_path), b - a, len(vid), len(alabels)))
+        % (os.path.basename(out_path), b - a, len(_pieces(seq.video, a, b)), len(alabels)))
     subprocess.run(cmd, cwd=work, check=True)
     put_in_place(part, out_path)                 # only a finished video gets the real name
     return out_path

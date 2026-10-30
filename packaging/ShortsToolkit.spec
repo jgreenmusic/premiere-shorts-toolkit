@@ -41,7 +41,7 @@ for pkg in ("faster_whisper", "ctranslate2", "onnxruntime", "av", "tokenizers", 
     hidden += h
 hidden += ["app", "shorts", "captions", "prproj", "pipeline", "config", "screams", "laughs", "sounds",
            "style", "render", "timeline", "music", "bleep", "runtime", "remote", "posting", "youtube_step", "clr",
-           "autorun", "stale", "peer", "tiktok_step", "previews", "clip", "bridge", "premiere_install", "premiere_auto",
+           "autorun", "stale", "peer", "tiktok_step", "previews", "clip", "bridge", "premiere_install", "premiere_auto", "premiere_export",
            "whisper_gpu",
            # the Post Studio engine
            "poststudio", "generate", "llm", "quick", "store", "publish", "publish.accounts", "publish.net", "publish.youtube", "publish.stats",

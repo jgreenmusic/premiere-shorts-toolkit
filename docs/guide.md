@@ -177,6 +177,31 @@ Makes the finished 1080×1920 videos in `<project>_shorts\`.
 - **Pause / Resume / Stop**, with a progress bar.
 - Change anything and render again to replace a video.
 
+### Edit in Premiere
+
+To fix things by hand in Premiere (a caption a little early, a beep that doesn't cover a whole word),
+send Shorts there: **Send all to Premiere**, **Send the ticked**, or a Short's **Premiere** button.
+Each Short becomes its own 1080×1920 timeline, laid out like the render:
+
+| Track | What's on it |
+|---|---|
+| V1 | The blurred background (a video the toolkit makes) |
+| V2 | Your recording, scaled and centred like the render (Motion › Scale) |
+| V3 | The captions with your look, see-through, **one clip per caption** - slide or trim a clip to move that caption. Screams and laughs too |
+| A1 | Your sound, cut around each censored word; those pieces are switched off |
+| A2 | One **beep** clip per censored word - stretch, move, add or delete beeps |
+
+A plain `.srt` of the same captions goes into the bin *Shorts Toolkit captions (text)*: drag it onto
+the timeline when you want a Premiere caption track whose words you can retype (hide V3 then).
+
+With the **Shorts Toolkit - Captions** panel open in Premiere, the Shorts go straight into the project
+that's open there and the first one opens. Without it: **File › Import** the `.xml` in
+`<project>_premiere\`. Export from Premiere when you're done; the toolkit's own render is unchanged.
+
+Sending again after a change makes new timelines next to the old ones (delete the old ones in
+Premiere if you don't need them). Files Premiere still has open are kept, and the new ones are named
+`background 2.mp4`, `captions 2.mov` and so on.
+
 ## 7 · Posts
 
 Writes a title, description, tags and hashtags for each rendered Short, from what is said in it.

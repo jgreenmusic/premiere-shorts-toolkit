@@ -431,6 +431,7 @@ async function select(path, keep) {
 async function saveCfg(patch, rerender = true) {
   S.info.config = await api("/api/config", { path: S.current, patch });
   if (rerender) render();
+  return S.info.config;                       // step 7 reads .post off this (undefined -> "reading 'post'")
 }
 
 // ---------------------------------------------------------------- views
@@ -1486,6 +1487,18 @@ function viewRender() {
         <span style="flex:1"></span>
         <label class="row hint" style="gap:6px">Quality <select class="text" id="rQual" style="width:auto">${QUALITY.map(([k, l]) => `<option value="${k}" ${store.get("preset", "medium") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       </div>
+      <div class="toolbar" id="premBar">
+        <b style="font-size:15px">Fix by hand in Premiere:</b>
+        <button class="btn" id="pAll">Send all ${list.length}</button>
+        <button class="btn" id="pPick" ${pickIdx.length ? "" : "disabled"}>Send the ${pickIdx.length} ticked</button>
+        <button class="btn link" id="pImport" title="Bring the Shorts you sent last into the project open in Premiere">Import into Premiere again</button>
+      </div>
+      <details class="hint" style="margin:-4px 0 12px"><summary>What lands in Premiere</summary>
+        Each Short becomes its own 1080×1920 timeline laid out like the render: V1 blurred background, V2 your recording,
+        V3 the captions in your look, one clip per caption (slide or trim one to fix its timing), A1 your sound with each
+        censored word cut out, A2 one beep clip per censored word (stretch or move it). A plain-text caption file comes too,
+        for a caption track you can retype. With the <b>Shorts Toolkit - Captions</b> panel open in Premiere they go straight
+        into the open project; otherwise File › Import the .xml in the Premiere folder. The toolkit's own render is unchanged.</details>
       <div class="result" id="rProg" style="display:none;margin-bottom:12px"></div>
       <div class="scroll" style="max-height:max(320px, calc(100vh - 480px))"><table><thead><tr><th><input type="checkbox" id="rPickAll" title="Tick all" ${pickIdx.length && pickIdx.length === list.length ? "checked" : ""}></th><th>Short</th><th>Length</th><th>Status</th><th></th></tr></thead><tbody>
         ${list.map((s, i) => `<tr class="${i === S.renderSel ? "sel" : ""}" data-rsel="${i}" style="cursor:pointer">
@@ -1494,9 +1507,11 @@ function viewRender() {
           <td>${!R[s.name] ? `<span class="badge">Not yet</span>` : (R[s.name].why || []).length
             ? `<span class="badge warn">Changed since rendered</span><div class="hint">${esc(R[s.name].why.join(", "))}</div>`
             : `<span class="badge ok">Rendered ${ago(R[s.name].when)}</span>`}</td>
-          <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-rone="${i}">${R[s.name] ? "Re-render" : "Render"}</button></td></tr>`).join("")}
+          <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-rone="${i}">${R[s.name] ? "Re-render" : "Render"}</button>
+            <button class="btn sm" data-pone="${i}" title="Open this Short in Premiere as its own timeline, to fix things by hand">Premiere</button></td></tr>`).join("")}
       </tbody></table></div>
-      <div class="row" style="margin-top:10px"><button class="btn link" data-folder="${esc(I.shorts_dir)}">Open the Shorts folder</button></div>`
+      <div class="row" style="margin-top:10px"><button class="btn link" data-folder="${esc(I.shorts_dir)}">Open the Shorts folder</button>
+        <button class="btn link" data-folder="${esc(I.premiere_dir)}">Open the Premiere folder</button></div>`
       : `<p class="hint">No Shorts yet — pick some in step 2.</p>`}
     </div>
     <div class="player">${playing ? `<video data-keep controls playsinline src="${media(playing.path)}#t=0.01"></video>
@@ -1514,6 +1529,10 @@ function viewRender() {
   $("#rPause").onclick = () => $("#pauseJob").click();
   $("#rStop").onclick = () => $("#stopJob").click();
   $$("[data-rone]").forEach(b => b.onclick = () => run("make", { index: b.dataset.rone }));
+  $("#pAll").onclick = () => run("to-premiere", {});
+  $("#pPick").onclick = () => pickIdx.length && run("to-premiere", { indexes: pickIdx });
+  $$("[data-pone]").forEach(b => b.onclick = () => run("to-premiere", { index: b.dataset.pone }));
+  $("#pImport").onclick = e => importToPremiere(e.target);
   $$("[data-rsel]").forEach(tr => tr.onclick = e => { if (e.target.closest("button, input")) return; S.renderSel = +tr.dataset.rsel; render(); });
   syncRenderButtons();
 }
@@ -1804,7 +1823,7 @@ function syncRenderButtons() {
   const show = (id, on) => { const el = $("#" + id); if (el) el.style.display = on ? "" : "none"; };
   ["rAll", "rChanged", "rTodo", "rPick"].forEach(id => show(id, !S.busy)); show("rPause", busy); show("rStop", busy);
   const p = $("#rPause"); if (p) p.textContent = S.paused ? "▶ Resume" : "❚❚ Pause";
-  $$("[data-rone]").forEach(b => b.disabled = S.busy);
+  $$("[data-rone], [data-pone], #pAll").forEach(b => b.disabled = S.busy);
 }
 function renderProgress(text, j) {
   const box = $("#rProg"); syncRenderButtons();
@@ -2329,6 +2348,20 @@ async function runInPremiere(script, btn) {
   } finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
 }
 
+// after "Send to Premiere": import the .xml into the open project through the Captions panel
+async function importToPremiere(btn) {
+  const label = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Working in Premiere…"; }
+  try {
+    const r = await api("/api/bridge/script", { path: S.current, script: "import-shorts.jsx" });
+    toast("Premiere: " + r.message, true);
+  } catch (e) {
+    const where = S.info && S.info.premiere_dir ? S.info.premiere_dir : "the _premiere folder next to your project";
+    toast((/panel isn't open/.test(e.message) ? "The Shorts are ready. " : "Premiere: " + e.message + " ")
+      + "In Premiere use File › Import and pick the .xml in " + where + " (or open Window › Extensions › Shorts Toolkit - Captions and press Import into Premiere again).");
+  } finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
+}
+
 function wireCommon() {
   $$("[data-run]").forEach(b => b.onclick = () => run(b.dataset.run, b.dataset));
   $$("[data-open]").forEach(b => b.onclick = () => api("/api/open", { path: b.dataset.open, how: "file" }).catch(e => toast(e.message)));
@@ -2340,7 +2373,7 @@ function wireCommon() {
 
 // ---------------------------------------------------------------- jobs
 const TITLES = { markers: "Finding the best moments", timeline: "Analysing the video", check: "Checking caption timing", fix: "Creating synced copy", screams: "Updating screams & laughs", prepare: "Preparing for Premiere",
-  preview: "Rendering preview", make: "Rendering", relisten: "Listening again (better model)", burn: "Burning captions onto video", post: "Writing posts" };
+  preview: "Rendering preview", make: "Rendering", "to-premiere": "Sending to Premiere", relisten: "Listening again (better model)", burn: "Burning captions onto video", post: "Writing posts" };
 async function run(action, data = {}) {
   if (S.busy) return;
   const body = { action, title: TITLES[action], path: S.current };
@@ -2348,6 +2381,12 @@ async function run(action, data = {}) {
   if (action === "quick") { body.preset = store.get("preset", "medium"); body.title = "Finding the best moments (quick run)"; }
   S.mkBefore = action === "markers" || action === "quick" ? (data.replace ? 0 : (S.info.config.markers || []).length) : null;
   if (action === "preview") { body.at = $("#pvAt").value.trim(); body.seconds = +$("#pvS").value || 10; S.pvFile = null; }
+  if (action === "to-premiere") {
+    const n = data.indexes ? data.indexes.length : data.index !== undefined ? 1 : S.info.config.shorts.length;
+    body.title = data.index !== undefined ? "Sending " + S.info.config.shorts[+data.index].name + " to Premiere" : `Sending ${n} Short${n === 1 ? "" : "s"} to Premiere`;
+    if (data.indexes) body.indexes = data.indexes; else if (data.index !== undefined) body.index = +data.index;
+    S.afterPremiere = true;
+  }
   if (action === "make") {
     body.preset = store.get("preset", "medium");
     if (data.indexes) { body.indexes = data.indexes; body.title = `Rendering ${data.indexes.length} Short${data.indexes.length === 1 ? "" : "s"}`; }
@@ -2399,6 +2438,8 @@ async function poll(from) {
     toast(n > 0 ? `Placed ${n} new marker${n === 1 ? "" : "s"}` : "No more good moments at that length — try a different length, or remove markers you don't want.", n > 0);
   }
   S.mkBefore = null;
+  if (S.afterPremiere && !j.stopped && j.code === 0) importToPremiere();
+  S.afterPremiere = false;
   followJob(); setTimeout(followJob, 1500);        // a job that starts by itself (quick run's render, autopilot) shows up like any other
 }
 async function followJob() {

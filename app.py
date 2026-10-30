@@ -152,7 +152,7 @@ def project_info(path):
     seqs = project(path)
     cur = pick(seqs, cfg)
     from clip import is_clip
-    return dict(path=path, outdir=outdir, shorts_dir=base_of(path) + "_shorts", config=cfg,
+    return dict(path=path, outdir=outdir, shorts_dir=base_of(path) + "_shorts", premiere_dir=base_of(path) + "_premiere", config=cfg,
                 sequence=cur.name, clip=is_clip(path),
                 kind=config.kind(cfg), speech=config.speech_on(cfg), reactions=config.reactions_on(cfg),
                 kinds=[dict(id=k, label=v["label"], about=v["about"]) for k, v in config.KINDS.items()],
@@ -528,6 +528,10 @@ def command(action, o):
         if o.get("indexes"):
             return c + ["--indexes", ",".join(str(int(i)) for i in o["indexes"])]
         return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
+    if action == "to-premiere":
+        if o.get("indexes"):
+            return ["to-premiere", p, "--indexes", ",".join(str(int(i)) for i in o["indexes"])]
+        return ["to-premiere", p] + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
     if action == "markers":
         return ["markers", p, "--count", str(int(o.get("count", 10))), "--min", str(o.get("min", 15)),
                 "--max", str(o.get("max", 30))] + (["--replace"] if o.get("replace") else [])
@@ -1161,8 +1165,11 @@ class Handler(BaseHTTPRequestHandler):
                 script = os.path.join(RES, "premiere", name)
                 if not name.endswith(".jsx") or not os.path.exists(script):
                     return self.send_json({"error": "No such Premiere script."}, 404)
+                import premiere_auto
                 seq = pick(project(b["path"]), config.load(base_of(b["path"]) + "_captions")).name
-                ok, msg = bridge.run_script(b["path"], script, seq)
+                # a plain recording's Premiere project is <name>.prproj next to it (made by Auto Run / step 2)
+                prj = premiere_auto.project_for(b["path"])
+                ok, msg = bridge.run_script(prj if os.path.exists(prj) else b["path"], script, seq)
                 if msg is None:
                     return self.send_json({"error": "The Shorts Toolkit panel isn't open in Premiere.", "no_panel": True}, 409)
                 return self.send_json({"ok": ok, "message": msg} if ok else {"error": msg}, 200 if ok else 409)
