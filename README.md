@@ -18,9 +18,11 @@ Windows app. Everything runs on your own PC.
 | **3 · Shorts** | Your list of Shorts on a timeline: trim, preview, fix each caption. |
 | **4 · Screams & laughs** | "AAAAHHH" and "hahaha" spelled out as they happen. |
 | **5 · Look** | Caption style (12 presets or your own), layout, optional censor bleep. |
+| **Sound** (optional) | Funny sounds for the censor, your own sounds, rules for when effects play, music underneath. |
 | **6 · Render** | Finished videos in `<project>_shorts\`. |
 | **7 · Posts** | Title, description, tags and hashtags per Short, written by a local AI model. |
 | **8 · Publish** | Scheduled on YouTube; sent to TikTok drafts. |
+| **Long video** (optional) | Your Shorts as chapters of one wide video, with the recording around them, tied back to the Shorts. |
 
 Steps 1, 3 and 6 are enough to get a video out. The rest is optional.
 

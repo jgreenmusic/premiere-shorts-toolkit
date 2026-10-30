@@ -82,6 +82,38 @@ DEFAULTS = {
         "sound": "beep",          # audio: beep (1 kHz) / mute / none
         "extra": "",              # more words to bleep, comma separated
     },
+    "sfx": {                      # sound effects (sfx.py) - OFF unless switched on
+        "on": False,
+        "volume": 0.5,            # all effects together. 100% = as the file is: the built-in sounds sit ~10 dB above
+                                  # normal talk there, 50% ~4 dB above (measured on a real recording)
+        "spacing": 0.4,           # seconds kept between two effects from rules
+        "rules": [],              # when they fire: see sfx.py
+        "add": [],                # [{"t": s, "sound": id, "volume": 1}] placed by hand
+        "off": [],                # rule hits you switched off, "<rule>@<time>"
+    },
+    "bed": {                      # music under a Short (sfx.py) - OFF unless switched on; only tracks you added
+        "on": False,
+        "tracks": [],             # sound ids; several = shared out between the Shorts
+        "volume": 0.15,
+        "duck": 0.45,             # share of that level kept while someone talks
+        "fade_in": 0.4, "fade_out": 1.0,
+        "vary": True,             # True = each Short starts somewhere else in the track
+        "skip": [],               # names of Shorts with no music
+    },
+    "long": {                     # long video made from the Shorts (longform.py)
+        "title": "",
+        "before": 8.0,            # seconds of the recording kept before each Short
+        "after": 8.0,             # ...and after it
+        "join": 30.0,             # Shorts this close together in the recording become one stretch
+        "order": [],              # Short names in the order you set ([] = as in the recording)
+        "skip": [],               # names of Shorts left out
+        "titles": {},             # {Short name: chapter title}
+        "captions": True,         # burn the captions in
+        "music": False,           # the music under the Shorts (bed) here too; sound effects always come along
+        "chapter_cards": True,    # show each chapter's title on screen for a few seconds
+        "fade": 0.25,             # seconds of fade through black between chapters (0 = straight cut)
+        "link": "",               # the long video's address once it is on YouTube
+    },
     "speakers": {                 # colour captions by who is talking (speakers.py) - off until analysed
         "on": False,
         "who": {},                # {voice id in speakers.json: person name} - people/colours in ~/.shorts-toolkit.json

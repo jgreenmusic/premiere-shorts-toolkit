@@ -504,7 +504,7 @@ const BODY = {
     return ["The caption look these Shorts were rendered with", `<p><b>${esc(l.preset)}</b> — ${esc(l.font)}, size ${l.size}, ${l.words ? plural(l.words, "word") + " at a time" : "the whole caption at once"},
       ${l.case === "upper" ? "capitals" : l.case === "lower" ? "lower case" : "written as said"}, comes in with “${esc(l.anim)}”.</p>
       <p>Text ${sw(l.text)} ${l.highlight ? `spoken word ${sw(l.highlight_col)}` : "no spoken-word colour"} outline ${sw(l.outline_col)}${l.box ? ` box ${sw(l.box_col)}` : ""}</p>
-      <p class="muted">Blur bands trimmed by ${Math.round((l.blur_trim || 0) * 100)}%. Censor bleep ${l.bleep ? "on" : "off"}. The videos under Render show exactly how it looks.</p>`];
+      <p class="muted">Blur bands trimmed by ${Math.round((l.blur_trim || 0) * 100)}%. Censor bleep ${l.bleep ? "on" : "off"}. Sound effects ${l.sfx ? "on" : "off"}. Music ${l.bed ? "on" : "off"}. The videos under Render show exactly how it looks.</p>`];
   },
   render(s, st, rv) {
     const n = rv.shorts.filter(x => x.rendered).length;

@@ -417,7 +417,7 @@ def open_post_studio():
 # -- the other window: Shorts Auto Run <-> Shorts Toolkit (peer.py) --------------------------
 ME = "toolkit"                    # desktop.py sets "autorun" when this process is the Auto Run window
 SHOW = None                       # set by desktop.py: show a project (and step) in this window, bring it to the front
-STEPS = ("markers", "captions", "shorts", "screams", "look", "render", "post", "publish", "premiere")
+STEPS = ("markers", "captions", "shorts", "screams", "look", "sound", "render", "post", "publish", "long", "premiere")
 
 
 def busy_message():
@@ -528,6 +528,12 @@ def command(action, o):
         if o.get("indexes"):
             return c + ["--indexes", ",".join(str(int(i)) for i in o["indexes"])]
         return c + (["--index", str(int(o["index"]))] if o.get("index") is not None else [])
+    if action == "moments":
+        return ["moments", p]
+    if action == "long":
+        return ["long", p, "--preset", o.get("preset", "medium")]
+    if action == "long-premiere":
+        return ["long", p, "--premiere"]
     if action == "to-premiere":
         if o.get("indexes"):
             return ["to-premiere", p, "--indexes", ",".join(str(int(i)) for i in o["indexes"])]
@@ -733,6 +739,25 @@ def open_path(path, how):
         subprocess.Popen(["explorer", "/select,", path] if os.path.isfile(path) else ["explorer", path])
     else:
         os.startfile(path)
+
+
+def long_view(path):
+    """The long video's framework for the page. Nothing is rendered or changed."""
+    import config
+    import longform
+    import sfx
+    outdir = base_of(path) + "_captions"
+    cfg = config.load(outdir)
+    seq = pick(project(path), cfg)
+    m = sfx.load_moments(outdir)
+    parts = longform.outline(cfg, m, seq.end_s)
+    d = base_of(path) + "_long"
+    made = sorted((f for f in glob.glob(os.path.join(d, "*.mp4")) if not f.endswith(".part.mp4")), key=os.path.getmtime)
+    row = lambda s, on: dict(name=s["name"], start=s["start"], end=s["end"], title=longform.title_of(cfg, s), on=on)
+    left_out = (cfg.get("long") or {}).get("skip") or []
+    return dict(parts=parts, total=longform.total(parts), chapters=longform.chapters(parts), problems=longform.problems(parts),
+                moments=bool(m), folder=d, video=made[-1] if made else None,
+                shorts=[row(s, True) for s in longform.ordered(cfg)] + [row(s, False) for s in cfg["shorts"] if s["name"] in left_out])
 
 
 # -- Premiere bridge (bridge.py) --------------------------------------------------------------
@@ -975,6 +1000,29 @@ class Handler(BaseHTTPRequestHandler):
                 d["mic"] = tracks.has_track(seq, tracks.MIC_TRACK)
                 d["friends_track"] = tracks.has_track(seq, tracks.FRIENDS_TRACK)
                 return self.send_json(d)
+            if u.path == "/api/sounds":                    # the sound library + what the rules can react to
+                import sfx
+                import soundlib
+                return self.send_json(dict(soundlib.listing(), when=sfx.WHEN,
+                                           moments=bool(sfx.load_moments(base_of(q["path"]) + "_captions")) if q.get("path") else False))
+            if u.path == "/sound":                         # listening to a sound in the app
+                import soundlib
+                p = soundlib.path_of(q.get("id"))
+                if not p:
+                    return self.send_json({"error": "no such sound"}, 404)
+                return self.send_file(p, "audio/wav")
+            if u.path == "/api/sfx/plan":                  # what plays in one Short (or a count per Short)
+                import config
+                import sfx
+                outdir = base_of(q["path"]) + "_captions"
+                cfg, m = config.load(outdir), sfx.load_moments(outdir)
+                if q.get("start"):
+                    return self.send_json(dict(hits=sfx.plan(cfg, m, float(q["start"]), float(q["end"])), moments=bool(m)))
+                rows = [dict(name=s["name"], hits=sum(1 for h in sfx.plan(cfg, m, float(s["start"]), float(s["end"])) if h.get("on", True)))
+                        for s in cfg["shorts"]]
+                return self.send_json(dict(rows=rows, moments=bool(m)))
+            if u.path == "/api/long":                      # the long video's framework (nothing rendered)
+                return self.send_json(long_view(q["path"]))
             if u.path == "/api/captions":
                 import config
                 import pipeline
@@ -990,7 +1038,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/media":
                 p = os.path.normpath(q["path"])
                 folder = os.path.basename(os.path.dirname(p))
-                allowed = ((folder.endswith("_captions") or folder.endswith("_shorts") or folder == "snippets")
+                allowed = ((folder.endswith("_captions") or folder.endswith("_shorts") or folder.endswith("_long") or folder == "snippets")
                            and p.lower().endswith((".mp4", ".mp3")))
                 if not allowed and q.get("project"):      # source footage of the open project, for the player
                     seqs = project(q["project"])
@@ -1011,9 +1059,36 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if not self.guard(u.path):
                 return
+            if u.path == "/api/sounds/add":                # the raw file is the body: not JSON
+                import soundlib
+                q = {k: v[0] for k, v in parse_qs(u.query).items()}
+                if self.remote or self.headers.get("X-Shorts-Toolkit") != "1":
+                    return self.send_json({"error": "That only works on the PC itself."}, 403)
+                try:
+                    return self.send_json(soundlib.add_stream(self.rfile, int(self.headers.get("Content-Length") or 0),
+                                                              q.get("kind", "effect"), q.get("name", "")))
+                except ValueError as e:
+                    return self.send_json({"error": str(e)}, 400)
             b = self.body()
             if not self.known_project(b.get("path")):
                 return self.send_json({"error": "Unknown project."}, 403)
+            if u.path == "/api/sounds/remove" and not self.remote:
+                import soundlib
+                try:
+                    soundlib.remove(b.get("id"))
+                except ValueError as e:
+                    return self.send_json({"error": str(e)}, 400)
+                return self.send_json({"ok": True})
+            if u.path == "/api/sounds/folder" and not self.remote:
+                import soundlib
+                os.makedirs(soundlib.home(), exist_ok=True)
+                open_path(soundlib.home(), "folder")
+                return self.send_json({"ok": True})
+            if u.path == "/api/open-url" and not self.remote:   # the checklist's links to YouTube Studio, nothing else
+                if not re.match(r"https://studio\.youtube\.com/", b.get("url") or ""):
+                    return self.send_json({"error": "not allowed"}, 403)
+                os.startfile(b["url"])
+                return self.send_json({"ok": True})
             if u.path == "/api/pair":
                 import remote
                 token = remote.pair(b.get("code", ""), self.headers.get("User-Agent") or "device")

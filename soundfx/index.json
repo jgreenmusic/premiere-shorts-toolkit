@@ -1,0 +1,152 @@
+[
+ {
+  "file": "cuckoo",
+  "name": "Cuckoo clock",
+  "group": "short"
+ },
+ {
+  "file": "quack",
+  "name": "Duck quack",
+  "group": "short"
+ },
+ {
+  "file": "squeak",
+  "name": "Squeaky toy",
+  "group": "short"
+ },
+ {
+  "file": "honk",
+  "name": "Clown horn",
+  "group": "short"
+ },
+ {
+  "file": "boing",
+  "name": "Boing",
+  "group": "short"
+ },
+ {
+  "file": "bonk",
+  "name": "Bonk",
+  "group": "short"
+ },
+ {
+  "file": "slide-up",
+  "name": "Slide whistle up",
+  "group": "short"
+ },
+ {
+  "file": "slide-down",
+  "name": "Slide whistle down",
+  "group": "short"
+ },
+ {
+  "file": "raspberry",
+  "name": "Raspberry",
+  "group": "short"
+ },
+ {
+  "file": "kazoo",
+  "name": "Kazoo",
+  "group": "short"
+ },
+ {
+  "file": "bike-bell",
+  "name": "Bike bell",
+  "group": "short"
+ },
+ {
+  "file": "cowbell",
+  "name": "Cowbell",
+  "group": "short"
+ },
+ {
+  "file": "pop",
+  "name": "Pop",
+  "group": "short"
+ },
+ {
+  "file": "buzzer",
+  "name": "Wrong-answer buzzer",
+  "group": "short"
+ },
+ {
+  "file": "correct",
+  "name": "Right-answer ding",
+  "group": "short"
+ },
+ {
+  "file": "laser",
+  "name": "Laser",
+  "group": "short"
+ },
+ {
+  "file": "sad-trombone",
+  "name": "Sad trombone",
+  "group": "moment"
+ },
+ {
+  "file": "rimshot",
+  "name": "Ba-dum-tss",
+  "group": "moment"
+ },
+ {
+  "file": "crickets",
+  "name": "Crickets",
+  "group": "moment"
+ },
+ {
+  "file": "record-scratch",
+  "name": "Record scratch",
+  "group": "moment"
+ },
+ {
+  "file": "deep-boom",
+  "name": "Deep boom",
+  "group": "moment"
+ },
+ {
+  "file": "whoosh",
+  "name": "Whoosh",
+  "group": "moment"
+ },
+ {
+  "file": "air-horn",
+  "name": "Air horn",
+  "group": "moment"
+ },
+ {
+  "file": "ring-bell",
+  "name": "Boxing bell",
+  "group": "moment"
+ },
+ {
+  "file": "drum-roll",
+  "name": "Drum roll",
+  "group": "moment"
+ },
+ {
+  "file": "falling-bonk",
+  "name": "Falling... bonk",
+  "group": "moment"
+ },
+ {
+  "file": "ta-da",
+  "name": "Ta-da",
+  "group": "moment"
+ },
+ {
+  "file": "gong",
+  "name": "Gong",
+  "group": "moment"
+ },
+ {
+  "file": "clock",
+  "name": "Clock ticking",
+  "group": "moment"
+ },
+ {
+  "file": "lonely-wind",
+  "name": "Lonely wind",
+  "group": "moment"
+ }
+]

@@ -11,10 +11,12 @@ import subprocess
 
 from prproj import TICKS
 import bleep
+import sfx
 import style
 import tracks
 
 W, H = 1080, 1920
+WIDE_W, WIDE_H = 1920, 1080
 
 
 def _pieces(items, a, b):
@@ -114,7 +116,16 @@ def _picture(seq, a, b, inputs, fl):
     return sw, sh, fps
 
 
-def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
+def wide_filter(fade=0.0, dur=0.0):
+    """The recording as it is on a 1920x1080 frame (bars only if it isn't 16:9), for the long video."""
+    f = "scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1" % (WIDE_W, WIDE_H, WIDE_W, WIDE_H)
+    if fade > 0:
+        f += ",fade=t=in:st=0:d=%.3f,fade=t=out:st=%.3f:d=%.3f" % (fade, max(0.0, dur - fade), fade)
+    return f
+
+
+def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18, name=None, wide=None):
+    """wide: render a stretch of the long video instead: {"fade": s, "cards": ass events, "captions": bool}."""
     seq = ctx.seq
     work = os.path.join(ctx.outdir, "work")
     os.makedirs(work, exist_ok=True)
@@ -141,13 +152,30 @@ def make_short(ctx, a, b, out_path, events, log=print, preset="medium", crf=18):
         fl += bleep.audio_filter("[amix]", "[acat]", sp, bl.get("sound"), b - a)
         if sp:
             log("  bleeping %d word(s)" % len(sp))
-        fl.append("[acat]%s[aout]" % fade_filter(ctx.cfg, b - a))
+        # sound effects + music under it, already mixed into one file (off unless switched on)
+        lay = sfx.layer(ctx, events, a, b, name, os.path.join(work, "sound-layer.wav"), bool(wide))
+        final = "[acat]"
+        if lay:
+            inputs += ["-i", lay]
+            idx = sum(1 for x in inputs if x == "-i") - 1
+            fl.append("[acat][%d:a:0]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.94:level=0:latency=1[asfx]" % idx)
+            final = "[asfx]"
+            log("  sound effects / music added")
+        tail = fade_filter(ctx.cfg, b - a)
+        if wide and wide.get("fade"):
+            tail = "afade=t=in:st=0:d=%.3f,afade=t=out:st=%.3f:d=%.3f" % (wide["fade"], max(0.0, b - a - wide["fade"]), wide["fade"])
+        fl.append("%s%s[aout]" % (final, tail))
 
     # captions for this range, times shifted to start at 0
     ass = os.path.join(work, "short.ass")
-    style.write_ass(ass, events, st=style.look(ctx.cfg), shift=a)
-    style.copy_fonts(os.path.join(work, "fonts"), style.look(ctx.cfg))
-    fl.append("[vcat]%s,ass=short.ass:fontsdir=fonts[vout]" % layout_filter(sw, sh, ctx.cfg["layout"]["blur_trim"]))
+    st = style.look(ctx.cfg)
+    if wide:
+        st = style.wide_look(st)
+        events = ([e for e in events if e[1] > a and e[0] < b] if wide.get("captions", True) else []) + list(wide.get("cards") or [])
+    style.write_ass(ass, events, st=st, shift=a)
+    style.copy_fonts(os.path.join(work, "fonts"), st)
+    pic = wide_filter(wide.get("fade", 0), b - a) if wide else layout_filter(sw, sh, ctx.cfg["layout"]["blur_trim"])
+    fl.append("[vcat]%s,ass=short.ass:fontsdir=fonts[vout]" % pic)
 
     # render to "<name>.part.mp4" first: a stopped or failed render never leaves a
     # broken file that looks finished

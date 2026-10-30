@@ -222,7 +222,8 @@ def stage_sig(sid, I, run, have=None):
     if sid == "screams":
         return stale._h([c.get("screams"), c.get("laughs")])
     if sid == "look":
-        return stale._h([c.get("look"), c.get("layout"), c.get("bleep")])
+        sound = (c.get("sfx") or {}).get("on") or (c.get("bed") or {}).get("on")
+        return stale._h([c.get("look"), c.get("layout"), c.get("bleep")] + ([c.get("sfx"), c.get("bed")] if sound else []))
     if sid == "render":
         return stale._h([(s["name"], r["rendered"], r["changed"], round(r["when"] or 0)) for _, s, _, r in renders(I, run)])
     if sid == "post":
@@ -928,6 +929,7 @@ def review(path):
                       words=lk.get("words"), anim=lk.get("anim"), text=lk.get("text"), highlight=bool(lk.get("highlight")),
                       highlight_col=lk.get("highlight_col"), outline_col=lk.get("outline_col"), box=bool(lk.get("box")),
                       box_col=lk.get("box_col"), blur_trim=c["layout"].get("blur_trim"), bleep=bool(c["bleep"].get("on")),
+                      sfx=bool((c.get("sfx") or {}).get("on")), bed=bool((c.get("bed") or {}).get("on")),
                       punct=lk.get("punct"), known_font=lk.get("font") in style.font_list()),
             platforms=(c.get("post") or {}).get("platforms") or [], plan=run.get("plan"), shorts_dir=I.sdir)
 

@@ -19,6 +19,7 @@ PARTS = [("trim", "start or end moved"),
          ("captions", "captions changed"),
          ("reactions", "screams or laughs changed"),
          ("look", "look or layout changed"),
+         ("sound", "sound effects or music changed"),
          ("timeline", "the timeline changed here")]
 WHY = dict(PARTS)
 PAD = 5.0             # a caption fix this close outside the Short can still show inside it (fitted timing)
@@ -55,6 +56,11 @@ def parts(cfg, short, seq=None):
                       pick(lg, "on"), pick(lg, "off"), [x for x in lg.get("add") or [] if over(x)], keyed(lg, "style")]),
         look=_h([cfg.get("look"), cfg.get("layout"), cfg.get("bleep"), cfg.get("kind"), cfg.get("music")]
                 + ([cfg.get("speakers")] if (cfg.get("speakers") or {}).get("on") else [])))
+    sf, bd = cfg.get("sfx") or {}, cfg.get("bed") or {}
+    out["sound"] = _h([{k: v for k, v in sf.items() if k not in ("add", "off")},
+                       [x for x in sf.get("add") or [] if near(_num(x.get("t")))],
+                       [k for k in sf.get("off") or [] if near(_num(k.rpartition("@")[2]))],
+                       {k: v for k, v in bd.items() if k != "skip"}, short.get("name") in (bd.get("skip") or [])])
     if seq is not None:
         ta, tb = a * TICKS, b * TICKS
         items = sorted((it.track, it.start, it.end, it.src_in, os.path.normcase(it.path or ""))

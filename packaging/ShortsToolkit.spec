@@ -23,6 +23,7 @@ FFMPEG = glob.glob(os.path.join(ROOT, "build", "ffmpeg", "ffmpeg-*-essentials_bu
 datas = [
     (os.path.join(ROOT, "ui"), "ui"),
     (os.path.join(ROOT, "fonts"), "fonts"),
+    (os.path.join(ROOT, "soundfx"), "soundfx"),
     (os.path.join(ROOT, "premiere"), "premiere"),
     (os.path.join(ROOT, "models"), "models"),
     (os.path.join(FFMPEG, "bin", "ffmpeg.exe"), "bin"),

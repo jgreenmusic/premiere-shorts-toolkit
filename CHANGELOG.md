@@ -2,6 +2,41 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.37.0 - 2026-10-30
+
+- **Funny sounds for the censor.** Julian: "for the censor sound effects section of the toolkit there should be an
+  option to choose between a list of funny sound effects." Censor > In the sound > **A funny sound**: pick one or
+  several (each word then gets a different one) and whether the sound plays out or stops with the word.
+- **Your own sounds.** "I should also be allowed to upload my own sound effects." Sound step > Add sounds...: any
+  audio file or a video's sound, converted to 48 kHz stereo .wav and shared by all projects
+  (`%LOCALAPPDATA%\ShortsToolkit\sounds`, `soundlib.py`).
+- **30 built-in sounds** in `soundfx\`, made from scratch by `tools\make_sfx.py` (numpy + scipy), so there is no
+  licence and nothing for Content ID to match. They are synthesised, not recordings, and nobody has listened to them
+  yet: the code that made them could only check length, level and format.
+- **Sound effects anywhere, with rules.** "The same should be applicable for applying sound effects in the videos in
+  general. Potentially creating rules when they can occur." New **Sound** step (`sfx.py`): a rule fires when a Short
+  starts or ends, on a scream, laugh or shouted line, when someone says a word or phrase, on an awkward pause, or every
+  so often, limited by chance, seconds apart and most per Short. In step 3 each Short lists its sounds: skip one, add
+  one at the playhead. Chance and "which sound" come from a hash, so the list in the app is what renders, every time.
+- **Music underneath, optional.** Your own tracks only (the toolkit makes no music). Dips while someone talks, fades in
+  and out, starts somewhere different in each Short, can be switched off per Short.
+- **Long video.** Julian: "a long form content mode which can take the same footage in the project it's working in and
+  make a framework for a longer version of the shorts so people can watch a collection of these shorts similar to how a
+  lot of youtubers make a video that is directly tied to the short advertising it." New **Long video** tab
+  (`longform.py`, `shorts.py long`): each Short keeps some of the recording around it, edges move to a gap in the
+  talking, Shorts close together join into one chapter; set the order, titles and which Shorts are in. Gives a
+  1920x1080 render, or one wide Premiere timeline with a marker per chapter, plus the chapter lines for the description.
+- **Tying the Shorts to it.** Paste the long video's address and Shorts uploaded after that get a "Full video" line.
+  YouTube's Related video button is set in Studio, one Short at a time: third-party tools report the API can't set it
+  and I found no official API docs saying otherwise, so the tab opens each Short in Studio.
+- Sends to Premiere carry all of it: one clip per effect with its level, on as many tracks as overlaps need, and the
+  music as one clip. A rule hit changes "changed since rendered" only for the Shorts it touches; renders from before
+  this version aren't flagged.
+- Tried on a 5-minute cut of a real recording: rules, censoring, music, a Short and a long video all rendered, sounds
+  landing where the plan says. Both new timelines imported into Premiere 26.5 and read back from Premiere: frame sizes,
+  every clip, levels and markers as written. Effects at full level sat about 10 dB over talk there, so the default is 50%.
+- Nobody has heard the sounds or the mix yet, or tried these screens in the real window.
+
 ## 0.36.0 - 2026-10-30
 
 - **Captions that animate in Premiere and stay editable there.** Julian: "I should be able to see the captions

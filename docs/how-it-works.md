@@ -117,6 +117,8 @@ by caption start and different words could orphan them; graphics card transcript
 | `music.py` | The same for a music project: beats, bars, changes, gaps, and the Shorts cut on them |
 | `screams.py`, `laughs.py`, `sounds.py` | Scream captions, laugh captions, the sound-event model |
 | `style.py`, `previews.py`, `bleep.py` | Caption look and presets, look previews, censor mode |
+| `soundlib.py`, `sfx.py`, `soundfx\`, `tools\make_sfx.py` | The sound library; rules, placed sounds and music under a Short; the built-in sounds and the script that makes them |
+| `longform.py` | The long video: chapters from the Shorts, render, chapter lines |
 | `render.py` | Building a finished Short with ffmpeg |
 | `posting.py`, `youtube_step.py`, `tiktok_step.py` | Steps 7 and 8 |
 | `bridge.py`, `premiere_install.py`, `premiere\` | The Premiere panels and scripts |

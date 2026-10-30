@@ -181,6 +181,21 @@ video { width: 100%; border-radius: 12px; background: #000; display: block; aspe
 .setting label { display: flex; justify-content: space-between; font-size: 15.5px; font-weight: 600; margin-bottom: 4px; }
 .setting label span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
 .setting p { margin: 2px 0 0; font-size: 14px; color: var(--faint); }
+.sndpick { margin: 8px 0 0; }
+.sndpick summary { cursor: pointer; font-size: 15.5px; color: var(--muted); padding: 4px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--border); border-radius: 999px; font-size: 14.5px; cursor: pointer; user-select: none; }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); }
+.chip small { color: var(--faint); font-size: 14px; }
+.chip button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 14px; width: 26px; height: 26px; border-radius: 50%; }
+.chip button:hover { background: var(--accent-soft); }
+.chip.fixed { cursor: default; }
+.rule { border-top: 1px solid var(--border); padding: 12px 0; }
+.rule .field input, .rule .field select { width: auto; }
+.hit { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 15px; }
+.hit.off { opacity: .5; }
+.hit b { min-width: 48px; font-variant-numeric: tabular-nums; }
+.hit span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toggle-row { display: flex; align-items: center; gap: 12px; }
 .toggle-row div { flex: 1; }
 .toggle-row b { display: block; font-size: 15.5px; }
@@ -436,15 +451,15 @@ async function saveCfg(patch, rerender = true) {
 
 // ---------------------------------------------------------------- views
 // in the order you work: markers -> fix captions (optional) -> pick Shorts -> screams & laughs -> look -> render
-const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["render", "6 · Render"], ["post", "7 · Posts"], ["publish", "8 · Publish"], ["premiere", "Or: finish in Premiere"]];
+const TABS = [["markers", "1 · Markers"], ["captions", "2 · Captions"], ["shorts", "3 · Shorts"], ["screams", "4 · Screams & laughs"], ["look", "5 · Look"], ["sound", "Sound"], ["render", "6 · Render"], ["post", "7 · Posts"], ["publish", "8 · Publish"], ["long", "Long video"], ["premiere", "Or: finish in Premiere"]];
 const NEXT = { markers: ["captions", "Next: captions"], captions: ["shorts", "Next: pick your Shorts"], shorts: ["screams", "Next: screams & laughs"], screams: ["look", "Next: the look"],
-  look: ["render", "Next: render"], render: ["post", "Next: write the posts"], post: ["publish", "Next: publish to YouTube"] };
+  look: ["sound", "Next: sound effects and music"], sound: ["render", "Next: render"], render: ["post", "Next: write the posts"], post: ["publish", "Next: publish to YouTube"] };
 
 // What kind of recording the project is (config.KINDS) decides which steps exist: a music project
 // has no screams & laughs, and no captions step unless captions are switched on. The steps that
 // are left are numbered again, and "Next" skips the missing ones.
 const isMusic = () => S.info && S.info.kind === "music";
-const tabsFor = I => { let n = 0; return TABS.filter(([k]) => !(k === "captions" && !I.speech) && !(k === "screams" && !I.reactions))
+const tabsFor = I => { let n = 0; return TABS.filter(([k]) => !(k === "captions" && !I.speech) && !((k === "screams" || k === "sound") && !I.reactions))
   .map(([k, l]) => [k, /^\d/.test(l) ? `${++n} · ${l.replace(/^\d+ · /, "")}` : l]); };
 const nextFor = (I, tab) => { const shown = tabsFor(I).map(t => t[0]); let nx = NEXT[tab];
   while (nx && !shown.includes(nx[0])) nx = NEXT[nx[0]]; return nx; };
@@ -500,7 +515,7 @@ function renderInner() {
   const kp = $("#kindPick"); kp.onchange = () => saveCfg({ kind: kp.value }, false).then(() => select(S.current, true))
     .then(() => toast((I.kinds.find(k => k.id === kp.value) || {}).about || "", true));
   if ((S.tab === "shorts" || S.tab === "markers") && T.loadedFor !== S.current) { loadTimeline().then(render).catch(e => toast(e.message)); T.loadedFor = S.current; }
-  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, captions: viewCaptions, render: viewRender, post: viewPost, publish: viewPublish, premiere: viewPremiere })[S.tab]();
+  ({ markers: viewMarkers, shorts: viewShorts, screams: () => { viewScreams(); viewLaughs(); }, look: viewLook, sound: viewSound, long: viewLong, captions: viewCaptions, render: viewRender, post: viewPost, publish: viewPublish, premiere: viewPremiere })[S.tab]();
   if (next) {
     $("#view").insertAdjacentHTML("beforeend", `<div class="row" style="justify-content:flex-end;margin:4px 0 20px"><button class="btn primary" id="nextStep">${next[1]} →</button></div>`);
     $("#nextStep").onclick = () => { S.tab = next[0]; store.set("tab", S.tab); render(true); $("main").scrollTop = 0; };
@@ -846,8 +861,9 @@ function panel() {
     </div>
     ${r ? `<video controls playsinline src="${media(r.path)}#t=0.01" style="margin-top:12px;max-height:340px;width:auto;max-width:100%"></video>
       <button class="btn link" data-folder="${esc(r.path)}">Show file</button>` : ""}
+    <div id="sfxEdit" style="margin-top:14px"></div>
     <div id="capEdit" style="margin-top:16px${holdH ? `;min-height:${holdH}px` : ""}"><p class="hint">Loading captions…</p></div>`;
-  clearTimeout(T.capTimer); T.capTimer = setTimeout(() => loadCapEdit(s), 250);   // dragging redraws this panel constantly
+  clearTimeout(T.capTimer); T.capTimer = setTimeout(() => { loadCapEdit(s); loadSfxEdit(s); }, 250);   // dragging redraws this panel constantly
   const upd = (patch) => { const list = structuredClone(shortsList()); Object.assign(list[i], patch); if (list[i].end <= list[i].start) return toast("End must be after start"); saveShorts(list); };
   $("#spName").onchange = e => upd({ name: e.target.value.trim() || s.name });
   $("#spS").onchange = e => { const v = parseTc(e.target.value); isNaN(v) ? toast("Use a time like 6:18") : upd({ start: v }); };
@@ -2097,7 +2113,8 @@ function viewLook() {
   if (!S.lookOpts) lookOptions().then(() => { if (S.tab === "look") render(); });
   const I = S.info, L = I.config.look, Y = I.config.layout, pv = I.results.previews || [];
   const cur = pv.find(p => p.file === S.pvFile) || pv[0];
-  const BL = { on: false, level: "strong", look: "grawlix", sound: "beep", extra: "", ...(I.config.bleep || {}) };
+  const BL = { on: false, level: "strong", look: "grawlix", sound: "beep", extra: "", effects: ["fx:quack"], fit: "whole", volume: 0.5, ...(I.config.bleep || {}) };
+  if (!S.snd) loadSounds().then(() => { if (S.tab === "look") render(); });
   const first = I.config.shorts[S.sel] || I.config.shorts[0];
   const sl = (id, label, val, min, max, step, fmt, help) => `<div class="setting"><label>${label} <span id="${id}V">${fmt(val)}</span></label>
     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"><p>${help}</p></div>`;
@@ -2114,14 +2131,15 @@ function viewLook() {
     ${captionStyleCard(L)}
     ${I.speech ? speakerCard() : ""}
     <div class="card">
-      <div class="card-head"><div class="grow"><h3>Censor (bleep)</h3><p>Off unless you turn it on. Curse words become <b>#$@&amp;%!</b> in the captions and a TV beep in the sound. Saved per project.</p></div></div>
+      <div class="card-head"><div class="grow"><h3>Censor (bleep)</h3><p>Off unless you turn it on. Curse words become <b>#$@&amp;%!</b> in the captions and a beep or a funny sound in the audio. Saved per project.</p></div></div>
       <div class="settings">
         ${tg("blOn", "Bleep curse words", BL.on, "Early-2000s reality TV style. Off = captions and sound exactly as said.")}
         <div class="setting"><label>Which words</label><select class="text" id="blLevel" ${BL.on ? "" : "disabled"}>${[["strong", "Strong ones (f-word, s-word, b-word...)"], ["all", "Everything (also ass, damn, hell, dick...)"]].map(([k, l]) => `<option value="${k}" ${BL.level === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
         <div class="setting"><label>In the captions</label><select class="text" id="blLook" ${BL.on ? "" : "disabled"}>${[["grawlix", "Symbols  #$@&%!"], ["stars", "Stars  f**k"], ["none", "Leave the words"]].map(([k, l]) => `<option value="${k}" ${BL.look === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-        <div class="setting"><label>In the sound</label><select class="text" id="blSound" ${BL.on ? "" : "disabled"}>${[["beep", "Beep"], ["mute", "Silence"], ["none", "Leave the sound"]].map(([k, l]) => `<option value="${k}" ${BL.sound === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="setting"><label>In the sound</label><select class="text" id="blSound" ${BL.on ? "" : "disabled"}>${[["beep", "Beep"], ["effect", "A funny sound"], ["mute", "Silence"], ["none", "Leave the sound"]].map(([k, l]) => `<option value="${k}" ${BL.sound === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
         <div class="setting"><label>Also bleep</label><input class="text" id="blExtra" placeholder="e.g. a name, a running joke" value="${esc(BL.extra || "")}" ${BL.on ? "" : "disabled"}><p>Comma separated. Render a preview to hear it.</p></div>
       </div>
+      ${BL.on && BL.sound === "effect" ? censorSounds(BL) : ""}
     </div>
     <div class="card">
       <div class="card-head"><div class="grow"><h3>Preview</h3><p>Renders a few seconds with the current look.</p></div></div>
@@ -2142,8 +2160,12 @@ function viewLook() {
   const hook = (id, fmt, patch) => { const el = $("#" + id); el.oninput = () => $("#" + id + "V").textContent = fmt(+el.value); el.onchange = () => saveCfg(patch(+el.value), false); };
   hook("trim", v => Math.round(v * 100) + "%", v => ({ layout: { blur_trim: v } }));
   $("#blOn").onchange = e => saveCfg({ bleep: { on: e.target.checked } });          // re-render: enables the options
-  for (const [id, key] of [["blLevel", "level"], ["blLook", "look"], ["blSound", "sound"], ["blExtra", "extra"]])
+  for (const [id, key] of [["blLevel", "level"], ["blLook", "look"], ["blExtra", "extra"]])
     $("#" + id).onchange = e => saveCfg({ bleep: { [key]: e.target.value } }, false);
+  $("#blSound").onchange = e => saveCfg({ bleep: { sound: e.target.value } });      // re-render: shows or hides the sound list
+  if ($("#blFit")) { $("#blFit").onchange = e => saveCfg({ bleep: { fit: e.target.value } }, false);
+    $("#blVol").onchange = e => saveCfg({ bleep: { volume: +e.target.value } }, false); }
+  wirePickers(key => ids => saveCfg({ bleep: { effects: ids } }, false));
   wireCaptionStyle();
   if (I.speech) { wireSpeakers(); loadSpeakers(); }
   $("#pvAt").onchange = e => store.set("pvAt", e.target.value);
@@ -2153,6 +2175,294 @@ function viewLook() {
     $("#vid").src = media(S.info.outdir + "\\" + b.dataset.pv);
     $$("[data-pv]").forEach(x => x.classList.toggle("on", x === b));
   });
+}
+
+// ---- Sound: effects and music under a Short (sfx.py). The sounds are shared by every project (soundlib.py).
+async function loadSounds() {
+  try { S.snd = await api("/api/sounds?path=" + encodeURIComponent(S.current)); } catch (e) { S.snd = { effects: [], music: [], when: {}, moments: false }; toast(e.message); }
+  return S.snd;
+}
+function hearSound(id) { const a = S.sndA || (S.sndA = new Audio()); a.src = "/sound?id=" + encodeURIComponent(id); a.play().catch(() => toast("Couldn't play that sound")); }
+const soundName = id => { const s = S.snd && [...S.snd.effects, ...S.snd.music].find(x => x.id === id); return s ? s.name : "(sound removed)"; };
+const chip = (s, on, cls = "") => `<span class="chip ${on ? "on" : ""} ${cls}" data-chip="${esc(s.id)}"><button type="button" data-hear="${esc(s.id)}" title="Listen">▶</button><span>${esc(s.name)}</span><small>${s.seconds < 60 ? s.seconds.toFixed(1) + "s" : tc(s.seconds).replace(/\.\d$/, "")}</small></span>`;
+function soundGroups(list, chosen, cls) {
+  const g = (k, label) => { const it = list.filter(s => s.group === k); return it.length ? `<div class="hint">${label}</div><div class="chips">${it.map(s => chip(s, chosen.includes(s.id), cls)).join("")}</div>` : ""; };
+  return g("yours", "Yours") + g("short", "Short, good over a word") + g("moment", "Longer, for a moment");
+}
+// a closed list of sounds: click to choose one or several. key = which setting it belongs to (wirePickers)
+function picker(key, chosen, list) {
+  const label = chosen.map(soundName).join(", ");
+  return `<details class="sndpick" data-pick="${esc(key)}"><summary>${label ? esc(label) : "Choose sounds…"}</summary>${soundGroups(list, chosen)}</details>`;
+}
+function wirePickers(saver) {
+  $$("[data-hear]").forEach(b => b.onclick = e => { e.stopPropagation(); hearSound(b.dataset.hear); });
+  $$("[data-pick]").forEach(box => {
+    const save = saver(box.dataset.pick);
+    box.querySelectorAll("[data-chip]").forEach(ch => ch.onclick = () => {
+      ch.classList.toggle("on");
+      const ids = [...box.querySelectorAll(".chip.on")].map(c => c.dataset.chip);
+      box.querySelector("summary").textContent = ids.map(soundName).join(", ") || "Choose sounds…";
+      save(ids);
+    });
+  });
+}
+function censorSounds(BL) {
+  if (!S.snd) return `<p class="hint">Loading sounds…</p>`;
+  return `<div class="setting" style="margin-top:12px"><label>Which sounds</label>
+      ${picker("censor", BL.effects, S.snd.effects)}
+      <p>Pick several and each word gets a different one. Add your own in the Sound step.</p></div>
+    <div class="settings" style="margin-top:8px">
+      <div class="setting"><label>How long</label><select class="text" id="blFit">${[["whole", "Play the whole sound"], ["word", "Stop when the word ends"]].map(([k, l]) => `<option value="${k}" ${BL.fit === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="setting"><label>Volume</label><input type="range" id="blVol" min="0.1" max="1.5" step="0.05" value="${BL.volume}"></div>
+    </div>`;
+}
+async function addSounds(files, kind) {
+  for (const f of files) {
+    setStatus("run", "Adding " + f.name + "…");
+    try {
+      const r = await fetch(`/api/sounds/add?kind=${kind}&name=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "X-Shorts-Toolkit": "1" }, body: f });
+      const j = await r.json(); if (j.error) toast(j.error); else toast("Added " + j.name, true);
+    } catch (e) { toast(e.message); }
+  }
+  setStatus("", ""); await loadSounds(); render();
+}
+function viewSound() {
+  if (!S.snd) { $("#view").innerHTML = `<div class="empty"><p>Loading sounds…</p></div>`; loadSounds().then(() => { if (S.tab === "sound") render(); }); return; }
+  const I = S.info, F = { on: false, volume: 0.5, spacing: 0.4, rules: [], add: [], off: [], ...(I.config.sfx || {}) };
+  const B = { on: false, tracks: [], volume: 0.15, duck: 0.45, fade_in: 0.4, fade_out: 1, vary: true, skip: [], ...(I.config.bed || {}) };
+  const Sn = S.snd, pv = I.results.previews || [], first = I.config.shorts[S.sel] || I.config.shorts[0];
+  const when = r => Object.entries(Sn.when).map(([k, l]) => `<option value="${k}" ${r.when === k ? "selected" : ""}>${esc(l)}</option>`).join("");
+  const num = (k, label, v, min, max, step, w = 70) => `<label class="field">${label}<input class="text time" data-rk="${k}" type="number" min="${min}" max="${max}" step="${step}" value="${v}" style="width:${w}px"></label>`;
+  const needs = F.rules.some(r => r.on !== false && r.when !== "start" && r.when !== "end" && r.when !== "every");
+  $("#view").innerHTML = `
+  <div class="split"><div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Sound library</h3><p>Listen to the built-in sounds, or add your own. What you add is copied in and shared by all your projects. Any audio file works, or a video's sound.</p></div>
+        <button class="btn" id="sndAdd">Add sounds…</button><button class="btn link" id="sndFolder">Open folder</button></div>
+      <input type="file" id="sndFile" multiple accept="audio/*,video/*,.mkv,.flac,.ogg,.opus" style="display:none">
+      <details class="sndpick"><summary>${Sn.effects.length} sounds</summary>${soundGroups(Sn.effects, [], "fixed")}</details>
+      ${Sn.effects.some(s => s.group === "yours") ? `<div class="hint" style="margin-top:8px">Take one of yours out</div><div class="chips">${Sn.effects.filter(s => s.group === "yours").map(s => `<button class="btn sm" data-sdel="${esc(s.id)}">✕ ${esc(s.name)}</button>`).join("")}</div>` : ""}
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Sound effects</h3><p>Off unless you turn it on. A rule says when a sound can play. To place one by hand, open a Short in step 3.</p></div></div>
+      <div class="toggle-row"><div><b>Use sound effects</b><small>In renders, previews, the long video and what you send to Premiere.</small></div><label class="switch"><input type="checkbox" id="sfOn" ${F.on ? "checked" : ""}><span></span></label></div>
+      ${F.on ? `
+      <div class="settings" style="margin-top:12px">
+        <div class="setting"><label>All effects <span id="sfVolV">${Math.round(F.volume * 100)}%</span></label><input type="range" id="sfVol" min="0.1" max="1.5" step="0.05" value="${F.volume}"></div>
+        <div class="setting"><label>Keep effects apart <span id="sfGapV">${F.spacing.toFixed(1)} s</span></label><input type="range" id="sfGap" min="0" max="5" step="0.1" value="${F.spacing}"><p>Rules never put two sounds closer than this.</p></div>
+      </div>
+      ${F.rules.map((r, i) => `<div class="rule" data-rule="${i}">
+        <div class="row" style="gap:8px;align-items:flex-end">
+          <label class="switch" title="This rule on or off"><input type="checkbox" data-rk="on" ${r.on !== false ? "checked" : ""}><span></span></label>
+          <label class="field">When<select class="text" data-rk="when">${when(r)}</select></label>
+          ${r.when === "word" ? `<label class="field" style="flex:1">Words or phrases, comma separated<input class="text" data-rk="words" value="${esc(r.words || "")}" placeholder="e.g. oh no, let's go"></label>` : ""}
+          ${r.when === "pause" ? num("secs", "Quiet for (s)", r.secs ?? 3, 0.5, 30, 0.5) : ""}
+          ${r.when === "every" ? num("secs", "Every (s)", r.secs ?? 15, 3, 120, 1) : ""}
+          <button class="btn sm danger" data-rdel="${i}" style="margin-left:auto">Remove</button>
+        </div>
+        ${picker("rule:" + i, r.sounds || [], Sn.effects)}
+        <div class="row" style="gap:10px;align-items:flex-end;margin-top:4px">
+          ${num("chance", "Chance %", r.chance ?? 100, 1, 100, 1)}${num("gap", "At least (s) apart", r.gap ?? 4, 0, 120, 0.5, 80)}${num("max", "Most per Short", r.max ?? 0, 0, 50, 1)}${num("volume", "Volume", r.volume ?? 1, 0.1, 1.5, 0.05)}
+        </div></div>`).join("")}
+      <div class="row" style="margin-top:12px;gap:8px">
+        <button class="btn" id="ruleAdd">+ Add a rule</button>
+        <button class="btn sm" data-rstart="pause,fx:crickets">Crickets on an awkward pause</button>
+        <button class="btn sm" data-rstart="scream,fx:deep-boom">Boom on a scream</button>
+        <button class="btn sm" data-rstart="end,fx:sad-trombone">Sad trombone at the end</button>
+      </div>
+      ${needs && !Sn.moments ? `<div class="row" style="margin-top:12px"><p class="hint" style="flex:1;margin:0">These rules need to know where the screams, laughs, words and pauses are. A render or preview finds that too.</p><button class="btn primary" data-run="moments" ${dis()}>Find the moments</button></div>` : ""}
+      <p class="hint" id="sfCount" style="margin-top:10px"></p>` : ""}
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Music underneath</h3><p>Off unless you turn it on. Plays quietly under each Short and dips while someone talks. Only tracks you add here: the toolkit makes no music. Use what you have the rights to, or YouTube can claim the Short.</p></div>
+        <button class="btn" id="bedAdd">Add music…</button></div>
+      <input type="file" id="bedFile" multiple accept="audio/*,video/*,.flac,.ogg,.opus" style="display:none">
+      <div class="toggle-row"><div><b>Put music under my Shorts</b><small>Turn it off for one Short in step 3.</small></div><label class="switch"><input type="checkbox" id="bdOn" ${B.on ? "checked" : ""}><span></span></label></div>
+      ${B.on ? `${Sn.music.length ? `<div class="setting" style="margin-top:12px"><label>Tracks</label><div class="chips" id="bdPick">${Sn.music.map(s => chip(s, B.tracks.includes(s.id))).join("")}</div><p>Pick several and they are shared out between the Shorts.</p>
+          <div class="chips">${Sn.music.map(s => `<button class="btn sm" data-sdel="${esc(s.id)}">✕ ${esc(s.name)}</button>`).join("")}</div></div>` : `<p class="hint" style="margin-top:10px">No music added yet.</p>`}
+      <div class="settings" style="margin-top:12px">
+        <div class="setting"><label>Volume <span id="bdVolV">${Math.round(B.volume * 100)}%</span></label><input type="range" id="bdVol" min="0.02" max="0.6" step="0.01" value="${B.volume}"></div>
+        <div class="setting"><label>While someone talks <span id="bdDuckV">${Math.round(B.duck * 100)}%</span></label><input type="range" id="bdDuck" min="0.1" max="1" step="0.05" value="${B.duck}"><p>Share of that volume kept. 100% = no dip.</p></div>
+        <div class="setting"><label>Fade in <span id="bdFiV">${(+B.fade_in).toFixed(1)} s</span></label><input type="range" id="bdFi" min="0" max="3" step="0.1" value="${B.fade_in}"></div>
+        <div class="setting"><label>Fade out <span id="bdFoV">${(+B.fade_out).toFixed(1)} s</span></label><input type="range" id="bdFo" min="0" max="5" step="0.1" value="${B.fade_out}"></div>
+      </div>
+      <div class="toggle-row" style="margin-top:10px"><div><b>Start somewhere different in each Short</b><small>Off = every Short starts at the top of the track.</small></div><label class="switch"><input type="checkbox" id="bdVary" ${B.vary ? "checked" : ""}><span></span></label></div>` : ""}
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Preview</h3><p>Renders a few seconds with the sound. A preview counts as a Short, so "when a Short starts" fires at its first second.</p></div></div>
+      <div class="row">
+        <label class="field">From<input class="text time" id="pvAt" value="${esc(store.get("pvAt", first ? tc(first.start) : "6:18"))}"></label>
+        <label class="field">Seconds<input class="text time" id="pvS" value="${store.get("pvS", 10)}" style="width:70px"></label>
+        <button class="btn primary" data-run="preview" style="align-self:flex-end" ${dis()}>Render preview</button>
+      </div>
+    </div>
+  </div>
+  <div class="player">${pv.length ? `<video id="vid" controls playsinline src="${media(I.outdir + "\\" + pv[0].file)}"></video>` : `<div class="video-empty">Render a preview to hear it</div>`}</div>
+  </div>`;
+  $("#pvAt").onchange = e => store.set("pvAt", e.target.value);
+  $("#pvS").onchange = e => store.set("pvS", e.target.value);
+  $("#sndAdd").onclick = () => $("#sndFile").click();
+  $("#bedAdd").onclick = () => $("#bedFile").click();
+  $("#sndFile").onchange = e => addSounds([...e.target.files], "effect");
+  $("#bedFile").onchange = e => addSounds([...e.target.files], "music");
+  $("#sndFolder").onclick = () => api("/api/sounds/folder", {});
+  $$("[data-sdel]").forEach(b => b.onclick = async () => { await api("/api/sounds/remove", { id: b.dataset.sdel }); await loadSounds(); render(); });
+  $("#sfOn").onchange = e => saveCfg({ sfx: { on: e.target.checked } });
+  $("#bdOn").onchange = e => saveCfg({ bed: { on: e.target.checked } });
+  const live = (id, fmt, patch) => { const el = $("#" + id); if (!el) return; el.oninput = () => $("#" + id + "V").textContent = fmt(+el.value); el.onchange = () => saveCfg(patch(+el.value), false).then(soundCount); };
+  const pc = v => Math.round(v * 100) + "%", sec = v => v.toFixed(1) + " s";
+  live("sfVol", pc, v => ({ sfx: { volume: v } })); live("sfGap", sec, v => ({ sfx: { spacing: v } }));
+  live("bdVol", pc, v => ({ bed: { volume: v } })); live("bdDuck", pc, v => ({ bed: { duck: v } }));
+  live("bdFi", sec, v => ({ bed: { fade_in: v } })); live("bdFo", sec, v => ({ bed: { fade_out: v } }));
+  if ($("#bdVary")) $("#bdVary").onchange = e => saveCfg({ bed: { vary: e.target.checked } }, false);
+  const rules = () => structuredClone(S.info.config.sfx.rules || []);
+  const saveRules = (list, redraw) => saveCfg({ sfx: { rules: list } }, redraw).then(() => { if (!redraw) soundCount(); });
+  const newRule = (when, sounds) => ({ id: "r" + Date.now().toString(36), on: true, when, sounds, chance: 100, gap: 4, max: 0, volume: 1, secs: when === "every" ? 15 : 3, words: "" });
+  if ($("#ruleAdd")) $("#ruleAdd").onclick = () => saveRules([...rules(), newRule("scream", [])], true);
+  $$("[data-rstart]").forEach(b => b.onclick = () => { const [w, snd] = b.dataset.rstart.split(","); saveRules([...rules(), newRule(w, [snd])], true); });
+  $$("[data-rdel]").forEach(b => b.onclick = () => saveRules(rules().filter((_, k) => k !== +b.dataset.rdel), true));
+  $$("[data-rule] [data-rk]").forEach(el => el.onchange = () => {
+    const list = rules(), i = +el.closest("[data-rule]").dataset.rule, k = el.dataset.rk;
+    list[i][k] = el.type === "checkbox" ? el.checked : el.type === "number" ? +el.value : el.value;
+    saveRules(list, k === "when");
+  });
+  wirePickers(key => ids => { const list = rules(); list[+key.split(":")[1]].sounds = ids; saveRules(list, false); });
+  $$("#bdPick [data-chip]").forEach(ch => ch.onclick = () => { ch.classList.toggle("on"); saveCfg({ bed: { tracks: $$("#bdPick .chip.on").map(c => c.dataset.chip) } }, false); });
+  soundCount();
+}
+async function soundCount() {
+  const el = $("#sfCount"); if (!el) return;
+  try {
+    const r = await api("/api/sfx/plan?path=" + encodeURIComponent(S.current)), n = r.rows.reduce((a, x) => a + x.hits, 0);
+    if ($("#sfCount") === el) el.textContent = r.rows.length ? `Right now that is ${n} sound${n === 1 ? "" : "s"} across ${r.rows.filter(x => x.hits).length} of your ${r.rows.length} Shorts.` : "";
+  } catch (e) {}
+}
+// step 3: the sound in one Short
+async function loadSfxEdit(s) {
+  const box = $("#sfxEdit"); if (!box) return;
+  if (!S.info.reactions) { box.innerHTML = ""; return; }
+  if (!S.snd) await loadSounds();
+  const C = S.info.config, F = C.sfx || {}, B = C.bed || {};
+  let r; try { r = await api(`/api/sfx/plan?path=${encodeURIComponent(S.current)}&start=${s.start}&end=${s.end}`); } catch (e) { return; }
+  if ($("#sfxEdit") !== box) return;
+  const hits = r.hits, on = hits.filter(h => h.on).length, off = new Set(F.off || []);
+  const tcs = t => (t - s.start).toFixed(1) + "s";
+  box.innerHTML = `<details ${store.get("sfxOpen", false) ? "open" : ""} id="sfxBox"><summary style="cursor:pointer;font-weight:650">Sound · ${on} effect${on === 1 ? "" : "s"}${B.on && (B.tracks || []).length && !(B.skip || []).includes(s.name) ? " + music" : ""}</summary>
+    ${hits.map(h => `<div class="hit ${h.on ? "" : "off"}"><b>${tcs(h.t)}</b><span title="${esc(h.why)}">${esc(soundName(h.sound))} · ${esc(h.why)}</span>
+      <button class="btn sm" data-hgo="${h.t}" title="Go to this moment">Go</button><button class="btn sm" data-hear="${esc(h.sound)}" title="Listen">▶</button>
+      ${h.censor ? "" : h.hand ? `<button class="btn sm danger" data-hdel="${esc(h.key)}">Remove</button>` : `<button class="btn sm" data-hkey="${esc(h.key)}">${h.on ? "Skip" : "Use"}</button>`}</div>`).join("") || `<p class="hint">No sound effects in this Short.</p>`}
+    <div class="row" style="gap:6px;margin-top:8px"><select class="text" id="hSound" style="flex:1;min-width:0">${S.snd.effects.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select>
+      <button class="btn sm" id="hHear">▶</button><button class="btn sm" id="hAdd">Add at playhead</button></div>
+    ${B.on && (B.tracks || []).length ? `<label class="row" style="gap:8px;margin-top:8px;font-size:15.5px"><input type="checkbox" id="hBed" ${(B.skip || []).includes(s.name) ? "" : "checked"}> Music under this Short</label>` : ""}
+    ${r.moments ? "" : `<p class="hint">Screams, laughs and words show here after a render, a preview or Find the moments in the Sound step.</p>`}</details>`;
+  $("#sfxBox").ontoggle = e => store.set("sfxOpen", e.target.open);
+  box.querySelectorAll("[data-hear]").forEach(b => b.onclick = () => hearSound(b.dataset.hear));
+  box.querySelectorAll("[data-hgo]").forEach(b => b.onclick = () => seek(+b.dataset.hgo));
+  const again = () => loadSfxEdit(s);
+  box.querySelectorAll("[data-hkey]").forEach(b => b.onclick = () => { const k = b.dataset.hkey; saveCfg({ sfx: { off: off.has(k) ? [...off].filter(x => x !== k) : [...off, k] } }, false).then(again); });
+  box.querySelectorAll("[data-hdel]").forEach(b => b.onclick = () => { const n = +b.dataset.hdel.split(":")[1]; saveCfg({ sfx: { add: (F.add || []).filter((_, k) => k !== n) } }, false).then(again); });
+  $("#hHear").onclick = () => hearSound($("#hSound").value);
+  $("#hAdd").onclick = () => {
+    if (T.play < s.start || T.play >= s.end) return toast("Put the playhead inside this Short first.");
+    saveCfg({ sfx: { on: true, add: [...(F.add || []), { t: +T.play.toFixed(2), sound: $("#hSound").value, volume: 1 }] } }, false).then(again);
+  };
+  if ($("#hBed")) $("#hBed").onchange = e => { const sk = (B.skip || []).filter(n => n !== s.name); saveCfg({ bed: { skip: e.target.checked ? sk : [...sk, s.name] } }, false).then(again); };
+}
+
+// ---- Long video (longform.py): the Shorts as chapters, tied back to the Shorts that advertise it
+async function loadLong() {
+  try { S.long = { ...await api("/api/long?path=" + encodeURIComponent(S.current)), path: S.current }; }
+  catch (e) { S.long = { error: e.message, path: S.current }; }
+  if (S.tab === "long") render();
+}
+function viewLong() {
+  if (!S.long || S.long.path !== S.current) { $("#view").innerHTML = `<div class="empty"><p>Reading your Shorts…</p></div>`; loadLong(); return; }
+  const I = S.info, D = S.long, L = I.config.long || {};
+  if (D.error) { $("#view").innerHTML = `<div class="empty"><h2>Couldn't build it</h2><p>${esc(D.error)}</p></div>`; return; }
+  if (!I.config.shorts.length) { $("#view").innerHTML = `<div class="empty"><h2>No Shorts yet</h2><p>Pick some in step 3. The long video is built from them.</p></div>`; return; }
+  const link = (L.link || "").trim(), line = link ? "Full video: " + link : "";
+  const mmss = t => tc(t).replace(/\.\d$/, "");
+  const joined = n => D.parts.some(p => p.shorts.indexOf(n) > 0);
+  const sl = (id, label, v, max, help) => `<div class="setting"><label>${label} <span id="${id}V">${Math.round(v)} s</span></label><input type="range" id="${id}" min="0" max="${max}" step="1" value="${v}"><p>${help}</p></div>`;
+  const tg = (id, label, val, help) => `<div class="toggle-row"><div><b>${label}</b><small>${help}</small></div><label class="switch"><input type="checkbox" id="${id}" ${val ? "checked" : ""}><span></span></label></div>`;
+  $("#view").innerHTML = `
+  <div class="split"><div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Long video</h3><p>Your Shorts as chapters of one longer watch, from the same recording, with what happened around each one. ${D.parts.length} chapter${D.parts.length === 1 ? "" : "s"}, <b>${mmss(D.total)}</b> long.</p></div></div>
+      <div class="setting"><label>Video title</label><input class="text" id="lgTitle" value="${esc(L.title || "")}" placeholder="${esc(I.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, ""))} - long video"></div>
+      <div class="settings" style="margin-top:12px">
+        ${sl("lgBefore", "Keep before each Short", L.before ?? 8, 120, "The build-up. 0 = the Short exactly as it is.")}
+        ${sl("lgAfter", "Keep after each Short", L.after ?? 8, 120, "What happened next.")}
+        ${sl("lgJoin", "Join Shorts this close", L.join ?? 30, 300, "Closer than this in the recording: one chapter, with the part between them kept.")}
+      </div>
+      ${D.moments ? "" : `<p class="hint">Edges move to a gap in the talking once the toolkit knows where people talk: a render here, or Find the moments in the Sound step, does that.</p>`}
+      <div style="margin-top:10px;display:grid;gap:10px">
+        ${tg("lgCaps", "Captions", L.captions ?? true, "Burned in, in your look, sized for a wide video.")}
+        ${tg("lgCards", "Chapter titles on screen", L.chapter_cards ?? true, "Each chapter's title for a few seconds at its start.")}
+        ${tg("lgFade", "Fade between chapters", (L.fade ?? 0.25) > 0, "Off = straight cuts.")}
+        ${tg("lgMusic", "Music underneath here too", L.music ?? false, "The Sound step's music, through the whole video.")}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Chapters</h3><p>Untick a Short to leave it out. Change the order and the titles here: they are the chapter names.</p></div></div>
+      <div class="scroll" style="max-height:min(56vh,640px)"><table><tbody>${D.shorts.map((s, i) => `<tr>
+        <td><input type="checkbox" data-lon="${esc(s.name)}" ${s.on ? "checked" : ""}></td>
+        <td style="width:100%"><input class="text" data-ltitle="${esc(s.name)}" value="${esc(s.title)}" ${s.on ? "" : "disabled"}>
+          <div class="hint">${esc(s.name)} · ${mmss(s.start)}${joined(s.name) ? " · in the same chapter as the one above" : ""}</div></td>
+        <td style="white-space:nowrap">${s.on ? `<button class="btn sm" data-lmove="${i},-1" title="Earlier">▲</button> <button class="btn sm" data-lmove="${i},1" title="Later">▼</button>` : ""}</td></tr>`).join("")}</tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Tie the Shorts to it</h3><p>Upload the long video, then paste its address here. Shorts you upload after that get a "Full video" line in the description by themselves.</p></div></div>
+      <div class="setting"><label>Long video's address</label><input class="text" id="lgLink" value="${esc(L.link || "")}" placeholder="https://youtu.be/..."></div>
+      ${line ? `<div class="row" style="margin-top:8px"><code style="flex:1;user-select:all">${esc(line)}</code><button class="btn sm" id="lgCopyLine">Copy</button></div>` : ""}
+      <p class="hint" style="margin-top:10px">The button under a Short that leads viewers to the video is YouTube's <b>Related video</b> setting. It is set in Studio, one Short at a time: Details > Related video > pick the long video > Save. Links typed in a Short's description aren't clickable. Below, one button opens each Short in Studio.</p>
+      <button class="btn" id="lgYt">List my Shorts on YouTube</button>
+      <div id="lgRows" style="margin-top:8px"></div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Make it</h3><p>Censoring and sound effects carry over, except rules for when a Short starts or ends.</p></div></div>
+      <div class="row" style="gap:8px"><button class="btn primary" id="lgMake" ${dis()}>Render long video</button><button class="btn" id="lgPrem" ${dis()}>Send to Premiere</button></div>
+      <p class="hint" style="margin-top:8px">Premiere gets one wide timeline with a marker on every chapter, to finish by hand. Only what changed is rendered again.</p>
+      ${D.video ? `<video data-keep controls playsinline src="${media(D.video)}#t=0.01" style="width:100%;margin-top:10px"></video><button class="btn link" data-folder="${esc(D.video)}">Show file</button>` : ""}
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="grow"><h3>Chapters for the description</h3></div><button class="btn sm" id="lgCopy">Copy</button></div>
+      <textarea class="text" id="lgCh" rows="${Math.min(14, D.chapters.length + 1)}" readonly style="width:100%">${esc(D.chapters.join("\n"))}</textarea>
+      ${D.problems.map(p => `<p class="hint" style="color:var(--warn)">${esc(p)}</p>`).join("")}
+    </div>
+  </div></div>`;
+  const save = patch => saveCfg({ long: patch }, false).then(() => { S.long = null; loadLong(); });
+  const slide = (id, key) => { const el = $("#" + id); el.oninput = () => $("#" + id + "V").textContent = el.value + " s"; el.onchange = () => save({ [key]: +el.value }); };
+  slide("lgBefore", "before"); slide("lgAfter", "after"); slide("lgJoin", "join");
+  $("#lgTitle").onchange = e => saveCfg({ long: { title: e.target.value.trim() } }, false);
+  $("#lgLink").onchange = e => saveCfg({ long: { link: e.target.value.trim() } });
+  $("#lgCaps").onchange = e => saveCfg({ long: { captions: e.target.checked } }, false);
+  $("#lgCards").onchange = e => saveCfg({ long: { chapter_cards: e.target.checked } }, false);
+  $("#lgFade").onchange = e => saveCfg({ long: { fade: e.target.checked ? 0.25 : 0 } }, false);
+  $("#lgMusic").onchange = e => saveCfg({ long: { music: e.target.checked } }, false);
+  $$("[data-lon]").forEach(c => c.onchange = () => { const n = c.dataset.lon, sk = (L.skip || []).filter(x => x !== n); save({ skip: c.checked ? sk : [...sk, n] }); });
+  $$("[data-ltitle]").forEach(el => el.onchange = () => save({ titles: { [el.dataset.ltitle]: el.value.trim() } }));
+  $$("[data-lmove]").forEach(b => b.onclick = () => {
+    const [i, d] = b.dataset.lmove.split(",").map(Number), names = D.shorts.filter(s => s.on).map(s => s.name), j = i + d;
+    if (j < 0 || j >= names.length) return;
+    [names[i], names[j]] = [names[j], names[i]]; save({ order: names });
+  });
+  $("#lgMake").onclick = () => run("long", {});
+  $("#lgPrem").onclick = () => run("long-premiere", {});
+  $("#lgCopy").onclick = () => copyText(D.chapters.join("\n")).then(ok => toast(ok ? "Copied" : "Couldn't copy", ok));
+  if ($("#lgCopyLine")) $("#lgCopyLine").onclick = () => copyText(line).then(ok => toast(ok ? "Copied" : "Couldn't copy", ok));
+  $("#lgYt").onclick = async e => {
+    const box = $("#lgRows"); e.target.disabled = true; box.innerHTML = `<p class="hint">Asking YouTube…</p>`;
+    try {
+      const y = await api("/api/yt?path=" + encodeURIComponent(S.current) + "&refresh=1"), rows = (y.shorts || []).filter(r => r.video_id);
+      box.innerHTML = rows.length ? rows.map(r => `<div class="hit"><span>${esc(r.yt_title || r.name)}</span><button class="btn sm" data-studio="${esc(r.video_id)}">Open in Studio</button></div>`).join("")
+        : `<p class="hint">${esc(y.error || "None of this project's Shorts are on YouTube yet.")}</p>`;
+      box.querySelectorAll("[data-studio]").forEach(b => b.onclick = () => api("/api/open-url", { url: "https://studio.youtube.com/video/" + b.dataset.studio + "/edit" }));
+    } catch (err) { box.innerHTML = `<p class="hint">${esc(err.message)}</p>`; }
+    e.target.disabled = false;
+  };
 }
 
 // ---- Captions
@@ -2485,6 +2795,9 @@ async function run(action, data = {}) {
     else if (data.index !== "" && data.index !== undefined) { body.index = +data.index; body.title = "Rendering " + S.info.config.shorts[body.index].name; S.renderSel = body.index; }
     else body.title = `Rendering all ${S.info.config.shorts.length} Shorts`;
   }
+  if (action === "long") { body.preset = store.get("preset", "medium"); body.title = "Rendering the long video"; }
+  if (action === "long-premiere") { body.title = "Sending the long video to Premiere"; S.afterPremiere = true; }
+  if (action === "moments") body.title = "Finding the moments";
   if (action === "relisten") { body.start = data.start; body.end = data.end; }
   if (action === "speakers") { body.people = +(($("#spkN") || {}).value || 0); body.title = "Finding who's talking"; S.spk = null; }
   if (action === "transcribe") { body.model = data.model; body.title = "Transcribing with Whisper " + data.model; }
@@ -2522,7 +2835,7 @@ async function poll(from) {
     if (j.code === 0) { openLog(false); toast(j.title + " — done", true); } else openLog(true);
     if (j.code === 0 && /no longer line up/.test(pre.textContent)) { openLog(true); toast("Some of your caption fixes no longer line up — the log says which, and how to switch back."); }
   }
-  T.loadedFor = null; T.tl = null;
+  T.loadedFor = null; T.tl = null; S.long = null; S.snd = null;
   if (S.afterJob && !j.stopped && j.code === 0) { S.tab = S.afterJob; store.set("tab", S.tab); }   // captions arrived -> checked -> step 3
   S.afterJob = null;
   await loadState(); await select(S.current, true);

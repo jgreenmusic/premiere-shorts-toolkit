@@ -41,6 +41,8 @@ project has several. Add `-h` to any command for all its options. Times are `6:1
 | `make <project> --start 6:16 --end 6:32 [--name NAME]` | Render one range. |
 | `make … [--out FOLDER] [--preset veryfast…slow]` | Where to, and x264 speed (default `medium`). |
 | `to-premiere <project> [--index 3 / --indexes 0,3,5] [--out FOLDER]` | Write Shorts as Premiere timelines (FCP XML + background, captions layer, beeps, .srt) in `<project>_premiere\`. Import the .xml in Premiere. |
+| `moments <project>` | Find what sound-effect rules can react to (screams, laughs, shouted lines, words, pauses). A render or preview does this too when sound effects are on. |
+| `long <project> [--plan] [--premiere] [--preset veryfast]` | The long video: the project's Shorts with the recording around them, as chapters, in `<project>_long\`. `--plan` prints the chapters only; `--premiere` writes one wide timeline instead of rendering. |
 | `to-premiere <project> --one-timeline` | Every Short end to end on one timeline, every caption and beep a clip on it, a marker where each Short starts. |
 | `prepare <project>` | Loud-line and scream data for `animate-captions.jsx`. |
 | `speakers <project> [--people 3]` | Step 5: find who is talking when (voice analysis on this PC; your mic track if the recording has one) so captions can be coloured by speaker. `--people` = how many talk, you included (default: let it decide). Name the voices in step 5. |

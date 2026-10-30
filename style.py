@@ -105,12 +105,26 @@ def main_style(st):
         int(st.get("spacing", 0)), border, outline, shadow, st["margin_h"], st["margin_h"], st["margin_v"])
 
 
+def wide_look(st):
+    """The same look on a 1920x1080 frame: text a little smaller, near the bottom edge. Also the
+    long video's chapter cards (Chapter style)."""
+    w = dict(st, wide=True, size=int(st["size"] * 0.82), scream_size=int(st["scream_size"] * 0.85), margin_v=64, margin_h=160,
+             outline=max(3, st["outline"] - 2))
+    return w
+
+
+def card_event(start, end, text, st):
+    """A chapter title, top left, sliding nothing: it fades in and out over the footage."""
+    return (start, end, "Chapter", "{\\fad(250,350)}" + esc(text))
+
+
 def header(st):
+    wide = st.get("wide")
     return "\n".join([
         "[Script Info]",
         "ScriptType: v4.00+",
-        "PlayResX: 1080",
-        "PlayResY: 1920",
+        "PlayResX: %d" % (1920 if wide else 1080),
+        "PlayResY: %d" % (1080 if wide else 1920),
         "WrapStyle: 0",
         "ScaledBorderAndShadow: yes",
         "",
@@ -127,6 +141,8 @@ def header(st):
             st["font"], int(st["size"] * 1.12), ass_color(st.get("laugh_col", "8AE3FF")),
             ass_color(st.get("laugh_col", "8AE3FF")), ass_color(st["outline_col"]), ass_color("000000", "80"),
             st["outline"], st["shadow"], 40, 40, st["margin_v"]),
+    ] + (["Style: Chapter,%s,58,%s,%s,%s,%s,0,0,0,0,100,100,1,0,1,4,2,7,70,70,60,1" % (
+        st["font"], ass_color(st["text"]), ass_color(st["text"]), ass_color(st["outline_col"]), ass_color("000000", "80"))] if wide else []) + [
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",

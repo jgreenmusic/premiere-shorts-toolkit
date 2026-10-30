@@ -9,9 +9,11 @@ Every step of the app, in order. Each step has a **Next →** button; skip any y
 - [3 · Shorts](#3--shorts) — including the [caption editor](#caption-editor)
 - [4 · Screams & laughs](#4--screams--laughs)
 - [5 · Look](#5--look)
+- [Sound](#sound) — funny sounds, your own sounds, rules, music underneath
 - [6 · Render](#6--render)
 - [7 · Posts](#7--posts)
 - [8 · Publish](#8--publish)
+- [Long video](#long-video) — your Shorts as chapters of a longer watch
 - [Shorts Auto Run](#shorts-auto-run) — every step in one go, then your review and sign-off
 - [Phone & tablet](#phone--tablet)
 - [Keyboard](#keyboard)
@@ -180,6 +182,42 @@ How the captions and the frame look. Saved per project.
 - **Censor (bleep):** off unless you turn it on. Curse words become `#$@&%!` and a TV beep. Add your own words.
 - **Preview:** renders a short test clip. The last five stay so you can compare.
 
+## Sound
+
+Optional, and off until you switch it on. Gaming / talking projects only.
+
+**Sound library.** 30 built-in sounds, plus anything you add with **Add sounds...**: any audio file, or a video's
+sound. What you add is copied in and shared by all your projects. Press ▶ to listen. The built-in ones are made by a
+script, not recorded, so there is no licence to worry about.
+
+**Censor.** In step 5, Censor (bleep) > In the sound > **A funny sound**. Pick one, or several for a different sound
+from word to word. *Play the whole sound* lets it run past the word; *Stop when the word ends* cuts it there.
+
+**Rules** say when a sound can play:
+
+| When | Fires |
+|---|---|
+| When a Short starts / ends | Once. "Ends" lands so the sound finishes with the Short. |
+| On a scream / laugh / shouted line | Each one on screen. |
+| When someone says... | Your words or phrases, comma separated. |
+| On an awkward pause | Nobody has talked for the seconds you set. |
+| Every so often | Every N seconds. |
+
+Each rule has a **chance**, a minimum time **apart** and a **most per Short**. Give it several sounds and they are
+shared out. The same settings always give the same result, so what the app lists is what renders.
+
+Rules that look at what was said or done need **Find the moments** once (a render or preview does it too).
+
+**By hand.** Open a Short in step 3 and open **Sound**: every sound in that Short is listed. *Skip* turns one off;
+**Add at playhead** places one of your choice.
+
+**Music underneath.** Add your own tracks, tick the ones to use (several are shared out between Shorts), set the
+volume and how far it dips while someone talks. The toolkit makes no music. Use what you have the rights to, or
+YouTube can claim the Short. Turn it off for one Short in step 3.
+
+Effects and music go into renders, previews, the long video and what you send to Premiere, where each effect is a
+clip with its level set and the music is one clip on the last audio track.
+
 ## 6 · Render
 
 Makes the finished 1080×1920 videos in `<project>_shorts\`.
@@ -269,6 +307,26 @@ Shorts already uploaded as drafts are filled in and scheduled, not uploaded agai
 **Autopilot** (per project): after a render, write the posts and schedule them without asking.
 
 **📊 Channel report** shows how your uploads are doing.
+
+## Long video
+
+The tab after step 8 turns the project's Shorts into one longer video, from the same recording, for people who
+want the whole story after seeing a Short.
+
+- **Keep before / after each Short**: how much of the recording stays around it. Edges move to a gap in the talking.
+  At 0 you get the Shorts exactly as they are, end to end.
+- **Join Shorts this close**: Shorts close together in the recording become one chapter, with the part between kept.
+- **Chapters**: untick a Short to leave it out, change the order with ▲▼, retype the titles.
+- **Render long video** makes `<project>_long\<title>.mp4` at 1920x1080. Censoring and sound effects carry over,
+  except rules for when a Short starts or ends. Music only if you tick it. Only chapters that changed are rendered again.
+- **Send to Premiere** makes one wide timeline with a marker on every chapter, to finish by hand.
+- **Chapters for the description**: copy these into the YouTube description. YouTube shows chapters only with at
+  least 3, each 10 s or longer; the tab warns you if not.
+
+**Tie the Shorts to it.** Upload the long video, paste its address, and Shorts you upload after that get a "Full
+video" line in their description. Links in a Short's description aren't clickable, so also set YouTube's **Related
+video**, the button under a Short: **List my Shorts on YouTube**, then **Open in Studio** on each one, Details >
+Related video > pick the long video > Save.
 
 ## Shorts Auto Run
 

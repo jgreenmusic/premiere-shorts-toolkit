@@ -105,6 +105,12 @@ def slots(n, taken, mode, start=None, every_hours=24, plan_times=None):
     return [None] * n                                    # "now" / keep: no publish time
 
 
+def _long_link(project_path):
+    import config
+    import pipeline
+    return ((config.load(pipeline.outdir_for(project_path)[1]).get("long") or {}).get("link") or "").strip()
+
+
 def plan(project_path, items, uploads, mode="plan", start=None, every_hours=24, visibility="schedule", settings=None, redo=False):
     """What would happen to each Short (nothing is sent). items = state() rows of the Shorts chosen."""
     E = posting.engine()
@@ -132,8 +138,11 @@ def plan(project_path, items, uploads, mode="plan", start=None, every_hours=24, 
             r["when"] = t
     by_id = {u["id"]: u for u in uploads or []}
     posts = {os.path.normcase(r["file"]): r for r in posting.show([r["video"] for r in doable])}
+    link = _long_link(project_path)
     for r in doable:
         fields = {k: v["value"] for k, v in ((posts.get(os.path.normcase(r["video"])) or {}).get("posts") or {}).get(YT, {}).items()}
+        if link and link not in str(fields.get("description") or ""):    # the long video these Shorts lead to
+            fields["description"] = ("%s\n\nFull video: %s" % (fields.get("description") or "", link)).strip()
         r["fields"] = fields
         s = dict(settings or {})
         if r["action"] == "fill":

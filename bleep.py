@@ -5,8 +5,12 @@ reality-TV / Robot Chicken joke.
 toolkit.json "bleep": {"on": false, "level": "strong", "look": "grawlix", "sound": "beep", "extra": ""}
   level  strong = f/s/b/c-words and friends; all = also ass, damn, hell, dick, piss...
   look   grawlix = "#$@&%!"; stars = "f**k"; none = leave the caption text alone
-  sound  beep = 1 kHz tone over the word; mute = silence; none = leave the sound alone
+  sound  beep = 1 kHz tone over the word; effect = a sound from the library (sfx.py);
+         mute = silence; none = leave the sound alone
   extra  your own words to bleep too, comma separated (names, running jokes)
+  effects  sound ids for sound = effect; more than one = a different one from word to word
+  fit    whole = the sound plays out, even past the word; word = it stops with the word
+  volume how loud that sound is
 
 The beep uses Whisper's own time for each spoken word, so it lands on the word itself
 even when the caption line was typed by hand.
@@ -24,7 +28,8 @@ NOT = {"shitake", "shiitake", "hello", "shell", "cocktail", "cockpit", "peacock"
        "assassin", "assist", "assume", "class", "pass", "passes", "mass", "bass", "grass", "glass", "brass"}
 
 GRAWLIX = "#$@&%!*"
-DEFAULTS = {"on": False, "level": "strong", "look": "grawlix", "sound": "beep", "extra": ""}
+DEFAULTS = {"on": False, "level": "strong", "look": "grawlix", "sound": "beep", "extra": "",
+            "effects": ["fx:quack"], "fit": "whole", "volume": 0.5}     # not in config.DEFAULTS: stale.py hashes that dict
 
 
 def settings(cfg):
@@ -80,12 +85,12 @@ def spans(words, b, a, bb, pad=0.04):
 
 
 def audio_filter(src, dst, sp, sound, dur):
-    """ffmpeg graph lines: [src] -> [dst] with the spans beeped (or muted)."""
+    """ffmpeg graph lines: [src] -> [dst] with the spans beeped (or muted: an "effect" is mixed in later)."""
     if not sp:
         return ["%sanull%s" % (src, dst)]
     on = "+".join("between(t,%.3f,%.3f)" % (s, e) for s, e in sp)
     lines = ["%svolume=0:enable='%s'[bl_dry]" % (src, on)]
-    if sound == "mute":
+    if sound != "beep":
         return lines + ["[bl_dry]anull%s" % dst]
     return lines + [
         "sine=frequency=1000:sample_rate=48000:duration=%.3f,aformat=channel_layouts=stereo,"

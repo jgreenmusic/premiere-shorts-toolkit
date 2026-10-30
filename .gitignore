@@ -5,9 +5,11 @@ __pycache__/
 *.prproj.FAILED
 *_captions/
 *.wav
+!soundfx/*.wav
 *.mp4
 *.srt
 *_shorts/
+*_long/
 snippets/
 build/
 dist/

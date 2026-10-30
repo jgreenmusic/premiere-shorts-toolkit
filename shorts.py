@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.36.0"
+__version__ = "0.37.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -448,14 +448,14 @@ def cmd_make(args):
         print("[%d/%d] %s  (%s - %s)" % (n, len(jobs), name, cap.fmt(a), cap.fmt(b)))
         path = os.path.join(out, safe_name(name) + ".mp4")
         try:
-            render.make_short(ctx, a, b, path, events, preset=args.preset)
+            render.make_short(ctx, a, b, path, events, preset=args.preset, name=name)
         except render.InUse as e:                # one locked file must not stop the rest of the batch
             print("  NOT REPLACED: %s" % e)
             failed.append(name)
             continue
         if not args.out:                         # what this video was made from, so a later change shows (stale.py)
             import stale
-            stale.record(ctx.outdir, name, stale.parts(ctx.cfg, dict(start=a, end=b), ctx.seq))
+            stale.record(ctx.outdir, name, stale.parts(ctx.cfg, dict(name=name, start=a, end=b), ctx.seq))
         print("  -> %s" % path)
     if failed:
         sys.exit("\n%d Short(s) could not be replaced: %s" % (len(failed), ", ".join(failed)))
@@ -493,6 +493,38 @@ def cmd_to_premiere(args):
     path = premiere_export.export(ctx, events, jobs, out=args.out, record=record)
     print("\nDone. In Premiere: File > Import > %s" % path)
     print("Each Short is a timeline in the bin \"Shorts Toolkit - %s\"." % os.path.basename(ctx.base))
+
+
+def cmd_moments(args):
+    """Find what sound-effect rules can react to (screams, laughs, shouted lines, words, pauses)."""
+    import sfx
+    import style
+    ctx = load_ctx(args)
+    m = sfx.ensure_moments(ctx, style.build(ctx, scream_plan(ctx, args)))
+    print("%d screams, %d laughs, %d shouted lines, %d words, %d stretches of voice"
+          % (len(m["scream"]), len(m["laugh"]), len(m["loud"]), len(m["words"]), len(m["voice"])))
+
+
+def cmd_long(args):
+    """The long video: the project's Shorts with the recording around them, as chapters."""
+    import longform
+    import premiere_export
+    import sfx
+    import style
+    ctx = load_ctx(args)
+    record = None
+    events = style.build(ctx, scream_plan(ctx, args), record)
+    parts = longform.outline(ctx.cfg, sfx.ensure_moments(ctx, events), ctx.seq.end_s)
+    if not parts:
+        sys.exit("No Shorts to build it from - add some in step 3 first.")
+    print(longform.describe(ctx.cfg, parts))
+    if args.plan:
+        return
+    if args.premiere:
+        path = premiere_export.export_long(ctx, events, parts)
+        print("\nDone. In Premiere: File > Import > %s" % path)
+        return
+    print("\nDone. Long video: %s" % longform.make(ctx, events, parts, preset=args.preset))
 
 
 def cmd_speakers(args):
@@ -1062,6 +1094,19 @@ def main():
     tl.add_argument("--max", type=float, default=30, help="longest suggestion, s (default 30)")
     tl.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
     tl.set_defaults(func=cmd_timeline)
+
+    sm = sub.add_parser("moments", help="find what sound-effect rules can react to (screams, laughs, shouted lines, words, pauses)")
+    common(sm)
+    sm.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    sm.set_defaults(func=cmd_moments)
+
+    lo = sub.add_parser("long", help="the long video: the project's Shorts with the recording around them, as chapters")
+    common(lo)
+    lo.add_argument("--plan", action="store_true", help="only print the chapters")
+    lo.add_argument("--premiere", action="store_true", help="write it as one Premiere timeline instead of rendering")
+    lo.add_argument("--preset", default="medium", help="x264 speed: veryfast (quick) ... slow (smaller file)")
+    lo.add_argument("--loud", type=float, help="scream threshold (project setting if omitted)")
+    lo.set_defaults(func=cmd_long)
 
     vo = sub.add_parser("speakers", help="step 5: find who is talking when (voice analysis on this PC) to colour captions by speaker")
     common(vo, words=False)
