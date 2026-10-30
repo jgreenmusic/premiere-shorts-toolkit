@@ -312,6 +312,36 @@ class QuickSpeakers(unittest.TestCase):
         self.assertIsNone(cap.timeline_audio(seq, log=lambda *a: None, track=3))
 
 
+class QuickAnimatedCaptions(unittest.TestCase):
+    """Captions as clips of the Premiere template (ae_template.py)."""
+
+    def test_lines_and_reactions_become_clips(self):
+        import ae_template as ae
+        import style
+        cfg = {"look": {"font": "Poppins ExtraBold", "size": 96, "hl_mode": "box", "highlight_col": "7B5CFF", "anim": "pop"}}
+        st = dict(style.look(cfg), record=[])
+        style.line_events(["so", "good"], [10.0, 10.5], 10.0, 11.5, False, st)
+        style.line_events(["next"], [11.2], 11.2, 12.0, True, dict(st, loud_col="14B8A6"))
+        events = [(12.2, 12.6, "Scream", "{\\frz1.0}AAAH"), (99, 100, "Laugh", "ha")]
+        got = ae.clips(events, st["record"], 10.0, 13.0, cfg)
+        self.assertEqual([c["text"] for c in got], ["so good", "next", "AAAH"])
+        a, b, s = got
+        self.assertEqual((a["start"], a["end"]), (0.0, 1.2))            # ends where the next caption starts
+        self.assertEqual(a["times"], "0.000 0.500 1.200")               # word times, then the clip's length
+        self.assertEqual((a["hl"], a["anim"], a["font"]), (2, 0, ae.template_fonts().index("Poppins ExtraBold")))
+        self.assertEqual(a["size"], 40.0)                               # 96 px on the 0-100 slider
+        self.assertAlmostEqual(a["height"], 29.167, places=3)
+        self.assertEqual((b["loud"], b["hl_col"]), (True, "14B8A6"))
+        self.assertEqual((s["hl"], s["anim"], s["text_col"]), (4, 3, "FF5A3C"))
+
+    def test_font_list_matches_the_template_and_every_font_has_a_name(self):
+        import ae_template as ae
+        self.assertTrue(os.path.exists(ae.MOGRT))
+        names = [f[0] for f in ae.fonts()]
+        self.assertEqual(ae.template_fonts(), names)
+        self.assertTrue(all(f[1] for f in ae.fonts()))
+
+
 class QuickPublish(unittest.TestCase):
     """Step 8: where each Short stands on YouTube. No network - the channel and queue are faked."""
 

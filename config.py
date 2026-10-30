@@ -86,6 +86,10 @@ DEFAULTS = {
         "on": False,
         "who": {},                # {voice id in speakers.json: person name} - people/colours in ~/.shorts-toolkit.json
     },
+    "premiere": {                 # step 6, Send to Premiere
+        "animated": True,         # captions as clips of the animated template (ae_template.py), editable in
+                                  # Essential Graphics; the drawn caption layer stays on V3, switched off
+    },
     "caption_edits": {},          # {"<start s, 2 decimals>": {"text": "..."} or {"hide": true}} - fixes
                                   # made in the app; null = back to the original. Also "start"/"end" (s): timing fixes
     "caption_adds": [],           # [{"start": s, "end": s, "text": "..."}] captions you added (e.g. missed words)

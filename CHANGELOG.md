@@ -2,6 +2,28 @@
 
 Each problem found in real use gets an entry here: what went wrong, and what changed.
 
+## 0.36.0 - 2026-10-30
+
+- **Captions that animate in Premiere and stay editable there.** Julian: "I should be able to see the captions
+  and edit them right in the timeline, along with the style, colors, etc." and "there has to be a way to have
+  premiere do the editing and animation". Premiere's caption tracks can't animate (26.3 only added a single-word
+  layout), so each line is now a clip of the toolkit's own Motion Graphics Template, built in After Effects
+  (premiere/ae/build-caption-mogrt.jsx, `ae_template.build`; the finished `.mogrt` ships with the app, so
+  After Effects is only needed to change it). In Essential Graphics: words, word times, font, size, highlight
+  style, animation, colours, outline, shadow, height, loud. Speaker colours come along. Sent to V4 by
+  `premiere/place-captions.jsx`; the drawn layer stays on V3, switched off. Measured in Premiere 26.5 on two real
+  Shorts: 53 captions, 17 s including making the project. A 14 s timeline with 30 captions exported in 4.5 s
+  (2.3 s without). **Copy the selected caption's look** gives a whole timeline one look (checked: 13 captions,
+  words untouched).
+- Things that didn't work, so nobody tries them again: sliders stay 0-100 in Premiere whatever the template's
+  `definition.json` says, and `capPropFontEdit` there doesn't unlock the font. So height is a percentage, size a
+  scaled slider, and font a dropdown read by a text expression (`setFont`).
+- The toolkit's fonts are installed for your Windows user when you send (no admin rights). Premiere only sees
+  them after a restart, and draws a serif fallback until then.
+- **The installer tried to close Premiere.** A Premiere started by the installed app loaded the app's own DLLs, so an update couldn't replace them and Setup tried to shut Premiere down, with unsaved work open (it failed, Premiere was unharmed, Setup rolled back). The toolkit now starts Premiere on its own.
+- Not yet tried: editing by hand in Essential Graphics, live playback speed, and the toolkit's real fonts in
+  Premiere. A background box behind a whole line (Dark Box, TikTok Box) isn't in the template.
+
 ## 0.35.0 - 2026-10-30
 
 - **Captions coloured by who is talking.** Julian: "colors for all of my friends when they talk and have

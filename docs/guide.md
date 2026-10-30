@@ -203,9 +203,21 @@ Each Short becomes its own 1080×1920 timeline, laid out like the render:
 |---|---|
 | V1 | The blurred background (a video the toolkit makes) |
 | V2 | Your recording, scaled and centred like the render (Motion › Scale) |
-| V3 | The captions with your look, see-through, **one clip per caption** - slide or trim a clip to move that caption. Screams and laughs too |
+| V3 | The captions as drawn pictures, **one clip per caption**. Switched off when V4 is there; switch them on to compare |
+| V4 | **Animated captions**, one template clip per line, that Premiere animates itself (with *Animated captions you can edit in Premiere* ticked in step 6, the default) |
 | A1 | Your sound, cut around each censored word; those pieces are switched off |
 | A2 | One **beep** clip per censored word - stretch, move, add or delete beeps |
+
+**Editing the animated captions:** click a clip on V4 and open **Window > Essential Graphics > Edit**.
+Change the words in **Caption**, plus **Font**, **Size** (40 = 96 px, 100 = 240 px), **Highlight style**
+(Colour, Colour + bigger, Box, Karaoke, None), **Animation** (Pop, Bounce, Fade, None), the colours, **Outline**,
+**Shadow**, **Height from bottom %** and **Loud**. Move or trim the clip to change its timing.
+**Word times** holds when each word is said, in seconds from the clip's start, then the clip's length; if you
+retype the words so the count changes, the highlight spreads evenly over that length. To give a whole timeline
+one look, select a caption you like and press **Copy the selected caption's look to the whole timeline** in
+step 6: everything but the words and timing goes to every animated caption there. The fonts are installed for
+your Windows user the first time you send; restart Premiere after that so it can draw them. A background box
+behind a whole line (the Dark Box and TikTok Box looks) isn't in the template yet.
 
 A plain `.srt` of the same captions goes into the bin *Shorts Toolkit captions (text)*: drag it onto
 the timeline when you want a Premiere caption track whose words you can retype (hide V3 then).

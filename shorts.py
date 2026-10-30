@@ -24,7 +24,7 @@ from statistics import median
 import captions as cap
 from prproj import TICKS, Project
 
-__version__ = "0.35.0"
+__version__ = "0.36.0"
 
 # What counts as "off". Seconds.
 START_TOL = 0.5       # caption appears this much before/after the first word.
@@ -469,7 +469,8 @@ def cmd_to_premiere(args):
     import style
     ctx = load_ctx(args)
     plan = scream_plan(ctx, args)
-    events = style.build(ctx, plan)
+    record = [] if (ctx.cfg.get("premiere") or {}).get("animated") else None
+    events = style.build(ctx, plan, record)
     items = ctx.cfg["shorts"]
     if args.index is not None:
         items = [items[args.index]]
@@ -481,7 +482,11 @@ def cmd_to_premiere(args):
     if not ctx.cfg.get("sequence") and not args.out:
         # importing adds timelines to this project; keep the toolkit reading the main one
         config.update(ctx.outdir, {"sequence": ctx.seq.name})
-    path = premiere_export.export(ctx, events, jobs, out=args.out)
+    if record is not None:
+        import ae_template
+        if ae_template.install_fonts():
+            print("  New caption fonts were installed: restart Premiere if it is open, or it won't draw them.")
+    path = premiere_export.export(ctx, events, jobs, out=args.out, record=record)
     print("\nDone. In Premiere: File > Import > %s" % path)
     print("Each Short is a timeline in the bin \"Shorts Toolkit - %s\"." % os.path.basename(ctx.base))
 

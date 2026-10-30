@@ -19,6 +19,7 @@ Anything only you can sort out (Premiere not installed, a panel closed, a langua
 missing) comes back as Problem, with what to do in its text.
 """
 import glob
+import json
 import os
 import subprocess
 import time
@@ -50,6 +51,27 @@ class Problem(Exception):
 
 class Stopped(Exception):
     """You pressed Stop."""
+
+
+def launch(argv):
+    """Start Premiere on its own. A child of the installed app otherwise inherits the app's DLL
+    folder and loads its VCRUNTIME & co, then an update can't replace those files and the
+    installer tries to close Premiere (found 2026-10-30, with unsaved work open)."""
+    import ctypes
+    import runtime
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join(p for p in env.get("PATH", "").split(os.pathsep)
+                                  if not os.path.normcase(p).startswith(os.path.normcase(runtime.RES)))
+    if os.name != "nt" or not runtime.FROZEN:
+        return subprocess.Popen(argv, env=env)
+    k = ctypes.windll.kernel32
+    was = ctypes.create_unicode_buffer(1024)
+    k.GetDllDirectoryW(1024, was)
+    k.SetDllDirectoryW(None)
+    try:
+        return subprocess.Popen(argv, env=env)
+    finally:
+        k.SetDllDirectoryW(was.value)
 
 
 def exe():
@@ -126,7 +148,7 @@ def captions(path, sequence=None, style="premiere", punct="keep", say=print, sto
             r = premiere_install.install()
             if not r["ok"]:
                 raise Problem("The toolkit's Premiere panels couldn't be put in place: " + " ".join(r["lines"][:-1]))
-        start = lambda project: subprocess.Popen([program] + ([project] if project else []))
+        start = lambda project: launch([program] + ([project] if project else []))
 
     path = os.path.normpath(os.path.abspath(path))   # Premiere wants C:\this\kind: with / it reports its scratch disks unavailable
     clip = is_clip(path)
@@ -236,7 +258,7 @@ def shorts_project(folder, name, say=print, start=None):
             r = premiere_install.install()
             if not r["ok"]:
                 raise Problem("The toolkit's Premiere panels couldn't be put in place: " + " ".join(r["lines"][:-1]))
-        start = lambda: subprocess.Popen([program])
+        start = lambda: launch([program])
     project = os.path.normpath(os.path.join(folder, "%s - Shorts.prproj" % name))
     with open(lines[0], encoding="utf-8") as f:
         count = f.read().count("<sequence ")         # Shorts in the timeline file
@@ -255,4 +277,38 @@ def shorts_project(folder, name, say=print, start=None):
                                       xml=lines[0], srts=lines[1:], count=count), WAIT["ask"] + 300)
     if not ok:
         raise Problem("Premiere couldn't make the Shorts project. " + (msg or SPEECH_HELP))
-    return project, msg
+    return project, place_animated(folder, project, say) or msg
+
+
+def place_animated(folder, project, say=print):
+    """Put the animated captions on the timelines just imported (premiere/place-captions.jsx,
+    about a quarter of a second per caption). Returns Premiere's message, or None if this send
+    has none. The small wrapper script carries the paths: panel scripts take no arguments."""
+    import ae_template
+    import runtime
+    listing = os.path.join(folder, "animated.txt")
+    if not os.path.exists(listing):
+        return None
+    with open(listing, encoding="utf-8") as f:
+        rows = [l.rstrip("\r\n").split("\t") for l in f if l.strip()]
+    if not rows:
+        return None
+    end = time.time() + WAIT["captions_panel"]
+    while not bridge.panel("cep") and time.time() < end:
+        time.sleep(0.5)
+    if not bridge.panel("cep"):
+        raise Problem(CAPTIONS_HELP)
+    n = 0
+    for _, p in rows:
+        with open(p, encoding="utf-8") as f:
+            n += len(json.load(f))
+    say("Premiere is placing %d animated captions (about %d min)…" % (n, n // 240 + 1))
+    wrapper = os.path.join(folder, "place.jsx")
+    with open(wrapper, "w", encoding="utf-8") as f:
+        f.write("var SHORTS_LIST = %s;\nvar SHORTS_MOGRT = %s;\n$.evalFile(File(%s));\n" % (
+            json.dumps(listing), json.dumps(ae_template.MOGRT),
+            json.dumps(os.path.join(runtime.RES, "premiere", "place-captions.jsx"))))
+    ok, msg = bridge.call("cep", dict(op="script", project=project, sequence=rows[0][0], script=wrapper), 60 + n)
+    if not ok:
+        raise Problem("Premiere made the Shorts project, but couldn't place the animated captions. " + (msg or CAPTIONS_HELP))
+    return msg

@@ -238,6 +238,9 @@ def line_events(shown, times, start, end, loud, st, highlight=True):
     """One line on screen from start to end, re-drawn at each spoken word to move the highlight."""
     col = st["loud_col"] if loud else st["highlight"]
     mode = st.get("hl_mode", "color") if highlight else "none"
+    if st.get("record") is not None:                 # the same line for the Premiere template (ae_template.clips)
+        st["record"].append(dict(start=start, end=end, words=list(shown), times=list(times), loud=loud, col=col,
+                                 text_col=st["text"], hl_text=st.get("hl_text", st["text"]), mode=mode))
     scale = st["loud_scale"] if loud else 100
     intro = anim_in(st, scale)
     base = "\\fscx%d\\fscy%d" % (scale, scale)
@@ -431,12 +434,15 @@ def hold_for_speech(events, holds):
     return out
 
 
-def build(ctx, plan):
+def build(ctx, plan, record=None):
     """All caption events for the sequence (timeline seconds), from the loaded project
-    (pipeline.load) and its scream plan (screams.plan_screams)."""
+    (pipeline.load) and its scream plan (screams.plan_screams).
+    record: a list that gets each spoken line as data (words, times, colours)."""
     import laughs as lg
     import speakers
     st = look(ctx.cfg)
+    if record is not None:
+        st["record"] = record
     lk = ctx.cfg.get("look", {})
     who = speakers.Who(getattr(ctx, "outdir", None), ctx.cfg)    # colours by who is talking (off = the look's own)
     normal = sc.talk_level(ctx.audio, ctx.regions)

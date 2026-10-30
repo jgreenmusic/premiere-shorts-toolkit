@@ -15,6 +15,7 @@ timeline for a Premiere caption track whose words you can retype.
 
 Files go in the <project>_premiere folder (one folder per Short + beep.wav). Exporting again replaces them.
 """
+import json
 import os
 import re
 import subprocess
@@ -346,8 +347,9 @@ def sequence(xml, name, dur, video_tracks, audio_tracks, markers=()):
                "".join(video_tracks), "".join(audio_tracks), "".join(markers)))
 
 
-def short_sequence(ctx, events, name, a, b, d, xml, log=print):
-    """Write one Short's media into d. Returns (its <sequence>, its .srt or None)."""
+def short_sequence(ctx, events, name, a, b, d, xml, log=print, animated=False):
+    """Write one Short's media into d. Returns (its <sequence>, its .srt or None).
+    animated: leave room for the animated template's clips on V4."""
     seq, blur_trim = ctx.seq, ctx.cfg["layout"]["blur_trim"]
     os.makedirs(d, exist_ok=True)
     fps = xml.rate
@@ -391,6 +393,8 @@ def short_sequence(ctx, events, name, a, b, d, xml, log=print):
     if marks:
         log("  %d change(s) marked" % len(marks))
     vt = [track(v1), track(v2)] + ([track(v3)] if v3 else [])
+    if animated and v3:                          # V4 waits for the template clips (premiere/place-captions.jsx)
+        vt.append(track([]))
     return sequence(xml, name, b - a, vt, at, [marker(s, e, n, c, xml.rate) for s, e, _, n, c in marks]), srt
 
 
@@ -398,8 +402,10 @@ def safe(name):
     return re.sub(r'[<>:"/\\|?*]+', "-", name).strip() or "short"
 
 
-def export(ctx, events, jobs, log=print, out=None):
-    """jobs = [(name, start, end)]. Writes the media + one XML; returns the XML's path."""
+def export(ctx, events, jobs, log=print, out=None, record=None):
+    """jobs = [(name, start, end)]. Writes the media + one XML; returns the XML's path.
+    record: the spoken lines style.build recorded - also writes each Short's captions as clips
+    of the animated template (animated.json + animated.txt, placed by premiere_auto)."""
     d = out or out_dir(ctx)
     os.makedirs(d, exist_ok=True)
     _INFO.clear()                                # the files written last time may have changed
@@ -407,13 +413,21 @@ def export(ctx, events, jobs, log=print, out=None):
     if not first:
         raise SystemExit("No video on the timeline.")
     xml = Xml(Rate(media(first.path)["fps"]))
-    seqs, srts = [], []
+    seqs, srts, animated = [], [], []
     for n, (name, a, b) in enumerate(jobs, 1):
         log("[%d/%d] %s" % (n, len(jobs), name))
-        x, srt = short_sequence(ctx, events, name, a, b, os.path.join(d, safe(name)), xml, log)
+        x, srt = short_sequence(ctx, events, name, a, b, os.path.join(d, safe(name)), xml, log, record is not None)
         seqs.append(x)
         if srt:
             srts.append(srt)
+        if record is not None:
+            import ae_template
+            p = os.path.join(d, safe(name), "animated.json")
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(ae_template.clips(events, record, a, b, ctx.cfg), f)
+            animated.append("%s\t%s" % (name, p))
+    with open(os.path.join(d, "animated.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(animated) + "\n")
     title = jobs[0][0] if len(jobs) == 1 else "Shorts"
     path = os.path.join(d, safe(title) + ".xml")
     with open(path, "w", encoding="utf-8") as f:

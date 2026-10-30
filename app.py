@@ -1271,6 +1271,14 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/bridge/auto/stop":
                 PREMIERE["stop"] = True
                 return self.send_json({"ok": True})
+            if u.path == "/api/bridge/apply-look":         # the selected animated caption's look -> its whole timeline
+                import bridge
+                p = bridge.panel("cep")
+                if not p:
+                    return self.send_json({"error": "The Shorts Toolkit panel isn't open in Premiere.", "no_panel": True}, 409)
+                ok, msg = bridge.call("cep", dict(op="script", project=p.get("project"), sequence=p.get("sequence"),
+                                                  script=os.path.join(RES, "premiere", "apply-look.jsx")), 300)
+                return self.send_json({"message": msg} if ok else {"error": msg or "Premiere didn't answer."}, 200 if ok else 409)
             if u.path == "/api/bridge/install":
                 import premiere_install
                 return self.send_json(premiere_install.install())
